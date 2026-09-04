@@ -436,12 +436,20 @@ function showAppSection(release) {
   qrInto('qrSite', site);
   qrInto('qrApk', apk);
   var meta = document.getElementById('mkApkMeta'), btn = document.getElementById('mkApkBtn');
-  if (release && release.version_name) {
-    if (meta) meta.textContent = 'Version ' + release.version_name + (release.size_bytes ? ' · ' + (release.size_bytes / 1048576).toFixed(1) + ' MB' : '');
-  } else {
-    if (meta) meta.textContent = 'Not published yet — use the browser for now.';
-    if (btn) { btn.classList.add('disabled'); btn.setAttribute('aria-disabled', 'true'); }
-  }
+  var published = !!(release && release.version_name);
+  var label = published
+    ? 'Version ' + release.version_name + (release.size_bytes ? ' · ' + (release.size_bytes / 1048576).toFixed(1) + ' MB' : '')
+    : 'Not published yet — use the browser for now.';
+  if (meta) meta.textContent = label;
+  if (!published && btn) { btn.classList.add('disabled'); btn.setAttribute('aria-disabled', 'true'); }
+
+  /* The same download, offered again under "Register your business" -- the moment somebody has
+     just decided to sign up is the moment to hand them the app, and the section that normally
+     carries this button is further down the page than most people scroll. It appears ONLY when
+     there is a release: a download button with nothing behind it is worse than no button. */
+  var cta = document.getElementById('mkCtaApp'), ctaMeta = document.getElementById('mkCtaApkMeta');
+  if (cta) cta.classList.toggle('hidden', !published);
+  if (ctaMeta && published) ctaMeta.textContent = label + ' · installs on any Android phone';
 }
 /** Nags only a phone that is actually running an older APK than the published one. */
 function checkAppUpdate(release) {

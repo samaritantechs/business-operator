@@ -14,7 +14,7 @@
   }catch(e){document.documentElement.setAttribute('data-theme','light');}})();</script>
   <meta charset="UTF-8"><meta name="viewport" id="viewportMeta" content="width=device-width, initial-scale=1, maximum-scale=5">
   <title>Samaritan Industrial – Samaritan Techs</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22%230B2A6B%22%2F%3E%3Cpath%20d%3D%22M62%2021%20A17%2017%200%201%200%2050%2050%22%20stroke%3D%22%23FFFFFF%22%20stroke-width%3D%2215%22%20stroke-linecap%3D%22round%22%20fill%3D%22none%22%2F%3E%3Cpath%20d%3D%22M50%2050%20A17%2017%200%201%201%2038%2079%22%20stroke%3D%22%23F0A020%22%20stroke-width%3D%2215%22%20stroke-linecap%3D%22round%22%20fill%3D%22none%22%2F%3E%3C%2Fsvg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22%230B2A6B%22%2F%3E%3Cpath%20d%3D%22M63%2022.1%20A17%2017%200%201%200%2050%2050%22%20stroke%3D%22%23FFFFFF%22%20stroke-width%3D%2215%22%20stroke-linecap%3D%22round%22%20fill%3D%22none%22%2F%3E%3Cpath%20d%3D%22M50%2050%20A17%2017%200%201%201%2033.3%2070%22%20stroke%3D%22%23F0A020%22%20stroke-width%3D%2215%22%20stroke-linecap%3D%22round%22%20fill%3D%22none%22%2F%3E%3C%2Fsvg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -157,8 +157,8 @@ html.bo-desktop .tb-vendor-badge{display:inline-block;}
 <div id="bootScreen">Inapakia… / Loading…</div>
 
 <div id="loadingScreen" class="hidden">
-  <div class="loader-logo"><svg viewBox="0 0 100 100" fill="none"><path d="M62 21 A17 17 0 1 0 50 50" stroke="#FFFFFF" stroke-width="15" stroke-linecap="round" fill="none"/><path d="M50 50 A17 17 0 1 1 38 79" stroke="var(--brand-amber,#F0A020)" stroke-width="15" stroke-linecap="round" fill="none"/></svg></div>
-  <div style="text-align:center;"><div class="loader-brand">Samaritan Industrial</div><div class="loader-sub">by Samaritan Techs</div></div>
+  <div class="loader-logo"><svg viewBox="0 0 100 100" fill="none"><path d="M63 22.1 A17 17 0 1 0 50 50" stroke="#FFFFFF" stroke-width="15" stroke-linecap="round" fill="none"/><path d="M50 50 A17 17 0 1 1 33.3 70" stroke="var(--brand-amber,#F0A020)" stroke-width="15" stroke-linecap="round" fill="none"/></svg></div>
+  <div style="text-align:center;"><div class="loader-brand">Samaritan Industrial</div><div class="loader-sub">by <span class="st-wm">Samaritan<span>Techs</span></span></div></div>
   <div class="loader-bar"><div class="loader-bar-fill" id="loaderFill"></div></div>
 </div>
 
@@ -166,8 +166,8 @@ html.bo-desktop .tb-vendor-badge{display:inline-block;}
 <div id="landingPage" class="hidden">
   <nav class="mk-nav">
     <div class="mk-brand">
-      <div class="mk-logo"><svg viewBox="0 0 100 100" fill="none"><path d="M62 21 A17 17 0 1 0 50 50" stroke="#FFFFFF" stroke-width="15" stroke-linecap="round" fill="none"/><path d="M50 50 A17 17 0 1 1 38 79" stroke="var(--brand-amber,#F0A020)" stroke-width="15" stroke-linecap="round" fill="none"/></svg></div>
-      <div><div class="mk-bn">Samaritan Industrial</div><div class="mk-bs">Marketplace by Samaritan Techs</div></div>
+      <div class="mk-logo"><svg viewBox="0 0 100 100" fill="none"><path d="M63 22.1 A17 17 0 1 0 50 50" stroke="#FFFFFF" stroke-width="15" stroke-linecap="round" fill="none"/><path d="M50 50 A17 17 0 1 1 33.3 70" stroke="var(--brand-amber,#F0A020)" stroke-width="15" stroke-linecap="round" fill="none"/></svg></div>
+      <div><div class="mk-bn">Samaritan Industrial</div><div class="mk-bs">Marketplace by <span class="st-wm">Samaritan<span>Techs</span></span></div></div>
     </div>
     <div class="mk-navlinks">
       <button class="mk-navlink hidden" id="mkBackToApp" onclick="backToApp()">↩︎ Back to my workspace</button>
@@ -222,6 +222,14 @@ html.bo-desktop .tb-vendor-badge{display:inline-block;}
       </div>
       <div style="text-align:center;margin-top:28px;">
         <button class="btn-primary" onclick="showLogin(true)" style="padding:13px 30px;font-size:.95rem;">🚀 Register your business — free</button>
+        <!-- The app, offered where somebody has just decided to sign up. Hidden until the
+             marketplace payload says a release exists: a download button with nothing behind it
+             is worse than no button, and the "Get the app" section below already explains the
+             browser route when there is nothing published. -->
+        <div id="mkCtaApp" class="hidden" style="margin-top:14px;">
+          <a class="btn-secondary" id="mkCtaApkBtn" href="/download" style="padding:11px 24px;font-size:.9rem;display:inline-flex;">⬇️ Download the Android app</a>
+          <div class="small muted" id="mkCtaApkMeta" style="margin-top:7px;"></div>
+        </div>
       </div>
     </div>
   </section>
@@ -261,7 +269,7 @@ html.bo-desktop .tb-vendor-badge{display:inline-block;}
     </div>
     <div class="login-right">
       <button class="back-mk" onclick="showLanding()">← Back to Marketplace</button>
-      <div class="brand-row"><div class="brand-icon"><svg viewBox="0 0 100 100" fill="none"><path d="M62 21 A17 17 0 1 0 50 50" stroke="#FFFFFF" stroke-width="15" stroke-linecap="round" fill="none"/><path d="M50 50 A17 17 0 1 1 38 79" stroke="var(--brand-amber,#F0A020)" stroke-width="15" stroke-linecap="round" fill="none"/></svg></div><div><div class="brand-name">Samaritan Industrial</div><div class="brand-sub">Powered by Samaritan Techs</div></div></div>
+      <div class="brand-row"><div class="brand-icon"><svg viewBox="0 0 100 100" fill="none"><path d="M63 22.1 A17 17 0 1 0 50 50" stroke="#FFFFFF" stroke-width="15" stroke-linecap="round" fill="none"/><path d="M50 50 A17 17 0 1 1 33.3 70" stroke="var(--brand-amber,#F0A020)" stroke-width="15" stroke-linecap="round" fill="none"/></svg></div><div><div class="brand-name">Samaritan Industrial</div><div class="brand-sub">Powered by <span class="st-wm">Samaritan<span>Techs</span></span></div></div></div>
       <div id="customLogoRow" class="custom-logo-row hidden"><img id="customLogoImg" src="" class="custom-logo-img" alt="Business Logo"></div>
       <div class="translate-bar"><button class="lang-btn active" id="langEn" onclick="setLang('en')">🇬🇧 English</button><button class="lang-btn" id="langSw" onclick="setLang('sw')">🇹🇿 Kiswahili</button></div>
       <div class="login-title" id="lbl_signin">Sign in to your account</div>
@@ -385,6 +393,11 @@ body.bo-fb-open{overflow:hidden;}
 .po-card{border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:12px;background:var(--surface2);}
 .po-hd{display:flex;gap:12px;align-items:flex-start;margin-bottom:10px;flex-wrap:wrap;}
 .po-card .bo-table th{font-size:.72rem;}
+/* THE SAMARITAN TECHS WORDMARK, as the logo sets it: "Samaritan" in the ink of whatever it sits
+   on, "Techs" in the brand amber. One class, so the lockup is never retyped as two coloured
+   spans and never drifts apart. */
+.st-wm{font-weight:800;letter-spacing:-.01em;white-space:nowrap;}
+.st-wm>span{color:var(--brand-amber);}
 .cv-partners{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;}
 .cv-partner{flex:1 1 150px;background:var(--amber-lt);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;}
 .cv-pname{font-size:.78rem;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.03em;}
@@ -417,7 +430,7 @@ body.bo-restricted .topbar{position:relative;z-index:260;}
 <!-- ==================== MAIN APP ==================== -->
 <div id="mainApp" class="hidden" style="display:flex;flex-direction:column;height:100vh;">
   <div class="topbar">
-    <div class="tb-left"><button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu">☰</button><div class="tb-brand"><div class="tb-logo"><svg viewBox="0 0 100 100" fill="none"><path d="M62 21 A17 17 0 1 0 50 50" stroke="#FFFFFF" stroke-width="15" stroke-linecap="round" fill="none"/><path d="M50 50 A17 17 0 1 1 38 79" stroke="var(--brand-amber,#F0A020)" stroke-width="15" stroke-linecap="round" fill="none"/></svg></div><span class="tb-name">Samaritan Industrial</span></div><span class="tb-vendor-badge" id="displayVendor"></span></div>
+    <div class="tb-left"><button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu">☰</button><div class="tb-brand"><div class="tb-logo"><svg viewBox="0 0 100 100" fill="none"><path d="M63 22.1 A17 17 0 1 0 50 50" stroke="#FFFFFF" stroke-width="15" stroke-linecap="round" fill="none"/><path d="M50 50 A17 17 0 1 1 33.3 70" stroke="var(--brand-amber,#F0A020)" stroke-width="15" stroke-linecap="round" fill="none"/></svg></div><span class="tb-name">Samaritan Industrial</span></div><span class="tb-vendor-badge" id="displayVendor"></span></div>
     <div class="tb-right"><div class="tb-user"><div class="tb-avatar" id="topbarAvatar">U</div><div class="tb-user-info" style="display:none;" id="tbUserInfo"><div class="tb-user-name" id="displayName"></div><div class="tb-user-role" id="displayRole"></div></div></div><button class="icon-btn" id="viewToggleBtn" onclick="toggleView()" title="Mtazamo wa kompyuta / Desktop view">🖥️</button><button class="icon-btn" id="langToggleBtn" onclick="toggleLang()" title="Lugha ya vidokezo / Tips language (EN/SW)" style="font-weight:800;font-size:.72rem;">EN</button><button class="icon-btn" id="themeToggleBtn" onclick="toggleTheme()" title="Toggle theme">🌙</button><a href="#" class="icon-btn" onclick="showSuggestionBox();return false;" title="Feedback via WhatsApp">💬</a><button class="icon-btn" onclick="globalRefresh()" title="Refresh / sync data">↻</button><button class="icon-btn" onclick="logout()" title="Logout" style="border-color:rgba(180,35,24,.3);color:var(--rose);">⏻</button></div>
   </div>
   <div class="app-layout">
