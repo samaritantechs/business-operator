@@ -183,6 +183,11 @@ const BUDGETS = [
      nothing here runs per line, which is the whole reason group_id exists on the sale row. */
   ['Receipt (one checkout)',          'bo', 'saleReceipt',      { sale_id: 'S1_1' },                  ADMIN,    5,     20,   5,    20],
   ['Sales detail (stock)',            'bo', 'salesDetail',      { period: 'stock' },                  ADMIN,    3,    250,   3,   250],
+  /* Credit & Voids reads two BOUNDED sets, and the bounds are the point. Credit is 'not yet
+     settled', which a shop keeps small because chasing it is the job; voids are the window the
+     screen asked for. Neither grows with the size of the book, which is why this can be a screen
+     at all rather than a report. */
+  ['Credit & voids (30 days)',        'bo', 'creditAndVoids',   { days: 30 },                         ADMIN,    5,    500,   5,   500],
   ['Lendings',                        'bo', 'lendings',         {},                                   ADMIN,    4,    100,   4,   100],
   ['Cash receipts (today)',           'bo', 'cashReceipts',     {},                                   ADMIN,    4,     50,   4,    50],
   ['Users (admin)',                   'bo', 'users',            {},                                   ADMIN,    4,     50,   4,    50],

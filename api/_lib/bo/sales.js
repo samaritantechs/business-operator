@@ -398,5 +398,92 @@ async function saleReceipt(db, user, args) {
   };
 }
 
-export const FN = { recordSale, cancelSale, markPartnerPaid, recentSales, salesDetail, saleReceipt };
+/* =====================================================================================
+   CREDIT & VOIDS -- the two piles of paper on the desk, on one screen.
+   =====================================================================================
+   Both already existed, scattered: an unsettled credit sale was a row in the recent-sales table
+   you had to spot by its badge, and a cancelled one was a report you had to download. Neither is
+   a thing you go looking for; both are things that need chasing. Money owed by a financing
+   partner and sales somebody voided are exactly the two questions an owner asks on a Friday.
+
+   Grouped by CHECKOUT, not by line, because that is what gets settled and what gets cancelled:
+   three handsets on one MOGO docket are one conversation with MOGO, not three.
+
+   COST: 2 paged reads (unsettled credit, cancelled in the window) + 2 small name reads. Both are
+   bounded -- credit by "not yet paid", which is a set a shop keeps small on purpose, and voids by
+   the date range the screen asks for. Neither grows with the size of the book. */
+async function creditAndVoids(db, user, args, nowMs) {
+  requireAdmin(user);
+  const vid = vendorScope(user, args);
+  if (!vid) throw badRequest('Pick a business to see its credit and cancelled sales.');
+  const branchId = text(args.branch_id);
+  const days = Math.min(Math.max(parseInt(args.days, 10) || 30, 1), 365);
+  const since = iso(nowMs - days * 86400000);
+
+  const credit = await rowsAll(db, 'sales', q => {
+    let x = q.select(SALE_COLS).eq('vendor_id', vid).eq('payment_method', 'Credit')
+      .eq('status', 'completed').eq('partner_paid', false);
+    if (branchId) x = x.eq('branch_id', branchId);
+    return x.order('sold_at', { ascending: true });        // oldest debt first: that is the one to chase
+  });
+  const voids = await rowsAll(db, 'sales', q => {
+    let x = q.select(SALE_COLS).eq('vendor_id', vid).eq('status', 'cancelled').gte('cancelled_at', since);
+    if (branchId) x = x.eq('branch_id', branchId);
+    return x.order('cancelled_at', { ascending: false });  // newest void first: that is the one being asked about
+  });
+  const names = await nameLookups(db, [...credit, ...voids]);
+
+  return {
+    currency: currencyOf(user.vendor),
+    days,
+    credit: groupByCheckout(credit, names, nowMs),
+    voids: groupByCheckout(voids, names, nowMs),
+    credit_total: money(credit.reduce((a, r) => a + num(r.total), 0)),
+    voids_total: money(voids.reduce((a, r) => a + num(r.total), 0)),
+    /* By partner, because that is who the phone call is to. */
+    by_partner: partnerTotals(credit, names),
+  };
+}
+
+/** Sale lines folded back into the checkouts they were rung up as. */
+function groupByCheckout(list, names, nowMs) {
+  const out = new Map();
+  for (const r of list) {
+    const key = String(r.group_id);
+    let g = out.get(key);
+    if (!g) {
+      const extra = names(r);
+      g = {
+        group_id: r.group_id, receipt_no: r.legacy_id || shortId(r.id), sold_at: r.sold_at,
+        seller_name: r.seller_name || '', customer_name: r.customer_name || '', customer_phone: r.customer_phone || '',
+        payment_method: r.payment_method, partner_name: extra.partner_name || '', branch_name: extra.branch_name || '',
+        cancelled_by_name: r.cancelled_by_name || '', cancelled_at: r.cancelled_at || null, cancel_reason: r.cancel_reason || '',
+        items: [], total: 0, sale_ids: [],
+        /* How long it has been owed. A number of days is what makes a list of debts a list of
+           priorities, and it is free -- the date is already in the row. */
+        age_days: r.sold_at ? Math.max(0, Math.floor((nowMs - Date.parse(r.sold_at)) / 86400000)) : null,
+      };
+      out.set(key, g);
+    }
+    g.items.push({ product_name: r.product_name, brand: r.brand || '', model: r.model || '', imei: r.imei || '', qty: num(r.qty), total: num(r.total) });
+    g.total = money(g.total + num(r.total));
+    g.sale_ids.push(r.id);
+  }
+  return [...out.values()];
+}
+/** Owed per financing partner, biggest first. */
+function partnerTotals(list, names) {
+  const by = new Map();
+  for (const r of list) {
+    const key = names(r).partner_name || '(no partner named)';
+    const b = by.get(key) || { partner_name: key, checkouts: new Set(), total: 0 };
+    b.checkouts.add(String(r.group_id));
+    b.total = money(b.total + num(r.total));
+    by.set(key, b);
+  }
+  return [...by.values()].map(b => ({ partner_name: b.partner_name, checkouts: b.checkouts.size, total: b.total }))
+    .sort((a, b) => b.total - a.total);
+}
+
+export const FN = { recordSale, cancelSale, markPartnerPaid, recentSales, salesDetail, saleReceipt, creditAndVoids };
 export const WRITES = ['recordSale', 'cancelSale', 'markPartnerPaid'];

@@ -55,12 +55,12 @@ await step('sign in as the phone-shop admin', async () => {
 });
 await page.screenshot({ path: OUT + '02-dashboard.png' });
 
-const tabs = ['sale', 'lendings', 'products', 'stock', 'cash', 'users', 'reports', 'account'];
+const tabs = ['sale', 'lendings', 'products', 'stock', 'cash', 'credit', 'users', 'reports', 'account'];
 for (const t of tabs) {
   await step('tab renders: ' + t, async () => {
     await page.evaluate(n => switchTab(n), t);
     const id = { sale: 'saleContent', lendings: 'lendingsContent', products: 'productsContent', stock: 'stockContent',
-                 cash: 'cashContent', users: 'usersContent', reports: 'reportsContent', account: 'accountContent' }[t];
+                 cash: 'cashContent', credit: 'creditContent', users: 'usersContent', reports: 'reportsContent', account: 'accountContent' }[t];
     await page.waitForFunction(el => {
       const e = document.getElementById(el);
       // Anchored, and the ellipsis is required: the Settings tab's FIRST CARD is called
