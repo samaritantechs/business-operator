@@ -114,6 +114,25 @@ const RPCS = {
     r.qty = Number(r.qty) + Number(a.p_delta); return r.qty;
   },
   bo_recount_units: (store, a) => { const n = store.product_units.rows.filter(u => u.product_id === a.p_product && u.status === 'in_stock').length; const p = store.products.rows.find(x => x.id === a.p_product); if (p) p.stock = n; return n; },
+  bo_stock_value_by_vendor: (store, a) => {
+    const m = new Map();
+    for (const p of store.products.rows) {
+      if (!p.active || (a.p_vendor && p.vendor_id !== a.p_vendor)) continue;
+      const r = m.get(p.vendor_id) || { vendor_id: p.vendor_id, value: 0, count: 0 };
+      r.value += Number(p.price) * Number(p.stock); r.count += 1; m.set(p.vendor_id, r);
+    }
+    return [...m.values()];
+  },
+  bo_top_selling: (store, a) => {
+    const m = new Map();
+    for (const x of store.sales.rows) {
+      if (x.status !== 'completed' || x.sold_at < a.p_since) continue;
+      const k = x.product_name + '||' + x.vendor_id;
+      const r = m.get(k) || { vendor_id: x.vendor_id, product_name: x.product_name, qty: 0, revenue: 0 };
+      r.qty += Number(x.qty); r.revenue += Number(x.total); m.set(k, r);
+    }
+    return [...m.values()].sort((p, q) => q.qty - p.qty || q.revenue - p.revenue).slice(0, a.p_limit);
+  },
 };
 
 /** Counts every request the code sends, exactly as fetchAll / rpcAll issue them: each answered
@@ -141,50 +160,60 @@ const IMEIS = Array.from({ length: 10 }, (_, i) => ({ imei: String(3600000000000
 /* screen, api, function, args, who, TRIPS, ROWS, TRIPS (schema functions in place), ROWS (idem)
    -- measured on this fixture with a little headroom. */
 const BUDGETS = [
-  ['Boot (admin)',                    'bo', 'boot',             {},                                   ADMIN,    8,    400,   8,   400],
-  ['Boot (seller)',                   'bo', 'boot',             {},                                   SELLER,   8,    400,   8,   400],
-  ['Boot (manager)',                  'bo', 'boot',             {},                                   MANAGER,  6,    100,   6,   100],
+  ['Boot (admin)',                    'bo', 'boot',             {},                                   ADMIN,    7,     60,   7,    60],
+  ['Boot (seller)',                   'bo', 'boot',             {},                                   SELLER,   7,     60,   7,    60],
+  ['Boot (manager)',                  'bo', 'boot',             {},                                   MANAGER,  5,     40,   5,    40],
   ['Restriction poll (unrestricted)', 'bo', 'restrictionInfo',  {},                                   ADMIN,    0,      0,   0,     0],
-  ['Dashboard (admin)',               'bo', 'dashboard',        {},                                   ADMIN,   10,   3000,  10,  3000],
-  ['Dashboard (seller)',              'bo', 'dashboard',        {},                                   SELLER,   8,   1500,   8,  1500],
-  /* The manager's screens read EVERY business. Without the database function the sales sum
-     pages the whole year of sales -- 36 pages here -- which is exactly what the function ends. */
-  /* The sales sum is one call with the function and 36 pages without it. The rows that remain
-     in the fast world are the CATALOGUE -- stockValueByVendor adds up price x stock over every
-     active product of every business (4,500 here), which no sales function answers; that read
-     is the next candidate for a database-side sum, and this budget is where it will show. */
-  ['Manager dashboard',               'bo', 'managerDashboard', {},                                   MANAGER, 45,  40000,  10,  6000],
-  ['Manager summary',                 'bo', 'managerSummary',   {},                                   MANAGER, 45,  40000,  10,  6000],
-  ['Analytics',                       'bo', 'analytics',        {},                                   MANAGER, 50,  45000,  48, 45000],
-  ['Products (admin)',                'bo', 'products',         {},                                   ADMIN,    4,    500,   4,   500],
-  ['Sell form options (seller)',      'bo', 'productOptions',   {},                                   SELLER,   5,    500,   5,   500],
-  ['Recent sales',                    'bo', 'recentSales',      {},                                   ADMIN,    6,    200,   6,   200],
-  ['Sales detail (month)',            'bo', 'salesDetail',      { period: 'month' },                  ADMIN,    6,   2000,   6,  2000],
-  ['Sales detail (stock)',            'bo', 'salesDetail',      { period: 'stock' },                  ADMIN,    4,    500,   4,   500],
-  ['Lendings',                        'bo', 'lendings',         {},                                   ADMIN,    5,    200,   5,   200],
-  ['Cash receipts (today)',           'bo', 'cashReceipts',     {},                                   ADMIN,    4,    100,   4,   100],
-  ['Users (admin)',                   'bo', 'users',            {},                                   ADMIN,    4,    100,   4,   100],
+  ['Dashboard (admin)',               'bo', 'dashboard',        {},                                   ADMIN,   10,   2000,   8,   600],
+  ['Dashboard (seller)',              'bo', 'dashboard',        {},                                   SELLER,   4,    700,   4,   700],
+  /* THE THREE THE GUARD CAUGHT. Every one of these read the whole of something to show a
+     handful of numbers: the manager's two screens paged the entire catalogue of every business
+     for two figures each, and analytics paged a YEAR of sales for a top ten. bo_stock_value_by_vendor
+     and bo_top_selling (db/schema.sql) end all three -- 45 trips to 4. The left-hand pair is what
+     a deployment that has not run the schema still pays, which is why the fallbacks stay. */
+  ['Manager dashboard',               'bo', 'managerDashboard', {},                                   MANAGER, 50,  45000,   6,   300],
+  ['Manager summary',                 'bo', 'managerSummary',   {},                                   MANAGER, 50,  45000,   7,   200],
+  /* Analytics keeps 5,400 rows migrated: past 300 clicked products it pages the catalogue for
+     their names rather than putting 900 ids in a URL (productsByIds). Bounded by the catalogue. */
+  ['Analytics',                       'bo', 'analytics',        {},                                   MANAGER, 50,  45000,  10,  6000],
+  ['Products (admin)',                'bo', 'products',         {},                                   ADMIN,    4,    400,   4,   400],
+  ['Sell form options (seller)',      'bo', 'productOptions',   {},                                   SELLER,   6,    400,   6,   400],
+  ['Recent sales',                    'bo', 'recentSales',      {},                                   ADMIN,    5,    100,   5,   100],
+  ['Sales detail (month)',            'bo', 'salesDetail',      { period: 'month' },                  ADMIN,    5,    200,   5,   200],
+  ['Sales detail (stock)',            'bo', 'salesDetail',      { period: 'stock' },                  ADMIN,    3,    250,   3,   250],
+  ['Lendings',                        'bo', 'lendings',         {},                                   ADMIN,    4,    100,   4,   100],
+  ['Cash receipts (today)',           'bo', 'cashReceipts',     {},                                   ADMIN,    4,     50,   4,    50],
+  ['Users (admin)',                   'bo', 'users',            {},                                   ADMIN,    4,     50,   4,    50],
   ['Users (manager, everybody)',      'bo', 'users',            {},                                   MANAGER,  5,    300,   5,   300],
-  ['Branch stock',                    'bo', 'branchStock',      {},                                   ADMIN,    5,    700,   5,   700],
-  ['Units (IMEI list)',               'bo', 'units',            {},                                   ADMIN,    4,    300,   4,   300],
-  ['Movements (30 days)',             'bo', 'movements',        MONTH,                                ADMIN,    6,   2500,   6,  2500],
-  ['Sales report (month)',            'bo', 'reportData',       { type: 'sales', ...MONTH },          ADMIN,    8,   2000,   8,  2000],
+  ['Branch stock',                    'bo', 'branchStock',      {},                                   ADMIN,    6,    800,   6,   800],
+  ['Units (IMEI list)',               'bo', 'units',            {},                                   ADMIN,    4,    200,   4,   200],
+  ['Movements (30 days)',             'bo', 'movements',        MONTH,                                ADMIN,    4,   1300,   4,  1300],
+  ['Sales report (month)',            'bo', 'reportData',       { type: 'sales', ...MONTH },          ADMIN,    6,   1500,   6,  1500],
+  /* A report over a range must read that range: there is no honest way to list every line sold
+     by thirty businesses in a month without the lines. Narrowed to its columns and its window. */
   ['Sales report (month, everybody)', 'bo', 'reportData',       { type: 'sales', ...MONTH, vendor_id: 'ALL' }, MANAGER, 45, 40000, 45, 40000],
-  ['Stock report',                    'bo', 'reportData',       { type: 'stock' },                    ADMIN,    6,    500,   6,   500],
-  ['Brand & model report',            'bo', 'reportData',       { type: 'brandmodel', ...MONTH },     ADMIN,    6,   2000,   6,  2000],
+  ['Stock report',                    'bo', 'reportData',       { type: 'stock' },                    ADMIN,    3,    250,   3,   250],
+  ['Brand & model report',            'bo', 'reportData',       { type: 'brandmodel', ...MONTH },     ADMIN,    4,   1400,   4,  1400],
+  /* Commission is one read per business on purpose: each has its OWN cycle start, anchored on
+     registered_on, so thirty different cutoffs cannot be one GROUP BY. */
   ['Commission report (everybody)',   'bo', 'reportData',       { type: 'commission', ...MONTH, vendor_id: 'ALL' }, MANAGER, 45, 40000, 45, 40000],
-  ['Marketplace home',                'market', 'market',       {},                                   null,    14,   8000,  12,  7000],
-  ['Marketplace hints',               'market', 'hints',        {},                                   null,     3,    100,   3,   100],
-  ['Sign in',                         'account', 'login',       { id: 'a1', password: PASSWORD },     null,    10,    400,  10,   400],
-  /* Writes: the round trips a tap costs. A sale of three lines is three products, three stock
-     changes and three movements; a phone sale claims its unit as well. */
-  ['Record sale (3 lines)',           'bo', 'recordSale',       { items: [{ product_id: 'P1_40', qty: 1, price: 5000 }, { product_id: 'P1_41', qty: 2, price: 5000 }, { product_id: 'P1_42', qty: 1, price: 5000 }], payment_method: 'Cash' }, SELLER, 32, 60, 22, 40],
+  /* THE ONE UNBOUNDED READ LEFT, and it is deliberate: the storefront fetches the whole
+     catalogue once, ranks it and filters by category in the browser, which is what makes the
+     grid instant and why one build is cached a minute for every visitor behind it. At a few
+     thousand products that is the right trade. Past that it is a bounded read with paging on
+     the server, and this budget is where that will show up first. */
+  ['Marketplace home',                'market', 'market',       {},                                   null,    13,   7000,  11,  6000],
+  ['Marketplace hints',               'market', 'hints',        {},                                   null,     3,     50,   3,    50],
+  ['Sign in',                         'account', 'login',       { id: 'a1', password: PASSWORD },     null,    11,     60,  11,    60],
+  /* Writes: what a tap costs. A sale of three lines is three products read, three stock changes
+     and three movements; without the atomic functions each stock change is a read AND a write. */
+  ['Record sale (3 lines)',           'bo', 'recordSale',       { items: [{ product_id: 'P1_40', qty: 1, price: 5000 }, { product_id: 'P1_41', qty: 2, price: 5000 }, { product_id: 'P1_42', qty: 1, price: 5000 }], payment_method: 'Cash' }, SELLER, 32, 40, 20, 30],
   ['Record sale (phone, credit)',     'bo', 'recordSale',       { items: [{ product_id: 'P1_0', qty: 1, price: 250000, unit_ids: ['U1_0_0'] }], payment_method: 'Credit', financing_partner_id: 'F1' }, ADMIN, 14, 20, 12, 20],
-  ['Cancel sale',                     'bo', 'cancelSale',       { sale_id: 'S1_1', reason: 'wrong item' }, ADMIN, 12, 20, 10, 20],
-  ['Record lending',                  'bo', 'recordLending',    { items: [{ product_id: 'P1_43', qty: 1 }], borrower_name: 'B' }, SELLER, 12, 20, 10, 20],
+  ['Cancel sale',                     'bo', 'cancelSale',       { sale_id: 'S1_1', reason: 'wrong item' }, ADMIN, 14, 20, 10, 20],
+  ['Record lending',                  'bo', 'recordLending',    { items: [{ product_id: 'P1_43', qty: 1 }], borrower_name: 'B' }, SELLER, 14, 20, 10, 20],
   ['Add stock',                       'bo', 'addStock',         { product_id: 'P1_44', qty: 5 },      ADMIN,    8,     10,   6,    10],
-  ['Add 10 units (IMEIs)',            'bo', 'addUnits',         { product_id: 'P1_1', units: IMEIS }, ADMIN,   30,     40,  30,    40],
-  ['Transfer stock',                  'bo', 'transferStock',    { product_id: 'P1_45', from_branch_id: 'B1a', to_branch_id: 'B1b', qty: 2 }, ADMIN, 12, 20, 10, 20],
+  ['Add 10 units (IMEIs)',            'bo', 'addUnits',         { product_id: 'P1_1', units: IMEIS }, ADMIN,   20,     45,  18,    30],
+  ['Transfer stock',                  'bo', 'transferStock',    { product_id: 'P1_45', from_branch_id: 'B1a', to_branch_id: 'B1b', qty: 2 }, ADMIN, 14, 20, 10, 20],
   ['Record cash',                     'bo', 'recordCash',       { seller_id: 'S11', cash_amount: 1000, lipa_amount: 0 }, ADMIN, 4, 10, 4, 10],
 ];
 

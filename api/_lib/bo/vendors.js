@@ -16,6 +16,7 @@ import { mustProfile, resetAnchorIfReactivating, toBool } from './users.js';
    Manager only, except restrictionInfo: every vendor user's auto-sync polls that, and it costs
    nothing at all while the business is not restricted. */
 
+const TOP_N = 10;                       // the analytics panel's three lists are all top ten
 const rank = a => (a.role === 'admin' ? 2 : 0) + (toBool(a.active) ? 1 : 0);
 const byName = (a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'en', { sensitivity: 'base' });
 
@@ -166,7 +167,7 @@ export const FN = {
     const avg_views = clicked.length ? total_views / clicked.length : 0;
     const products = await productsByIds(db, clicked.map(r => r.product_id));
     const vendorName = new Map((await vendorsList(db, true)).map(v => [String(v.id), v.name]));
-    const top_viewed = clicked.slice(0, 10).map(r => {
+    const top_viewed = clicked.slice(0, TOP_N).map(r => {
       const p = products.get(r.product_id);
       return { product_id: r.product_id, name: p ? p.name : '(deleted product)', vendor_name: p ? (vendorName.get(String(p.vendor_id)) || '') : '', count: r.count, hot: r.count >= avg_views };
     });
@@ -178,21 +179,29 @@ export const FN = {
       byVendor.set(k, (byVendor.get(k) || 0) + r.count);
     }
     const top_vendor_views = [...byVendor].map(([id, count]) => ({ vendor_name: vendorName.get(id) || '', count }))
-      .sort((a, b) => b.count - a.count || a.vendor_name.localeCompare(b.vendor_name)).slice(0, 10);
-    // Best sellers: completed sales since 1 January (EAT), grouped by product name + vendor as
-    // the sheet did -- bounded by the year, paged.
+      .sort((a, b) => b.count - a.count || a.vendor_name.localeCompare(b.vendor_name)).slice(0, TOP_N);
+    /* Best sellers: completed sales since 1 January (EAT), grouped by product name + vendor as
+       the sheet did. One RPC (bo_top_selling) groups, orders and cuts to ten in the database.
+       The fallback pages the WHOLE YEAR of sales to show ten rows -- 36 round trips on a
+       thirty-vendor book, and one more every thousand sales anybody makes. */
     const b = periodBounds(nowMs);
-    const sales = await rowsAll(db, 'sales', q => q.select('vendor_id, product_name, qty, total').eq('status', 'completed').gte('sold_at', b.year));
-    const sell = new Map();
-    for (const s of sales) {
-      const k = String(s.product_name || '') + '||' + String(s.vendor_id || '');
-      const r = sell.get(k) || { name: String(s.product_name || ''), vendor_name: vendorName.get(String(s.vendor_id)) || '', qty: 0, revenue: 0 };
-      r.qty += num(s.qty);
-      r.revenue += num(s.total);
-      sell.set(k, r);
-    }
-    const top_selling = [...sell.values()].sort((a, b2) => b2.qty - a.qty || b2.revenue - a.revenue || a.name.localeCompare(b2.name))
-      .slice(0, 10).map(r => ({ ...r, revenue: money(r.revenue) }));
+    const byKey = new Map();
+    const grouped = await rpcOr(db, 'bo_top_selling', { p_since: b.year, p_limit: TOP_N }, async () => {
+      const sales = await rowsAll(db, 'sales', q => q.select('vendor_id, product_name, qty, total').eq('status', 'completed').gte('sold_at', b.year));
+      for (const s of sales) {
+        const k = String(s.product_name || '') + '||' + String(s.vendor_id || '');
+        const r = byKey.get(k) || { vendor_id: s.vendor_id, product_name: String(s.product_name || ''), qty: 0, revenue: 0 };
+        r.qty += num(s.qty);
+        r.revenue += num(s.total);
+        byKey.set(k, r);
+      }
+      return null;
+    });
+    const sellRows = Array.isArray(grouped) ? grouped : [...byKey.values()];
+    const top_selling = sellRows
+      .map(r => ({ name: String(r.product_name || ''), vendor_name: vendorName.get(String(r.vendor_id)) || '', qty: num(r.qty), revenue: num(r.revenue) }))
+      .sort((a, b2) => b2.qty - a.qty || b2.revenue - a.revenue || a.name.localeCompare(b2.name))
+      .slice(0, TOP_N).map(r => ({ ...r, revenue: money(r.revenue) }));
     return { total_views, avg_views, top_viewed, top_vendor_views, top_selling };
   },
 

@@ -53,7 +53,17 @@ test('managerSummary: every business with its admin, catalogue, today\'s sales, 
 });
 
 test('managerSummary: an inactive business still appears; the summary survives a database without the RPC or with it', async () => {
-  const db = bookDb(richBook(), { rpc: { bo_vendor_sales_summary: (store) => {
+  const db = bookDb(richBook(), { rpc: {
+    bo_stock_value_by_vendor: (store, a) => {
+      const m = new Map();
+      for (const p of store.products.rows) {
+        if (!p.active || (a.p_vendor && p.vendor_id !== a.p_vendor)) continue;
+        const r = m.get(p.vendor_id) || { vendor_id: p.vendor_id, value: 0, product_count: 0 };
+        r.value += Number(p.price) * Number(p.stock); r.product_count += 1; m.set(p.vendor_id, r);
+      }
+      return [...m.values()];
+    },
+    bo_vendor_sales_summary: (store) => {
     // The stand-in for the Postgres GROUP BY: per-vendor sums over completed sales.
     const out = new Map();
     for (const s of store.sales.rows) {
@@ -173,7 +183,20 @@ test('analytics: marketplace views per product and vendor, and this year\'s best
       { name: 'Samsung Galaxy A05', vendor_name: 'Fromville Phones', qty: 1, revenue: 340000 }]);
   };
   await check(bookDb());                                                   // no RPC yet: paged fallback
-  await check(bookDb(richBook(), { rpc: { bo_click_counts: () => [{ product_id: 'P3', total: 2, recent: 1 }, { product_id: 'P5', total: 1, recent: 1 }] } }));
+  await check(bookDb(richBook(), { rpc: {
+    bo_click_counts: () => [{ product_id: 'P3', total: 2, recent: 1 }, { product_id: 'P5', total: 1, recent: 1 }],
+    // The database groups, orders and cuts; the code only names the vendors and formats.
+    bo_top_selling: (store, a) => {
+      const m = new Map();
+      for (const x of store.sales.rows) {
+        if (x.status !== 'completed' || x.sold_at < a.p_since) continue;
+        const k = x.product_name + '||' + x.vendor_id;
+        const r = m.get(k) || { vendor_id: x.vendor_id, product_name: x.product_name, qty: 0, revenue: 0 };
+        r.qty += Number(x.qty); r.revenue += Number(x.total); m.set(k, r);
+      }
+      return [...m.values()].sort((p, q) => q.qty - p.qty || q.revenue - p.revenue || String(p.product_name).localeCompare(q.product_name)).slice(0, a.p_limit);
+    },
+  } }));
   const db = bookDb();
   db._dump('product_clicks').push({ id: 4, product_id: 'GONE', vendor_id: 'V1', clicked_at: '2026-08-01T00:00:00.000Z' });
   const a = await FN.analytics(db, user(MANAGER), {}, NOW);

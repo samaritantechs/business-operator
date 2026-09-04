@@ -269,21 +269,32 @@ export async function vendorSalesSummary(db, nowMs = Date.now(), vendorId = null
 }
 
 /** Stock value (price x stock) and active product count per vendor: Map vendor_id -> { value, count }.
-    Reads every active product once -- bounded by the catalogue, which is what the old app scanned
-    on every dashboard load; here it is one paged read for every vendor at once. */
+    One RPC (bo_stock_value_by_vendor) -- a GROUP BY over the catalogue, one row per business.
+    The fallback pages every active product and adds them up here, which is what the old app did
+    on every dashboard load: two numbers per vendor bought with the whole catalogue, and it grows
+    with every product anybody adds. That is why the function exists. */
 export async function stockValueByVendor(db, vendorId = null) {
-  const list = await rowsAll(db, 'products', q => {
-    let s = q.select('vendor_id, price, stock').eq('active', true);
-    if (vendorId) s = s.eq('vendor_id', vendorId);
-    return s;
-  });
   const out = new Map();
-  for (const p of list) {
-    const k = String(p.vendor_id);
-    const r = out.get(k) || { value: 0, count: 0 };
-    r.value += num(p.price) * num(p.stock);
-    r.count += 1;
-    out.set(k, r);
+  const rowsOut = await rpcOr(db, 'bo_stock_value_by_vendor', { p_vendor: vendorId }, async () => {
+    const list = await rowsAll(db, 'products', q => {
+      let s = q.select('vendor_id, price, stock').eq('active', true);
+      if (vendorId) s = s.eq('vendor_id', vendorId);
+      return s;
+    });
+    for (const p of list) {
+      const k = String(p.vendor_id);
+      const r = out.get(k) || { value: 0, count: 0 };
+      r.value += num(p.price) * num(p.stock);
+      r.count += 1;
+      out.set(k, r);
+    }
+    return null;
+  });
+  if (Array.isArray(rowsOut)) {
+    for (const r of rowsOut) {
+      if (vendorId && String(r.vendor_id) !== String(vendorId)) continue;
+      out.set(String(r.vendor_id), { value: num(r.value), count: num(r.product_count) });
+    }
   }
   return out;
 }

@@ -20,7 +20,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { parse } from 'csv-parse/sync';
 import { createClient } from '@supabase/supabase-js';
-import { hashPassword } from '../api/_lib/auth.js';
+import { hashPassword } from '../api/_lib/password.js';
 
 const [, , dir, ...flags] = process.argv;
 const DRY = flags.includes('--dry-run');

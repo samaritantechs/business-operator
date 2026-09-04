@@ -393,6 +393,32 @@ language sql stable as $$
   group by vendor_id
 $$;
 
+-- Stock value and active-product count per vendor. Without this the manager's two screens page
+-- the WHOLE catalogue of every business to add up two numbers -- 4,500 rows on a thirty-vendor
+-- book, and it grows with every product anybody adds. `p_vendor` null = every business.
+create or replace function bo_stock_value_by_vendor(p_vendor uuid)
+returns table (vendor_id uuid, value numeric, product_count bigint)
+language sql stable as $$
+  select vendor_id, coalesce(sum(price * stock), 0) as value, count(*) as product_count
+  from products
+  where active and (p_vendor is null or vendor_id = p_vendor)
+  group by vendor_id
+$$;
+
+-- The manager's best sellers: units and revenue per product name per business since `p_since`,
+-- already ordered and cut to `p_limit`. The fallback reads the YEAR of sales to show ten rows.
+create or replace function bo_top_selling(p_since timestamptz, p_limit integer)
+returns table (vendor_id uuid, product_name text, qty numeric, revenue numeric)
+language sql stable as $$
+  select vendor_id, product_name,
+         coalesce(sum(qty), 0) as qty, coalesce(sum(total), 0) as revenue
+  from sales
+  where status = 'completed' and sold_at >= p_since
+  group by vendor_id, product_name
+  order by qty desc, revenue desc, product_name
+  limit p_limit
+$$;
+
 -- =====================================================================================
 -- STORAGE BUCKETS -- public read. New images go here; legacy drive.google.com URLs keep working.
 -- =====================================================================================

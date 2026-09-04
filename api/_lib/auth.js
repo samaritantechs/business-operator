@@ -1,4 +1,4 @@
-import { randomBytes, scryptSync, timingSafeEqual, createHmac, createHash } from 'node:crypto';
+import { randomBytes, createHmac, createHash, timingSafeEqual } from 'node:crypto';
 import { runQuery, friendlyDbError } from './supabase.js';
 
 /* =====================================================================================
@@ -30,28 +30,10 @@ export const unauthorized = m => new AppError(m, 401);
 export const forbidden = m => new AppError(m, 403);
 export const notFound = m => new AppError(m, 404);
 
-/* ------------------------------------------------------------------ passwords */
-const KEYLEN = 32;
-const SCRYPT = { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 };
-
-export function hashPassword(password) {
-  const salt = randomBytes(16).toString('hex');
-  const hash = scryptSync(String(password), salt, KEYLEN, SCRYPT).toString('hex');
-  return { hash, salt };
-}
-
-/** False for an account with no password set -- a migrated row whose sheet cell was blank can
-    never be signed into with an empty string. Constant-time comparison. */
-export function verifyPassword(password, hash, salt) {
-  if (!hash || !salt) return false;
-  const given = String(password == null ? '' : password);
-  if (!given) return false;
-  let derived;
-  try { derived = scryptSync(given, salt, KEYLEN, SCRYPT); } catch { return false; }
-  const stored = Buffer.from(String(hash), 'hex');
-  if (stored.length !== derived.length) return false;
-  return timingSafeEqual(stored, derived);
-}
+/* ------------------------------------------------------------------ passwords
+   In password.js, which imports nothing, so a command-line tool can hash without a database
+   client being built (and thrown) at import time. Re-exported here: this is still the door. */
+export { hashPassword, verifyPassword } from './password.js';
 
 /* ------------------------------------------------------------------ roles */
 export const ROLES = ['seller', 'admin', 'assistant-admin', 'manager', 'assistant-manager'];
