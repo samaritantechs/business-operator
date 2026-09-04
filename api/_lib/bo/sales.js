@@ -60,6 +60,7 @@ async function recordSale(db, user, args, nowMs) {
   /* Check every line first. A product named twice is read once and its quantities are added
      up, so two lines of 30 cannot both pass against a stock of 40. */
   const lines = [], products = new Map(), asked = new Map(), seenUnits = new Set();
+  const branchHave = new Map();          // product -> what THIS shop holds, read at most once each
   for (const item of items) {
     const pid = text(item && item.product_id);
     if (!pid) throw badRequest('Each item needs a product.');
@@ -83,6 +84,20 @@ async function recordSale(db, user, args, nowMs) {
       const soFar = (asked.get(pid) || 0) + qty;
       asked.set(pid, soFar);
       if (num(p.stock) < soFar) throw badRequest('Insufficient stock for "' + p.name + '". Available: ' + num(p.stock));
+      /* AND the shop it is sold from must actually hold it. The business total alone let a
+         counter sell thirty covers out of a shop holding fifteen: the sale went through, the
+         business total came down correctly, and that shop's row went to MINUS fifteen -- so
+         the per-shop figures stopped adding up to the total and Stock & Shops showed a
+         negative quantity. One bounded read per product in the basket, cached. */
+      if (branchId) {
+        let have = branchHave.get(pid);
+        if (have === undefined) {
+          const r = await one(db, 'branch_stock', q => q.select('qty').eq('product_id', pid).eq('branch_id', branchId));
+          have = num(r && r.qty);
+          branchHave.set(pid, have);
+        }
+        if (have < soFar) throw badRequest('"' + p.name + '" is short at this shop. Here: ' + have + ', for the whole business: ' + num(p.stock) + '. Transfer some in, or sell from the shop that holds them.');
+      }
     }
     lines.push(line);
   }

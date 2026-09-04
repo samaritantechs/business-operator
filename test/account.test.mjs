@@ -307,3 +307,24 @@ test('setupManager: BO_SECRET stands in when BO_SETUP_KEY is not set, and the fi
   assert.ok((await FN.setupManager(db, good, NOW)).token, 'BO_SECRET is accepted as the key');
   delete process.env.BO_SECRET;
 });
+
+/* A User ID and an email are ONE namespace, because the sign-in box takes either and resolves
+   both against both columns -- handle first. Checking a new handle only against other handles
+   let a stranger register with somebody else's email AS their User ID, after which every
+   sign-in with that email reached the stranger's row: their password worked and the real
+   owner's did not. */
+test('register: an identifier nobody else answers to, in either column', async () => {
+  const db = bookDb();
+  const shop = { business_name: 'Impostor Shop', admin_email: 'evil@x.tz', admin_name: 'Evil', admin_handle: 'frank@fromville.tz', password: 'pass1234' };
+  await rejects(FN.register(db, shop, NOW), 400, /User ID is already taken/);
+  await rejects(FN.register(db, { ...shop, admin_handle: 'FRANK@FROMVILLE.TZ' }, NOW), 400, /already taken/);
+  await rejects(FN.register(db, { ...shop, admin_handle: 'evil2', admin_email: 'FRANK@fromville.tz' }, NOW), 400, /email already exists/);
+  assert.equal(db._dump('profiles').length, 8, 'nothing was written');
+
+  // The real owner still signs in with his own email, by either spelling.
+  assert.equal((await FN.login(db, { id: 'frank@fromville.tz', password: PASSWORD }, NOW, {})).user.id, 'ADM1');
+  assert.equal((await FN.login(db, { id: 'frank', password: PASSWORD }, NOW, {})).user.id, 'ADM1');
+  // And an honest registration is untouched.
+  const ok = await FN.register(db, { business_name: 'Honest Shop', admin_email: 'new@x.tz', admin_name: 'New', admin_handle: 'newshop', password: 'pass1234' }, NOW);
+  assert.match(ok.message, /registered/);
+});

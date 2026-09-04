@@ -13,7 +13,9 @@ window.BOAcct = (function () {
     if (!c) { out.innerHTML = '<div class="alert-danger">Enter your current password.</div>'; return; }
     if (!n || n.length < 4) { out.innerHTML = '<div class="alert-danger">The new password must be at least 4 characters.</div>'; return; }
     if (n !== k) { out.innerHTML = '<div class="alert-danger">Passwords do not match.</div>'; return; }
-    srv('changePassword', { current: c, password: n }).then(function (r) { out.innerHTML = '<div class="alert-success">' + esc(r.message) + '</div>'; document.getElementById('pwCurrent').value = ''; document.getElementById('pwNew').value = ''; document.getElementById('pwConfirm').value = ''; })
+    srv('changePassword', { current: c, password: n }).then(function (r) { out.innerHTML = '<div class="alert-success">' + esc(r.message) + '</div>';
+      // The server signed every device out, including this one: say so, then go to sign-in.
+      if (r.signed_out) { setTimeout(function () { logout(true); showLogin(false); showToast('Password changed. Sign in with the new one.', '🔑'); }, 1600); } document.getElementById('pwCurrent').value = ''; document.getElementById('pwNew').value = ''; document.getElementById('pwConfirm').value = ''; })
       .catch(function (e) { out.innerHTML = '<div class="alert-danger">' + esc(e.message) + '</div>'; });
   }
   function preview(input) {

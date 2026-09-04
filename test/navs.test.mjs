@@ -145,6 +145,23 @@ test('every bare onclick / onchange / onkeypress handler in the markup is a shel
   assert.deepEqual([...bad], [], 'handlers pointing at functions the shell does not define: ' + [...bad].join(', '));
 });
 
+/* A value inside an inline handler must go through BO.jsq, not esc. The browser HTML-decodes
+   an attribute BEFORE JavaScript parses it, so esc()'s &#39; becomes a real apostrophe and ends
+   the string early: every shop called "Mama's Shop" had dead Deactivate and Restrict buttons. */
+test('no inline handler interpolates a raw esc() value', () => {
+  const bad = [];
+  for (const [file, src] of Object.entries(tabs)) {
+    const re = /\\'' \+ esc\(/g;
+    let m;
+    while ((m = re.exec(src))) {
+      const line = src.slice(0, m.index).split('\n').length;
+      bad.push('public/bo/' + file + ':' + line);
+    }
+  }
+  assert.deepEqual(bad, [], 'these pass esc() into an onclick argument; use BO.jsq() instead: ' + bad.join(', '));
+  assert.match(shell, /function jsq\(/, 'the escaper itself is gone');
+});
+
 /* ------------------------------------------------------------------ the answers */
 const BOOK = richBook();
 const who = { MANAGER: userOf(BOOK, MANAGER), ADMIN: userOf(BOOK, ADMIN1), SELLER: userOf(BOOK, SELLER1), LOCKED: userOf(BOOK, ADMIN3) };

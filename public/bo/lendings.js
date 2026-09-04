@@ -82,8 +82,8 @@ window.BOLend = (function () {
         rows.forEach(function (l) {
           var contact = []; if (l.borrower_email) contact.push('<a href="mailto:' + esc(l.borrower_email) + '" style="color:var(--accent);font-size:.77rem;">' + esc(l.borrower_email) + '</a>'); if (l.borrower_phone) contact.push('<span class="small">' + esc(l.borrower_phone) + '</span>');
           var actions = '';
-          if (canManage) actions += '<button class="btn-sm-success" title="Mark returned" onclick="BOLend.returned(\'' + esc(l.id) + '\')">✅</button> <button class="btn-sm-danger" title="Delete lending" onclick="BOLend.del(\'' + esc(l.id) + '\')">🗑️</button>';
-          if (canManage && l.borrower_email) actions += ' <button class="btn-sm-primary" title="Send reminder" onclick="BOLend.remind(\'' + esc(l.id) + '\')">📧</button>';
+          if (canManage) actions += '<button class="btn-sm-success" title="Mark returned" onclick="BOLend.returned(\'' + BO.jsq(l.id) + '\')">✅</button> <button class="btn-sm-danger" title="Delete lending" onclick="BOLend.del(\'' + BO.jsq(l.id) + '\')">🗑️</button>';
+          if (canManage && l.borrower_email) actions += ' <button class="btn-sm-primary" title="Send reminder" onclick="BOLend.remind(\'' + BO.jsq(l.id) + '\')">📧</button>';
           h += '<tr><td class="small" style="white-space:nowrap;">' + BO.fmtDate(l.created_at) + '<br><span class="muted">' + BO.fmtTime(l.created_at) + '</span></td>' + (isMgr ? '<td class="small" style="color:var(--accent);">' + esc(l.vendor_name || '') + '</td>' : '') + '<td><strong>' + esc(l.borrower_name) + '</strong></td><td>' + (contact.join('<br>') || '<span class="muted">–</span>') + '</td><td class="small" style="max-width:220px;">' + itemsText(l) + '</td><td>' + (l.grand_total > 0 ? '<span class="mono" style="color:var(--rose);font-weight:600;">' + fmtFull(l.grand_total) + '</span>' : '<span class="muted">–</span>') + '</td><td class="small muted">' + esc(l.recorded_by_name || '') + '</td><td style="white-space:nowrap;">' + actions + '</td></tr>';
         });
       } else {

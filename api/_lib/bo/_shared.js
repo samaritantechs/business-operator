@@ -110,7 +110,16 @@ export function rangeBounds(start, end) {
 
 /* ------------------------------------------------------------------ numbers and text */
 export const num = v => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
-export const int = v => { const n = parseInt(String(v == null ? '' : v).replace(/[^0-9-]/g, ''), 10); return Number.isFinite(n) ? n : 0; };
+/* Whole numbers: quantities, stock deltas, reorder points, the timing settings.
+   It strips stray characters -- '4 pcs', '1,000' -- and then TRUNCATES, which the old version
+   did not: it deleted the decimal point along with everything else, so '1.5' came back as 15
+   and '10.25' as 1025. A seller typing a decimal quantity into a number box took fifteen
+   phones off the shelf instead of one. The dot and the minus survive the strip now, and
+   Math.trunc does the rounding it always claimed to. */
+export const int = v => {
+  const n = Number(String(v == null ? '' : v).replace(/[^0-9.\-]/g, ''));
+  return Number.isFinite(n) ? Math.trunc(n) : 0;
+};
 export const money = v => Math.round(num(v) * 100) / 100;
 export const fmtMoney = n => num(n).toLocaleString('en-US', { maximumFractionDigits: 2 });
 export const text = v => { const s = String(v == null ? '' : v).trim(); return s || null; };
@@ -152,6 +161,37 @@ export function permissionsOf(vendor) {
   return { ...DEFAULT_PERMISSIONS, ...(p && typeof p === 'object' ? p : {}) };
 }
 export const currencyOf = vendor => (vendor && vendor.currency) || 'TZS';
+/** IS THIS IDENTIFIER ALREADY SOMEBODY'S?
+    A person signs in with a User ID *or* an email, and account.js resolves whichever they typed
+    by looking in BOTH columns -- handle first. So the two columns are not two namespaces, they
+    are one, and checking a new handle only against other handles left a hole worth naming:
+
+      Frank's email is frank@fromville.tz. A stranger registers a shop whose USER ID is that
+      exact string. Nothing refused it, because no other *handle* was frank@fromville.tz. From
+      then on every sign-in as frank@fromville.tz resolved to the stranger's row -- so the
+      stranger's password worked, and Frank's own password did not. His email had been taken.
+
+    Hence one check for both columns, both directions. Exact match first (citext already makes
+    that case-blind in Postgres), then an escaped ILIKE so a plain-text column, or the test
+    fake, still refuses 'FRANK' beside 'frank'. `%` and `_` are LIKE wildcards, hence the
+    escape. At most four bounded reads, and only on a write that sets an identifier. */
+export async function identifierTaken(db, value, excludeId) {
+  const v = String(value == null ? '' : value).trim();
+  if (!v) return false;
+  const pattern = v.replace(/([\\%_])/g, '\\$1');
+  for (const col of ['handle', 'email']) {
+    for (const apply of [q => q.eq(col, v), q => q.ilike(col, pattern)]) {
+      const hit = await rows(db, 'profiles', q => {
+        let sel = apply(q.select('id'));
+        if (excludeId) sel = sel.neq('id', excludeId);
+        return sel.limit(1);
+      });
+      if (hit.length) return true;
+    }
+  }
+  return false;
+}
+
 export async function vendorById(db, id) {
   if (!id) return null;
   return one(db, 'vendors', q => q.select(VENDOR_COLS).eq('id', id));

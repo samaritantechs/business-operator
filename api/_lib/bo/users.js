@@ -1,6 +1,6 @@
 import { rows, rowsAll, one, insertOne, update, remove, badRequest, forbidden, notFound, AppError,
   isManagerLevel, isAdminLevel, vendorScope, PROFILE_COLS, VENDOR_COLS, text, mustText, iso,
-  mustVendor, vendorsList, requireVendorUser } from './_shared.js';
+  mustVendor, vendorsList, requireVendorUser, identifierTaken } from './_shared.js';
 import { requireAdmin, requireManager, ROLES, hashPassword, verifyPassword, bustSessions } from '../auth.js';
 import { decodeDataUrl, uploadImage, BUCKETS } from '../storage.js';
 
@@ -102,21 +102,11 @@ function guardTarget(user, target) {
   if (String(target.vendor_id || '') !== String(user.vendor_id || '')) throw forbidden('That user belongs to another business.');
 }
 
-/** Is `value` already somebody's email / handle? An exact match first (the unique index, and on
-    the citext columns that is already case-blind), then an escaped ILIKE so a plain-text column
-    or the test fake refuse 'FRANK' beside 'frank' too -- the same two looks HOPE's authCode
-    takes. `%` and `_` are wildcards in LIKE, hence the escape. Two reads at most. */
-async function taken(db, col, value, excludeId) {
-  const look = (q, apply) => { let s = apply(q.select('id')); if (excludeId) s = s.neq('id', excludeId); return s.limit(1); };
-  const exact = await rows(db, 'profiles', q => look(q, s => s.eq(col, value)));
-  if (exact.length) return true;
-  const pattern = String(value).replace(/([\\%_])/g, '\\$1');
-  const loose = await rows(db, 'profiles', q => look(q, s => s.ilike(col, pattern)));
-  return loose.length > 0;
-}
+/** A person signs in with either string, and both are resolved against both columns, so both
+    are reserved against both columns. identifierTaken (_shared.js) explains what that closes. */
 async function ensureFree(db, email, handle, excludeId) {
-  if (await taken(db, 'email', email, excludeId)) throw badRequest('Barua pepe tayari ipo. / That email is already in use.');
-  if (await taken(db, 'handle', handle, excludeId)) throw badRequest('Kitambulisho tayari kipo. / That User ID is already taken.');
+  if (await identifierTaken(db, email, excludeId)) throw badRequest('Barua pepe tayari ipo. / That email is already in use.');
+  if (await identifierTaken(db, handle, excludeId)) throw badRequest('Kitambulisho tayari kipo. / That User ID is already taken.');
 }
 /** A branch id checked to belong to the vendor -- a seller cannot be filed under another shop's
     counter. Empty -> null (no branch). One read when given. */
@@ -296,8 +286,15 @@ export const FN = {
     if (!verifyPassword(args.current, row.password_hash, row.password_salt)) throw badRequest('Nenosiri la sasa si sahihi. / The current password is wrong.');
     const password = passwordArg(args.password);
     await update(db, 'profiles', hashed(password), q => q.eq('id', user.id));
+    /* Every device signs out, this one included. Somebody changes their password because the
+       old one is somewhere it should not be, and a session token outlives it by up to thirty
+       days -- so leaving the tokens alive means the change did not actually take anything
+       away. resetPassword has always done this; changePassword only busted the in-process
+       cache, which locks nobody out. `signed_out` lets the page say so instead of the user
+       discovering it as a mysterious logout. */
+    await remove(db, 'sessions', q => q.eq('profile_id', user.id));
     bustSessions(db);
-    return { message: 'Nenosiri limebadilishwa. / Password changed.' };
+    return { message: 'Nenosiri limebadilishwa, ingia tena. / Password changed. Please sign in again.', signed_out: true };
   },
 
   /** {} -> { vendor }. Read fresh (1) rather than off the session, so the form shows what was

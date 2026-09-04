@@ -71,6 +71,9 @@ test('addUser: refusals -- duplicates (case-blind), bad fields, roles above the 
   const db = bookDb();
   assert.equal(await status(FN.addUser(db, user(ADMIN1), seller({ email: 'FRANK@fromville.tz' }), NOW)), 400);
   assert.equal(await status(FN.addUser(db, user(ADMIN1), seller({ handle: 'JUMA' }), NOW)), 400);
+  // A User ID may not be somebody's email, nor an email somebody's User ID: one namespace.
+  assert.equal(await status(FN.addUser(db, user(ADMIN1), seller({ handle: 'asha@fromville.tz' }), NOW)), 400);
+  assert.equal(await status(FN.addUser(db, user(ADMIN1), seller({ email: 'asha@fromville.tz' }), NOW)), 400);
   assert.equal(await status(FN.addUser(db, user(ADMIN1), seller({ email: 'not-an-email' }), NOW)), 400);
   assert.equal(await status(FN.addUser(db, user(ADMIN1), seller({ handle: 'has space' }), NOW)), 400);
   assert.equal(await status(FN.addUser(db, user(ADMIN1), seller({ password: 'abc' }), NOW)), 400);
@@ -195,8 +198,15 @@ test('changePassword: own account, against the current one', async () => {
   const db = bookDb();
   assert.equal(await status(FN.changePassword(db, user(SELLER1), { current: 'wrong', password: 'brandnew' }, NOW)), 400);
   assert.equal(await status(FN.changePassword(db, user(SELLER1), { current: PASSWORD, password: 'abc' }, NOW)), 400);
+  // A stolen token outlives a password by up to thirty days, so changing one revokes them all.
+  db._dump('sessions').push({ token: 'stolen', profile_id: 'SEL1', created_at: NOW, expires_at: '2026-10-01T00:00:00.000Z', last_seen_at: NOW });
+  const before = db._dump('sessions').length;
   const out = await FN.changePassword(db, user(SELLER1), { current: PASSWORD, password: 'brandnew' }, NOW);
   assert.match(out.message, /Password changed/);
+  assert.equal(out.signed_out, true, 'the page is told, so it can send them to sign in');
+  assert.deepEqual(db._dump('sessions').filter(s2 => s2.profile_id === 'SEL1'), [], 'every device of theirs is signed out');
+  assert.ok(db._dump('sessions').length < before);
+  assert.ok(db._dump('sessions').some(s2 => s2.profile_id === 'ADM1'), 'and nobody else is touched');
   const row = profile(db, 'SEL1');
   assert.ok(verifyPassword('brandnew', row.password_hash, row.password_salt));
   assert.ok(!verifyPassword(PASSWORD, row.password_hash, row.password_salt));

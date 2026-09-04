@@ -37,14 +37,14 @@ window.BOSet = (function () {
       var el = document.getElementById('hintsTable'); if (!el) return;
       if (!hints.length) { el.innerHTML = 'No hints yet — the built-in tips are showing.'; return; }
       var h = '<div class="table-wrap"><table class="bo-table"><thead><tr><th>Role</th><th>Message (EN)</th><th>Kiswahili (SW)</th><th>Actions</th></tr></thead><tbody>';
-      hints.forEach(function (x, i) { h += '<tr><td><span class="badge badge-seller">' + esc(x.role) + '</span></td><td style="color:var(--text2);">' + esc(x.message_en) + '</td><td style="color:var(--text2);">' + (x.message_sw ? esc(x.message_sw) : '<span class="muted">—</span>') + '</td><td style="white-space:nowrap;"><button class="btn-sm-primary" onclick="BOSet.editHint(' + i + ')">Edit</button> <button class="btn-sm-danger" onclick="BOSet.deleteHint(\'' + esc(x.id) + '\')">Del</button></td></tr>'; });
+      hints.forEach(function (x, i) { h += '<tr><td><span class="badge badge-seller">' + esc(x.role) + '</span></td><td style="color:var(--text2);">' + esc(x.message_en) + '</td><td style="color:var(--text2);">' + (x.message_sw ? esc(x.message_sw) : '<span class="muted">—</span>') + '</td><td style="white-space:nowrap;"><button class="btn-sm-primary" onclick="BOSet.editHint(' + i + ')">Edit</button> <button class="btn-sm-danger" onclick="BOSet.deleteHint(\'' + BO.jsq(x.id) + '\')">Del</button></td></tr>'; });
       el.innerHTML = h + '</tbody></table></div>';
     }).catch(function (e) { var el = document.getElementById('hintsTable'); if (el) el.innerHTML = BO.errorBox(e); });
   }
   function editHint(i) {
     var x = hints[i]; if (!x) return;
     BO.dialog({ title: 'Edit hint', body: '<div class="form-group" style="margin-bottom:10px;"><label class="form-label">Role</label>' + roleSelect(x.role).replace('class="form-select hint-role" style="width:130px;"', 'class="form-select" id="ehRole"') + '</div><div class="form-group" style="margin-bottom:10px;"><label class="form-label">Message (English)</label><input class="form-control" id="ehEn" value="' + esc(x.message_en) + '"></div><div class="form-group"><label class="form-label">Ujumbe kwa Kiswahili</label><input class="form-control" id="ehSw" value="' + esc(x.message_sw || '') + '"></div>',
-      footer: '<button class="btn-secondary" onclick="BO.closeDialog()">Cancel</button><button class="btn-primary" onclick="BOSet.saveHint(\'' + esc(x.id) + '\')">Save</button>' });
+      footer: '<button class="btn-secondary" onclick="BO.closeDialog()">Cancel</button><button class="btn-primary" onclick="BOSet.saveHint(\'' + BO.jsq(x.id) + '\')">Save</button>' });
   }
   function saveHint(id) { srv('updateHint', { id: id, role: g('ehRole'), en: g('ehEn').trim(), sw: g('ehSw').trim() }).then(function () { BO.closeDialog(); showToast('Updated.'); loadHints(); }).catch(BO.fail); }
   function deleteHint(id) { if (!BO.confirm('Delete this hint?')) return; srv('deleteHint', { id: id }).then(function () { loadHints(); }).catch(BO.fail); }

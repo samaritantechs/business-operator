@@ -159,3 +159,30 @@ test('a restricted vendor cannot sell, through the one door', async () => {
   const d = await boApi(db, locked, 'salesDetail', { period: 'today' }, NOW);
   assert.equal(d.kind, 'sales');
 });
+
+/* The business total was checked, the shop's own shelf was not: selling thirty covers out of a
+   shop holding fifteen went through, and that shop's row went to MINUS fifteen -- so the
+   per-shop figures no longer added up to the total and Stock & Shops showed a negative. */
+test('recordSale: a shop cannot sell what it does not hold, even when the business has plenty', async () => {
+  const db = bookDb();
+  const qty = (b) => db._dump('branch_stock').find(r => r.product_id === 'P3' && r.branch_id === b).qty;
+  await rejects(FN.recordSale(db, ADM(), { items: [{ product_id: 'P3', qty: 30, price: 5000 }], payment_method: 'Cash', branch_id: 'B2' }, NOW), 400, /short at this shop/);
+  assert.equal(qty('B2'), 15, 'nothing moved');
+  assert.equal(qty('B1'), 25);
+  assert.equal(product(db, 'P3').stock, 40);
+
+  // Two lines of the same product are counted together against that one shop.
+  await rejects(FN.recordSale(db, ADM(), { items: [{ product_id: 'P3', qty: 8, price: 5000 }, { product_id: 'P3', qty: 8, price: 5000 }], payment_method: 'Cash', branch_id: 'B2' }, NOW), 400, /short at this shop/);
+  assert.equal(qty('B2'), 15);
+
+  // Up to what the shop holds is fine, and only that shop moves.
+  await FN.recordSale(db, ADM(), { items: [{ product_id: 'P3', qty: 15, price: 5000 }], payment_method: 'Cash', branch_id: 'B2' }, NOW);
+  assert.equal(qty('B2'), 0);
+  assert.equal(qty('B1'), 25);
+  assert.equal(product(db, 'P3').stock, 25, 'the business total came down by the same 15');
+
+  // A business with no shops at all is unaffected by any of this.
+  const db2 = bookDb();
+  const out = await FN.recordSale(db2, ADM2(), { items: [{ product_id: 'P5', qty: 2, price: 3200 }], payment_method: 'Cash' }, NOW);
+  assert.match(out.message, /Sale recorded/);
+});

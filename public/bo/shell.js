@@ -43,6 +43,15 @@ function fmtTime(iso) { var d = eat(iso); return d ? pad2(d.getUTCHours()) + ':'
 function fmtDT(iso) { var d = eat(iso); return d ? fmtDate(iso) + ' ' + fmtTime(iso) : '–'; }
 function todayKey() { var d = new Date(Date.now() + 3 * 3600000); return d.toISOString().slice(0, 10); }
 function daysAgoKey(n) { var d = new Date(Date.now() + 3 * 3600000 - n * 86400000); return d.toISOString().slice(0, 10); }
+/* A value going INSIDE an inline handler -- onclick="BOMgr.restrict('NAME')" -- is not made
+   safe by esc() alone. The browser HTML-decodes the attribute before JavaScript ever sees it,
+   so esc()'s &#39; turns back into an apostrophe and closes the string early: every shop
+   called "Mama's Shop" had dead Deactivate and Restrict buttons, and every branch or partner
+   with an apostrophe had a dead Edit button. The apostrophe has to survive HTML decoding AS
+   an escape, so it becomes the six characters \u0027, which HTML leaves alone and JavaScript
+   reads back as one quote. Backslashes first, or they would eat the escape we just added. */
+function jsq(s) { return esc(String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/'/g, '\\u0027')); }
+BO.jsq = jsq;
 BO.esc = esc; BO.fmt = fmt; BO.fmtFull = fmtFull; BO.money = money; BO.cur = cur; BO.fmtDate = fmtDate; BO.fmtTime = fmtTime; BO.fmtDT = fmtDT;
 BO.todayKey = todayKey; BO.daysAgoKey = daysAgoKey; BO.digitsOnly = digitsOnly;
 
@@ -256,7 +265,7 @@ function applyLogin(boot) {
   document.getElementById('displayName').textContent = S.user.name; document.getElementById('displayRole').textContent = S.user.role;
   var initials = (S.user.name || 'U').split(' ').map(function (w) { return w[0]; }).join('').substring(0, 2).toUpperCase();
   var av = document.getElementById('topbarAvatar');
-  if (S.user.profile_photo_url) av.innerHTML = '<img src="' + esc(S.user.profile_photo_url) + '" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" onerror="this.parentNode.textContent=\'' + esc(initials) + '\'">'; else av.textContent = initials;
+  if (S.user.profile_photo_url) av.innerHTML = '<img src="' + esc(S.user.profile_photo_url) + '" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" onerror="this.parentNode.textContent=\'' + BO.jsq(initials) + '\'">'; else av.textContent = initials;
   document.getElementById('tbUserInfo').style.display = '';
   if (S.vendor && S.vendor.logo_url) { document.getElementById('customLogoImg').src = S.vendor.logo_url; document.getElementById('customLogoRow').classList.remove('hidden'); }
   /* Which doors this person gets: the role list on each nav item, then the two seller flags. */
@@ -430,7 +439,7 @@ function renderMarketPage() {
   var shown = Math.min(_mkShown, list.length), all = _market.products, html = '';
   for (var i = 0; i < shown; i++) {
     var p = list[i], gi = all.indexOf(p), img = p.image1 || p.image2 || p.image3, isRent = (p.listingType || 'Sale') === 'Rent';
-    var imgHtml = img ? '<div class="mk-img" style="background-image:url(\'' + esc(img) + '\');">' : '<div class="mk-img">🛍️';
+    var imgHtml = img ? '<div class="mk-img" style="background-image:url(\'' + BO.jsq(img) + '\');">' : '<div class="mk-img">🛍️';
     imgHtml += (p.stock > 0 ? '<span class="mk-stock">' + (isRent ? 'Available' : 'In stock') + '</span>' : '<span class="mk-stock out">' + (isRent ? 'Booked' : 'Out') + '</span>') + (p.hot ? '<span class="mk-fire">🔥 Hot</span>' : '') + '</div>';
     var v = findVendor(p.vendor), vlogo = (v && v.logo) ? '<img src="' + esc(v.logo) + '" onerror="this.style.display=\'none\'">' : '<div class="mk-vinit">' + esc((p.vendor || 'B')[0]).toUpperCase() + '</div>';
     html += '<div class="mk-card" onclick="openProductDetail(' + gi + ')">' + imgHtml + '<div class="mk-cardbody"><div class="mk-cat">' + (isRent ? 'FOR RENT · ' : '') + esc(p.cat || 'General') + '</div><div class="mk-name">' + esc(p.name) + '</div><div class="mk-price">' + fmtFull(p.price) + ' <span style="font-size:.7rem;color:var(--muted);font-weight:600;">' + esc(p.currency || 'TZS') + (isRent && p.priceUnit ? ' ' + esc(p.priceUnit) : '') + '</span></div><div class="mk-cvendor">' + vlogo + '<span>' + esc(p.vendor) + '</span></div></div></div>';
@@ -543,12 +552,20 @@ BO.boot = function () {
     auth('me', { token: S.token }).then(function (b) { applyLogin(b); done(); })
       .catch(function (e) { if (/sign in|expired|session|account|Please/i.test(e.message) || e.status === 401) { S.token = ''; store('boToken', null); } showLanding(); done(); });
   } else {
-    /* No session. Before showing the marketplace, ask whether this system has a manager at
-       all -- a brand-new deployment goes straight to the setup screen instead. One cheap
-       read, and only for a signed-out visitor. */
+    /* No session. Before showing anything, ask whether this system has a manager at all -- a
+       brand-new deployment goes straight to the setup screen. One cheap read, signed-out only.
+
+       The ?login=1 / ?register=1 deep links are decided INSIDE this answer, not after it: they
+       used to be handled on the line below, which ran while the request was still in flight, so
+       the marketplace landed on top of the sign-in form a moment later and the links appeared
+       to do nothing. Whatever this branch chooses is the last word. */
+    var landing = function () {
+      if (/[?&](login|register)=1/.test(window.location.search)) showLogin(/register=1/.test(window.location.search));
+      else showLanding();
+      done();
+    };
     auth('setupState', {}).then(function (st) {
-      if (st && st.needed) { showSetup(st); done(); } else { showLanding(); done(); }
-    }).catch(function () { showLanding(); done(); });
+      if (st && st.needed) { showSetup(st); done(); } else { landing(); }
+    }).catch(landing);
   }
-  if (/[?&](login|register)=1/.test(window.location.search) && !S.token) showLogin(/register=1/.test(window.location.search));
 };

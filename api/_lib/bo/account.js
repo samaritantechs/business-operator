@@ -1,4 +1,4 @@
-import { rows, one, insertOne, update, remove, getSetting, text, mustText, iso, badRequest, PROFILE_COLS, isManagerLevel } from './_shared.js';
+import { rows, one, insertOne, update, remove, getSetting, text, mustText, iso, badRequest, PROFILE_COLS, isManagerLevel, identifierTaken } from './_shared.js';
 import { AppError, unauthorized, hashPassword, verifyPassword, createSession, resolveSession, destroySession, bustSessions, newToken, loadUser } from '../auth.js';
 import { sendEmail, signature } from '../email.js';
 import { createHash, timingSafeEqual } from 'node:crypto';
@@ -108,8 +108,10 @@ export const FN = {
     if (/\s/.test(handle)) throw badRequest('The User ID cannot contain spaces.');
     const password = passwordArg(args.password);
 
-    if (await profileExists(db, 'email', email)) throw badRequest('An account with this email already exists. Please use a different email or login instead.');
-    if (await profileExists(db, 'handle', handle)) throw badRequest('That User ID is already taken. Please choose another.');
+    // Both strings are checked against BOTH columns: a User ID and an email share one namespace
+    // (see identifierTaken), so 'take somebody's email as my User ID' has to be refused here.
+    if (await identifierTaken(db, email)) throw badRequest('An account with this email already exists. Please use a different email or login instead.');
+    if (await identifierTaken(db, handle)) throw badRequest('That User ID is already taken. Please choose another.');
     const sameName = await rows(db, 'vendors', q => q.select('id').ilike('name', likeEscape(businessName)).limit(1));
     if (sameName.length) throw badRequest('A business with this name is already registered. Please use a different name or login instead.');
 
@@ -199,8 +201,8 @@ export const FN = {
     const handle = mustText(args.handle, 'User ID');
     if (/\s/.test(handle)) throw badRequest('The User ID cannot contain spaces.');
     const password = passwordArg(args.password);
-    if (await profileExists(db, 'email', email)) throw badRequest('An account with this email already exists.');
-    if (await profileExists(db, 'handle', handle)) throw badRequest('That User ID is already taken.');
+    if (await identifierTaken(db, email)) throw badRequest('An account with this email already exists.');
+    if (await identifierTaken(db, handle)) throw badRequest('That User ID is already taken.');
 
     const pw = hashPassword(password);
     const row = await insertOne(db, 'profiles', {
