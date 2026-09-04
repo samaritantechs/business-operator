@@ -3,7 +3,7 @@
 window.BOStock = (function () {
   var view = 'units', products = [], serialized = [];
   var VIEWS = [['units', '📱 Units (IMEI)'], ['branches', '🏬 Shops'], ['branchstock', '📊 Stock per shop'], ['transfer', '🔁 Transfer'], ['movements', '📒 Movements'], ['partners', '🏦 Financing partners']];
-  var TYPES = ['received', 'sold', 'transfer_out', 'transfer_in', 'returned', 'adjustment', 'cancelled_restock', 'lent'];
+  var TYPES = ['received', 'sold', 'transfer_out', 'transfer_in', 'returned', 'adjustment_in', 'adjustment_out', 'adjustment', 'cancelled_restock', 'lent'];
 
   function load() {
     var el = document.getElementById('stockContent'); if (!el) return;

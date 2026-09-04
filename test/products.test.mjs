@@ -93,7 +93,7 @@ test('updateProduct: fields as given; a changed stock is an adjustment for the d
   assert.equal(product(db, 'P3').stock, 35);
   const m = moves(db);
   assert.equal(m.length, 1);
-  assert.equal(m[0].type, 'adjustment');
+  assert.equal(m[0].type, 'adjustment_out');
   assert.equal(m[0].qty, 5);
   assert.equal(m[0].note, 'Edited on product form');
   assert.equal(m[0].from_branch_id, null);

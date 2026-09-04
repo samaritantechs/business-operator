@@ -425,7 +425,10 @@ async function movementsReport(db, s) {
     return x.order('created_at');
   });
   const maps = await nameMaps(db, s, { branches: true, vendors: true });
-  const IN = new Set(['received', 'transfer_in', 'returned', 'cancelled_restock']), OUT = new Set(['sold', 'lent', 'transfer_out']);
+  /* 'adjustment' -- with no direction -- is in neither, and cannot be: it is what rows written
+     before adjustment_in/out look like, and guessing would make the totals a fiction. */
+  const IN = new Set(['received', 'transfer_in', 'returned', 'cancelled_restock', 'adjustment_in']);
+  const OUT = new Set(['sold', 'lent', 'transfer_out', 'adjustment_out']);
   let qtyIn = 0, qtyOut = 0;
   const out = list.map(m => {
     if (IN.has(m.type)) qtyIn += num(m.qty); else if (OUT.has(m.type)) qtyOut += num(m.qty);

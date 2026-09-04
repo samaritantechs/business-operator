@@ -164,7 +164,7 @@ test('updateUnit: lost and found go through the ledger; sold units are not edite
   assert.equal(product(db, 'P1').stock, 2);
   let m = moves(db);
   assert.equal(m.length, 1);
-  assert.equal(m[0].type, 'adjustment');
+  assert.equal(m[0].type, 'adjustment_out');
   assert.equal(m[0].unit_id, 'U1');
   assert.equal(m[0].imei, '350000000000001');
   assert.equal(m[0].from_branch_id, 'B1');
@@ -176,7 +176,7 @@ test('updateUnit: lost and found go through the ledger; sold units are not edite
   assert.equal(product(db, 'P1').stock, 3);
   m = moves(db);
   assert.equal(m.length, 2);
-  assert.equal(m[1].type, 'adjustment');
+  assert.equal(m[1].type, 'adjustment_in');
   assert.equal(m[1].to_branch_id, 'B2');
   assert.equal(m[1].from_branch_id, null);
   // a plain edit is no movement
@@ -301,7 +301,7 @@ test('adjustStock: needs a reason, a non-zero difference, a counted product; nev
   assert.equal(branchQty(db, 'P3', 'B2'), 10);
   const m = moves(db);
   assert.equal(m.length, 1);
-  assert.equal(m[0].type, 'adjustment');
+  assert.equal(m[0].type, 'adjustment_out');
   assert.equal(m[0].qty, 5);
   assert.equal(m[0].from_branch_id, 'B2');
   assert.equal(m[0].to_branch_id, null);
@@ -364,4 +364,22 @@ test('branchStock: every active product with its per-shop quantities and the ven
   assert.equal((await FN.branchStock(db, MGR(), { vendor_id: 'V1' }, NOW)).rows.length, 3);
   await rejects(FN.branchStock(db, MGR(), {}, NOW), 400);
   await rejects(FN.branchStock(db, SEL(), {}, NOW), 403);
+});
+
+/* A stock take goes both ways, and 'adjustment' recorded only that one happened: qty is always
+   positive and the type is what carries direction, so "-3 damaged" and "+3 found again" were
+   written as the same row twice. Replaying the ledger gave +6, -6 or 0 with equal justification,
+   and the Stock Movements report counted neither in TOTAL IN or TOTAL OUT. */
+test('adjustStock: the ledger says which way a correction went', async () => {
+  const db = bookDb();
+  await FN.adjustStock(db, ADM(), { product_id: 'P3', delta: -3, note: 'damaged' }, NOW);
+  await FN.adjustStock(db, ADM(), { product_id: 'P3', delta: 3, note: 'found again' }, NOW);
+  const m = moves(db).filter(x => x.product_id === 'P3');
+  assert.equal(m.length, 2);
+  assert.deepEqual(m.map(x => x.type), ['adjustment_out', 'adjustment_in']);
+  assert.deepEqual(m.map(x => x.qty), [3, 3], 'qty stays positive; the type carries the sign');
+  // Replaying the ledger now lands back where it started, which it could not before.
+  const net = m.reduce((a, x) => a + (x.type === 'adjustment_out' ? -x.qty : x.qty), 0);
+  assert.equal(net, 0);
+  assert.equal(product(db, 'P3').stock, 40);
 });

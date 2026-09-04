@@ -39,7 +39,8 @@ do $$ begin
 exception when duplicate_object then null; end $$;
 do $$ begin
   create type movement_type as enum
-    ('received','sold','transfer_out','transfer_in','returned','adjustment','cancelled_restock','lent');
+    ('received','sold','transfer_out','transfer_in','returned','adjustment','cancelled_restock','lent',
+     'adjustment_in','adjustment_out');
 exception when duplicate_object then null; end $$;
 do $$ begin
   create type unit_status as enum ('in_stock','sold','lent','lost');
@@ -365,6 +366,15 @@ create or replace view marketplace_products as
 -- Added after the first deployments: a third product photo. The CREATE TABLE above already
 -- has it for a new database; this is what gives it to one that was made before.
 alter table if exists products add column if not exists image3_url text;
+
+-- A stock take can go either way, and 'adjustment' said only that one happened: qty is always
+-- positive and the TYPE is what carries direction, so a correction of -3 and one of +3 were
+-- written identically. These two say which. The bare 'adjustment' value stays in the enum for
+-- rows written before this, and the movements report keeps counting those as neither.
+do $$ begin
+  alter type movement_type add value if not exists 'adjustment_in';
+  alter type movement_type add value if not exists 'adjustment_out';
+exception when others then null; end $$;
 
 -- =====================================================================================
 -- DATABASE-SIDE AGGREGATES -- "ask the database, don't drag rows" (the Postgres budget).

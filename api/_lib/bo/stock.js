@@ -52,7 +52,16 @@ export async function recountSerialized(db, productId) {
   return Array.isArray(out) ? num(out[0] && (out[0].bo_recount_units != null ? out[0].bo_recount_units : out[0])) : num(out);
 }
 
-export const MOVEMENT_TYPES = ['received', 'sold', 'transfer_out', 'transfer_in', 'returned', 'adjustment', 'cancelled_restock', 'lent'];
+export const MOVEMENT_TYPES = ['received', 'sold', 'transfer_out', 'transfer_in', 'returned', 'adjustment', 'cancelled_restock', 'lent',
+  'adjustment_in', 'adjustment_out'];
+
+/* A stock take goes both ways, and 'adjustment' recorded only that one happened. qty is always
+   positive and the type is what carries direction, so "-3, damaged" and "+3, found again" were
+   written as the same row twice over: replaying the ledger for that product gave +6, -6 or 0
+   with equal justification, and the Stock Movements report counted neither in its totals.
+   changeStock resolves it from the delta, so no caller has to remember to. The bare value is
+   still accepted -- rows written before this keep it -- and stays out of both report totals. */
+const DIRECTED_ADJUSTMENT = d => (d < 0 ? 'adjustment_out' : 'adjustment_in');
 
 /** Writes the audit row for one stock change. Always positive qty; `type` says the direction. */
 export async function writeMovement(db, m, nowMs = Date.now()) {
@@ -72,10 +81,12 @@ export async function writeMovement(db, m, nowMs = Date.now()) {
     (the product_units row) and `unitStatus` (what the unit becomes); the product total is
     then recounted from the units rather than added to.
     Returns { stock, branch_qty }. */
-export async function changeStock(db, { product, delta, branchId, type, user, note, referenceSaleId, referenceLendingId, unit, unitStatus, unitPatch, toBranchId, fromBranchId }, nowMs = Date.now()) {
+export async function changeStock(db, { product, delta, branchId, type: rawType, user, note, referenceSaleId, referenceLendingId, unit, unitStatus, unitPatch, toBranchId, fromBranchId }, nowMs = Date.now()) {
   if (!product || !product.id) throw badRequest('changeStock needs a product.');
+  let type = rawType;
   if (!MOVEMENT_TYPES.includes(type)) throw badRequest('Unknown movement type: ' + type);
   const d = int(delta);
+  if (type === 'adjustment') type = DIRECTED_ADJUSTMENT(d);
   let stock, branchQty = null;
   if (product.is_serialized) {
     if (!unit) throw badRequest('A serialized product moves unit by unit -- pick the IMEI.');
