@@ -69,8 +69,23 @@ test('every registered function is reachable from the page (or is a named server
 });
 
 /* ------------------------------------------------------------------ the views */
+/* `market` is the one nav that is not a tab: it steps out to the public shopfront, which is a
+   SCREEN of this same page rather than a panel with a loader. So it has no tab- panel and no
+   BO.tabs entry on purpose -- and the exemption is not a hole, because the two assertions
+   below demand the button actually reach the marketplace and offer a way back. */
+const SCREEN_NAVS = ['market'];
+test('the marketplace nav is a screen, and it goes somewhere and comes back', () => {
+  assert.match(html, /id="nav-market"[^>]*onclick="openMarketplace\(\)"/, 'the Marketplace button lost its handler');
+  assert.match(shell, /function openMarketplace\(\)/, 'openMarketplace is gone');
+  assert.match(shell, /function backToApp\(\)/, 'the way back is gone');
+  assert.match(html, /id="mkBackToApp"[^>]*onclick="backToApp\(\)"/, 'the shopfront lost its Back to my workspace link');
+  // It must sit directly above My Account, which is where it was asked for.
+  const market = html.indexOf('id="nav-market"'), account = html.indexOf('id="nav-account"');
+  assert.ok(market > 0 && account > market, 'Marketplace must come before My Account in the sidebar');
+});
+
 test('every nav button has a panel and a tab registration, and every registration has a nav', () => {
-  const navs = names(html, /id="nav-([a-z]+)"/g);
+  const navs = names(html, /id="nav-([a-z]+)"/g).filter(n => !SCREEN_NAVS.includes(n));
   assert.ok(navs.length >= 12, 'the extractor stopped seeing nav buttons');
   const panels = new Set(names(html, /id="tab-([a-z]+)"/g));
   const registered = new Set(names(Object.values(tabs).join('\n'), /\bBO\.tabs\.([a-z]+)\s*=/g));

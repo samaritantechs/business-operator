@@ -152,6 +152,7 @@ html.bo-desktop .tb-vendor-badge{display:inline-block;}
       <div><div class="mk-bn">Samaritan Industrial</div><div class="mk-bs">Marketplace by Samaritan Techs</div></div>
     </div>
     <div class="mk-navlinks">
+      <button class="mk-navlink hidden" id="mkBackToApp" onclick="backToApp()">↩︎ Back to my workspace</button>
       <button class="mk-navlink" onclick="mkScrollTo('mkMarketSection')">🛍️ Marketplace</button>
       <button class="mk-navlink" onclick="mkScrollTo('mkAboutSection')">ℹ️ About Us</button>
       <a href="#" class="icon-btn" onclick="showSuggestionBox();return false;" title="Feedback via WhatsApp">💬</a>
@@ -352,7 +353,7 @@ body.bo-restricted .topbar{position:relative;z-index:260;}
       <button class="nav-item" id="nav-manager" data-roles="manager assistant-manager" onclick="switchTab('manager',this)"><span class="ni">🏢</span>Management</button>
       <button class="nav-item" id="nav-mgrreports" data-roles="manager assistant-manager" onclick="switchTab('mgrreports',this)"><span class="ni">📥</span>Reports</button>
       <button class="nav-item" id="nav-settings" data-roles="manager assistant-manager" onclick="switchTab('settings',this)"><span class="ni">⚙️</span>Settings</button>
-      <div class="sidebar-footer"><button class="nav-item" id="nav-account" onclick="switchTab('account',this)"><span class="ni">🔐</span>My Account</button><div style="font-size:.68rem;color:var(--muted);text-align:center;margin-top:6px;">Samaritan Techs</div></div>
+      <div class="sidebar-footer"><button class="nav-item" id="nav-market" onclick="openMarketplace()"><span class="ni">🛍️</span>Marketplace</button><button class="nav-item" id="nav-account" onclick="switchTab('account',this)"><span class="ni">🔐</span>My Account</button><div style="font-size:.68rem;color:var(--muted);text-align:center;margin-top:6px;">Samaritan Techs</div></div>
     </nav>
     <main class="main-content" id="mainScroll">
       <div id="tab-dashboard"><div class="page-hdr"><div><div class="page-title">Dashboard</div><div class="page-sub" id="dashSubLine">Business overview</div></div></div><div id="dashboardContent"><div class="empty">Loading…</div></div></div>

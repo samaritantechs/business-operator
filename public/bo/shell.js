@@ -239,7 +239,25 @@ function toggleView() { applyView(S.view === 'desktop' ? 'mobile' : 'desktop'); 
 function show_(id, on) { var el = document.getElementById(id); if (!el) return; el.classList.toggle('hidden', !on); if (id === 'mainApp') el.style.display = on ? 'flex' : 'none'; }
 function showLanding() {
   S.screen = 'landing'; show_('loginPage', false); show_('mainApp', false); show_('landingPage', true); window.scrollTo(0, 0);
+  /* Somebody signed in who steps out to the shopfront needs a door back, and somebody signed
+     out must not be offered one. The same screen serves both, so the link is decided here
+     rather than in whichever function happened to open it. */
+  var back = document.getElementById('mkBackToApp');
+  if (back) back.classList.toggle('hidden', !S.user);
   if (!_market.products.length) loadMarketplace(); else startMarketplaceHints();
+}
+/* THE MARKETPLACE FROM INSIDE THE APP. It is the same storefront a customer sees, on the same
+   page -- no reload and no second sign-in, so a shopkeeper can check how their own listing
+   looks and come straight back to the till. The session is untouched throughout. */
+function openMarketplace() {
+  closeMobileSidebar();
+  showLanding();
+}
+function backToApp() {
+  if (!S.user) { showLogin(false); return; }
+  S.screen = 'app'; stopHints();
+  show_('landingPage', false); show_('loginPage', false); show_('mainApp', true);
+  window.scrollTo(0, 0);
 }
 function showLogin(openReg) {
   S.screen = 'login'; stopHints();
