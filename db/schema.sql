@@ -409,6 +409,56 @@ create index if not exists idx_sales_customer on sales (vendor_id, customer_phon
   where customer_phone is not null;
 
 -- =====================================================================================
+-- PURCHASE ORDERS -- stock you have ordered and not yet got.
+-- =====================================================================================
+-- Until now the first the system heard of a delivery was somebody typing an opening stock or a
+-- restock after the boxes were already open. Everything between "I have ordered forty covers"
+-- and "forty covers are on the shelf" lived in a WhatsApp thread, so nobody could answer what
+-- is on its way, what did the supplier actually send, or what did it cost this time.
+--
+-- Receiving is the ONLY way an order turns into stock, and it goes through the same
+-- stock.changeStock() every other quantity change goes through, so a delivery is a 'received'
+-- movement like any other and the movements report can still answer "where did these come from".
+--
+-- Partial deliveries are the normal case, not the exception: a supplier who owes forty sends
+-- twenty-eight. So each line carries what was ORDERED and what has been RECEIVED so far, and an
+-- order stays open until they match. Receiving twice tops the line up rather than doubling it.
+do $$ begin
+  create type po_status as enum ('ordered','received','cancelled');
+exception when duplicate_object then null; end $$;
+
+create table if not exists purchase_orders (
+  id uuid primary key default gen_random_uuid(),
+  legacy_id text,                               -- PO-0001, the number said down the phone
+  vendor_id uuid not null references vendors(id),
+  branch_id uuid references branches(id),       -- the shop the delivery lands at
+  supplier text,
+  reference text,                               -- the supplier's own invoice or order number
+  notes text,
+  status po_status not null default 'ordered',
+  expected_at date,
+  created_by uuid references profiles(id),
+  created_by_name text,                         -- snapshot, so a departed buyer still reads
+  created_at timestamptz not null default now(),
+  closed_at timestamptz,                        -- fully received, or cancelled
+  closed_by_name text,
+  cancel_reason text
+);
+create index if not exists idx_po_vendor_status on purchase_orders(vendor_id, status, created_at desc);
+
+create table if not exists purchase_order_items (
+  id uuid primary key default gen_random_uuid(),
+  po_id uuid not null references purchase_orders(id) on delete cascade,
+  product_id uuid not null references products(id),
+  product_name text not null,                   -- snapshot, as everywhere else
+  qty integer not null,                         -- ordered
+  received_qty integer not null default 0,      -- delivered so far; the order closes when these meet
+  unit_cost numeric(14,2) not null default 0,   -- what this delivery is costing, per piece
+  total numeric(14,2) not null default 0
+);
+create index if not exists idx_po_items_po on purchase_order_items(po_id);
+
+-- =====================================================================================
 -- THE ANDROID APP'S RELEASES.
 -- =====================================================================================
 -- The app on a phone is a window onto this website, so ordinary updates need no new APK at

@@ -14,6 +14,7 @@ import * as settings from './bo/settings.js';
 import * as stockops from './bo/stockops.js';
 import * as boot from './bo/boot.js';
 import * as releases from './bo/releases.js';
+import * as purchasing from './bo/purchasing.js';
 
 /* =====================================================================================
    ONE DOOR. Every signed-in call the app makes is { token, fn, args } to /api/bo, and every
@@ -28,7 +29,7 @@ import * as releases from './bo/releases.js';
 
    A name registered twice is a startup error, not a silent override. */
 
-const MODULES = { products, sales, lendings, cash, dashboard, users, vendors, reports, emails, hints, settings, stockops, boot, releases };
+const MODULES = { products, sales, lendings, cash, dashboard, users, vendors, reports, emails, hints, settings, stockops, boot, releases, purchasing };
 export const FN = {};
 export const WRITE_FNS = new Set();
 export const FN_MODULE = {};

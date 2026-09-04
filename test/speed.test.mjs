@@ -82,6 +82,20 @@ function bigBook() {
       t.lendings.push({ id: L, legacy_id: 'LEND-' + v + '-' + l, vendor_id: V, branch_id: null, borrower_name: 'Borrower ' + l, borrower_email: l % 2 ? 'b' + l + '@x.tz' : '', borrower_phone: '', recorded_by: 'A' + v, recorded_by_name: 'Admin ' + v, status: active ? 'Active' : 'Returned', return_date: active ? null : iso(NOW - l * DAY), created_at: iso(NOW - (l + 3) * DAY) });
       t.lending_items.push({ id: 'LI' + v + '_' + l, lending_id: L, product_id: 'P' + v + '_' + (SERIALIZED + l), product_name: 'Item ' + (SERIALIZED + l), unit_id: null, qty: 1, price: 5000, total: 5000 });
     }
+    /* Purchase orders: fifteen per business, ten of them still open with five lines each, which
+       is a busier order book than a phone shop actually runs. A budget measured against an empty
+       table measures nothing. */
+    for (let o = 0; o < 15; o++) {
+      const O = 'PO' + v + '_' + o, open = o < 10;
+      t.purchase_orders.push({ id: O, legacy_id: 'PO-' + String(o + 1).padStart(4, '0'), vendor_id: V, branch_id: null,
+        supplier: 'Supplier ' + (o % 3), reference: 'INV' + o, notes: null, status: open ? 'ordered' : 'received',
+        expected_at: null, created_by: 'A' + v, created_by_name: 'Admin ' + v, created_at: iso(NOW - (o + 1) * DAY),
+        closed_at: open ? null : iso(NOW - o * DAY), closed_by_name: open ? null : 'Admin ' + v, cancel_reason: null });
+      for (let i = 0; i < 5; i++) {
+        t.purchase_order_items.push({ id: 'POI' + v + '_' + o + '_' + i, po_id: O, product_id: 'P' + v + '_' + (SERIALIZED + i),
+          product_name: 'Item ' + (SERIALIZED + i), qty: 20, received_qty: open ? 0 : 20, unit_cost: 2800, total: 56000 });
+      }
+    }
   }
   for (let h = 0; h < 20; h++) t.hints.push({ id: 'H' + h, role: ['seller', 'admin', 'all', 'marketplace'][h % 4], message_en: 'Tip ' + h, message_sw: '', active: true, sort: h });
   t.sessions.push({ token: 'tok-a1', profile_id: 'A1', created_at: iso(NOW - DAY), expires_at: iso(NOW + 30 * DAY), last_seen_at: iso(NOW - DAY) });
@@ -194,6 +208,9 @@ const BUDGETS = [
   ['Users (manager, everybody)',      'bo', 'users',            {},                                   MANAGER,  5,    300,   5,   300],
   ['Branch stock',                    'bo', 'branchStock',      {},                                   ADMIN,    6,    800,   6,   800],
   ['Units (IMEI list)',               'bo', 'units',            {},                                   ADMIN,    4,    200,   4,   200],
+  /* Purchase orders: the open ones and every line on them, in two reads whatever the shape of
+     the list. Bounded by 'still open', which is a set a shop keeps small by receiving things. */
+  ['Purchase orders (open)',          'bo', 'purchaseOrders',   { status: 'ordered' },                ADMIN,    2,    100,   2,   100],
   ['Movements (30 days)',             'bo', 'movements',        MONTH,                                ADMIN,    4,   1300,   4,  1300],
   ['Sales report (month)',            'bo', 'reportData',       { type: 'sales', ...MONTH },          ADMIN,    6,   1500,   6,  1500],
   /* A report over a range must read that range: there is no honest way to list every line sold

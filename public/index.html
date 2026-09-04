@@ -381,6 +381,10 @@ body.bo-fb-open{overflow:hidden;}
   body.printing-receipt .rcpt-tbl th{color:#333;}
 }
 /* The partner summary strip: who owes what, biggest first, before the detail below it. */
+/* One order, one card. A table of orders hides the lines, and the lines are the order. */
+.po-card{border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:12px;background:var(--surface2);}
+.po-hd{display:flex;gap:12px;align-items:flex-start;margin-bottom:10px;flex-wrap:wrap;}
+.po-card .bo-table th{font-size:.72rem;}
 .cv-partners{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;}
 .cv-partner{flex:1 1 150px;background:var(--amber-lt);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;}
 .cv-pname{font-size:.78rem;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.03em;}
@@ -425,6 +429,7 @@ body.bo-restricted .topbar{position:relative;z-index:260;}
       <div class="nav-group-label" data-roles="admin assistant-admin">Inventory</div>
       <button class="nav-item" id="nav-products" data-roles="admin assistant-admin" onclick="switchTab('products',this)"><span class="ni">📦</span>Products</button>
       <button class="nav-item" id="nav-stock" data-roles="admin assistant-admin" onclick="switchTab('stock',this)"><span class="ni">🏬</span>Stock &amp; Shops</button>
+      <button class="nav-item" id="nav-po" data-roles="admin assistant-admin" onclick="switchTab('po',this)"><span class="ni">🚚</span>Purchase Orders</button>
       <button class="nav-item" id="nav-cash" data-roles="admin assistant-admin" onclick="switchTab('cash',this)"><span class="ni">💰</span>Cash</button>
       <button class="nav-item" id="nav-credit" data-roles="admin assistant-admin" onclick="switchTab('credit',this)"><span class="ni">💳</span>Credit &amp; Voids</button>
       <div class="nav-group-label" data-roles="admin assistant-admin manager assistant-manager">People</div>
@@ -445,6 +450,7 @@ body.bo-restricted .topbar{position:relative;z-index:260;}
       <div id="tab-stock" class="hidden"><div class="page-hdr"><div><div class="page-title">Stock &amp; Shops</div><div class="page-sub">Branches, IMEI units, transfers, movements &amp; financing partners</div></div></div><div id="stockContent"></div></div>
       <div id="tab-users" class="hidden"><div class="page-hdr"><div><div class="page-title">Users</div><div class="page-sub">Manage team access &amp; business profile</div></div></div><div id="usersContent"></div></div>
       <div id="tab-cash" class="hidden"><div class="page-hdr"><div><div class="page-title">Cash Tracking</div><div class="page-sub">Record payments from sellers</div></div></div><div id="cashContent"></div></div>
+      <div id="tab-po" class="hidden"><div class="page-hdr"><div><div class="page-title">Purchase Orders</div><div class="page-sub">What you have ordered, and what actually arrived</div></div></div><div id="poContent"></div></div>
       <div id="tab-credit" class="hidden"><div class="page-hdr"><div><div class="page-title">Credit &amp; Voids</div><div class="page-sub">What financing partners still owe you, and what was cancelled</div></div></div><div id="creditContent"></div></div>
       <div id="tab-reports" class="hidden"><div class="page-hdr"><div><div class="page-title">Reports</div><div class="page-sub">Download business reports</div></div></div><div id="reportsContent"></div></div>
       <div id="tab-manager" class="hidden"><div class="page-hdr"><div><div class="page-title">Management</div><div class="page-sub">Businesses, email center &amp; marketplace analytics</div></div></div><div id="managerContent"></div></div>
@@ -487,6 +493,7 @@ body.bo-restricted .topbar{position:relative;z-index:260;}
 <script src="/bo/reports.js"></script>
 <script src="/bo/manager.js"></script>
 <script src="/bo/settings.js"></script>
+<script src="/bo/purchasing.js"></script>
 <script src="/bo/credit.js"></script>
 <script src="/bo/receipt.js"></script>
 <script src="/bo/account.js"></script>

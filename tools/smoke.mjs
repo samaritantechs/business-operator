@@ -55,12 +55,12 @@ await step('sign in as the phone-shop admin', async () => {
 });
 await page.screenshot({ path: OUT + '02-dashboard.png' });
 
-const tabs = ['sale', 'lendings', 'products', 'stock', 'cash', 'credit', 'users', 'reports', 'account'];
+const tabs = ['sale', 'lendings', 'products', 'stock', 'po', 'cash', 'credit', 'users', 'reports', 'account'];
 for (const t of tabs) {
   await step('tab renders: ' + t, async () => {
     await page.evaluate(n => switchTab(n), t);
     const id = { sale: 'saleContent', lendings: 'lendingsContent', products: 'productsContent', stock: 'stockContent',
-                 cash: 'cashContent', credit: 'creditContent', users: 'usersContent', reports: 'reportsContent', account: 'accountContent' }[t];
+                 po: 'poContent', cash: 'cashContent', credit: 'creditContent', users: 'usersContent', reports: 'reportsContent', account: 'accountContent' }[t];
     await page.waitForFunction(el => {
       const e = document.getElementById(el);
       // Anchored, and the ellipsis is required: the Settings tab's FIRST CARD is called
@@ -84,6 +84,27 @@ await step('sell a phone cover through the form', async () => {
   const after = await page.evaluate(async () => (await BO.srv('dashboard', {})).stock_value);
   if (!(after < before)) throw new Error('stock value did not drop: ' + before + ' -> ' + after);
   console.log('       ' + done + '; stock value ' + before + ' -> ' + after);
+});
+
+/* A PURCHASE ORDER, END TO END. The suite proves the rules; only a browser proves the screen
+   can raise one and receive it, and that the stock on the dashboard behind it actually moves. */
+await step('raise a purchase order and receive it short', async () => {
+  const out = await page.evaluate(async () => {
+    const before = (await BO.srv('products', {})).rows.find(p => p.id === 'P3').stock;
+    const po = await BO.srv('createPurchaseOrder', { items: [{ product_id: 'P3', qty: 40, unit_cost: 2800 }], supplier: 'Smoke Wholesale' });
+    const open = (await BO.srv('purchaseOrders', { status: 'ordered' })).rows.find(r => r.id === po.id);
+    const part = await BO.srv('receivePurchaseOrder', { id: po.id, receipts: [{ item_id: open.items[0].id, qty: 28 }] });
+    const after = (await BO.srv('products', {})).rows.find(p => p.id === 'P3');
+    const still = (await BO.srv('purchaseOrders', { status: 'ordered' })).rows.find(r => r.id === po.id);
+    return { before, stock: after.stock, cost: after.cost_price, closed: part.closed, outstanding: still && still.outstanding };
+  });
+  if (out.stock !== out.before + 28) throw new Error('stock did not rise by 28: ' + out.before + ' -> ' + out.stock);
+  if (out.cost !== 2800) throw new Error('the cost did not follow the delivery: ' + out.cost);
+  if (out.closed !== false || out.outstanding !== 12) throw new Error('a short delivery must leave the order open, 12 owed; got ' + JSON.stringify(out));
+  await page.evaluate(() => { switchTab('po'); BO.tabs.po.load(); });
+  await page.waitForSelector('.po-card', { timeout: 10000 });
+  await page.screenshot({ path: OUT + '08-purchase-orders.png' });
+  console.log('       stock ' + out.before + ' -> ' + out.stock + ', cost now ' + out.cost + ', ' + out.outstanding + ' still owed');
 });
 
 /* LENDING FROM THE TILL. The server side is unchanged -- the same recordLending the Lendings
