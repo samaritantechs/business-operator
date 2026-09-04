@@ -242,3 +242,56 @@ test('the Cash Due report still draws when there is no holds table at all', asyn
   assert.ok(rep.rows.length, 'it still lists the sellers');
   assert.ok(rep.rows.every(r => r.dep_taken === 0 && r.dep_applied === 0), 'with nothing to account for');
 });
+
+test('the whole sales table is learned from ONE refusal, not one per column', async () => {
+  /* PostgREST names a single missing column per error, and sales declares three. Learning them
+     one at a time cost three refused inserts on recordSale -- the hottest write in the system --
+     on every cold instance while the migration was pending. */
+  const db = oldDb();
+  let refusals = 0;
+  const counting = new Proxy(db, {
+    get(t, k) {
+      if (k !== 'from') return t[k];
+      return name => {
+        const q = t.from(name);
+        const then = q.then.bind(q);
+        q.then = (res, rej) => then(v => { if (v && v.error) refusals++; return res ? res(v) : v; }, rej);
+        return q;
+      };
+    },
+  });
+  await SALES.recordSale(counting, SEL(), { items: [{ product_id: 'P3', qty: 1 }], payment_method: 'Cash' }, NOW);
+  assert.ok(refusals <= 2, 'at most one refusal per table (products, then sales) — got ' + refusals);
+  assert.deepEqual(absentColumns.list().sort(),
+    ['products.cost_price', 'sales.customer_name', 'sales.customer_phone', 'sales.unit_cost'],
+    'and all four are known after that one pass');
+});
+
+test('what was learned is forgotten again, so a warm instance heals after the migration', async () => {
+  /* A lambda alive across the migration used to remember the columns as missing for the rest of
+     its life. A read that is a column short heals when the instance recycles; a WRITE that is a
+     column short is gone for good -- every sale that instance rang up afterwards had no cost
+     snapshot, and the owner was told it saved. */
+  const stale = oldDb();
+  await SALES.recordSale(stale, SEL(), { items: [{ product_id: 'P3', qty: 1 }], payment_method: 'Cash' }, NOW);
+  assert.equal(absentColumns.has('sales', 'unit_cost'), true);
+
+  absentColumns.age();                       // the same process, ten minutes later
+  assert.equal(absentColumns.has('sales', 'unit_cost'), false, 'it is willing to ask again');
+
+  const migrated = fakeDb(richBook());       // and by now somebody has run RUN-ME-002
+  const r = await SALES.recordSale(migrated, SEL(), { items: [{ product_id: 'P3', qty: 2 }], payment_method: 'Cash', customer_name: 'Neema' }, NOW);
+  const sale = migrated._dump('sales').find(s => s.id === r.sale_ids[0]);
+  assert.equal(sale.unit_cost, 3000, 'the cost snapshot is back without a redeploy');
+  assert.equal(sale.customer_name, 'Neema');
+});
+
+test('and a write that exists to set an expired-absent column stops refusing once it can work', async () => {
+  const stale = oldDb();
+  await PRODUCTS.products(stale, ADM(), {});
+  await assert.rejects(PRODUCTS.updateProduct(stale, ADM(), { id: 'P3', cost_price: 3000 }, NOW), () => true);
+  absentColumns.age();
+  const migrated = fakeDb(richBook());
+  const ok = await PRODUCTS.updateProduct(migrated, ADM(), { id: 'P3', cost_price: 3200 }, NOW);
+  assert.equal(ok.product.cost_price, 3200);
+});

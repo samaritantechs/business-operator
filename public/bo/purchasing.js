@@ -180,6 +180,8 @@ window.BOPO = (function () {
   function setFilter(v) { filter = v; load(); }
   function g(id) { var e = document.getElementById(id); return e ? e.value : ''; }
 
-  BO.tabs.po = { load: load, sync: load };
+  // Same as Holds: this load() reads the whole catalogue and ends in el.innerHTML, so a timer
+  // tick would both cost a needless round trip and wipe a half-typed order.
+  BO.tabs.po = { load: load };
   return { load: load, addRow: addRow, pick: pick, calc: calc, create: create, receive: receive, cancel: cancel, del: del, setFilter: setFilter };
 })();

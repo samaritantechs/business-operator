@@ -434,17 +434,29 @@ async function creditAndVoids(db, user, args, nowMs) {
   const days = Math.min(Math.max(parseInt(args.days, 10) || 30, 1), 365);
   const since = iso(nowMs - days * 86400000);
 
-  const credit = await rowsAll(db, 'sales', q => {
+  /* A DEBT DOES NOT EXPIRE, BUT A SCREEN STILL HAS TO LOAD. "not yet settled" is only a bound in a
+     shop that settles; the shop that never taps Paid is exactly the one that most needs this
+     screen, and its unsettled set grows for ever -- a year of six credit sales a day is already
+     past this screen's whole budget, on a phone. So the read is capped, oldest first, because the
+     oldest debt is the one to chase, and the screen SAYS when it is showing a capped list rather
+     than quietly implying that is all there is. */
+  const CREDIT_CAP = 500;
+  const credit = await rows(db, 'sales', q => {
     let x = q.select(sel('sales', SALE_COLS)).eq('vendor_id', vid).eq('payment_method', 'Credit')
       .eq('status', 'completed').eq('partner_paid', false);
     if (branchId) x = x.eq('branch_id', branchId);
-    return x.order('sold_at', { ascending: true });        // oldest debt first: that is the one to chase
+    return x.order('sold_at', { ascending: true }).limit(CREDIT_CAP + 1);   // +1 tells us there are more
   });
-  const voids = await rowsAll(db, 'sales', q => {
+  const creditCapped = credit.length > CREDIT_CAP;
+  if (creditCapped) credit.length = CREDIT_CAP;
+  const VOID_CAP = 500;
+  const voids = await rows(db, 'sales', q => {
     let x = q.select(sel('sales', SALE_COLS)).eq('vendor_id', vid).eq('status', 'cancelled').gte('cancelled_at', since);
     if (branchId) x = x.eq('branch_id', branchId);
-    return x.order('cancelled_at', { ascending: false });  // newest void first: that is the one being asked about
+    return x.order('cancelled_at', { ascending: false }).limit(VOID_CAP + 1);  // newest void first: that is the one being asked about
   });
+  const voidsCapped = voids.length > VOID_CAP;
+  if (voidsCapped) voids.length = VOID_CAP;
   const names = await nameLookups(db, [...credit, ...voids]);
 
   return {
@@ -454,6 +466,9 @@ async function creditAndVoids(db, user, args, nowMs) {
     voids: groupByCheckout(voids, names, nowMs),
     credit_total: money(credit.reduce((a, r) => a + num(r.total), 0)),
     voids_total: money(voids.reduce((a, r) => a + num(r.total), 0)),
+    /* Said, not hidden: a total computed from a capped list is not the business's total, and a
+       screen that implies otherwise is worse than one that admits the cut (CLAUDE.md rule 2). */
+    credit_capped: creditCapped, voids_capped: voidsCapped, cap: CREDIT_CAP,
     /* By partner, because that is who the phone call is to. */
     by_partner: partnerTotals(credit, names),
   };

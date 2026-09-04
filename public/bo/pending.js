@@ -190,6 +190,11 @@ window.BOHold = (function () {
   function setFilter(v) { filter = v; load(); }
   function g(id) { var e = document.getElementById(id); return e ? e.value : ''; }
 
-  BO.tabs.holds = { load: load, sync: load };
+  /* NO sync. silentSync() calls it every autoSyncSeconds (120 by default) and this load() issues
+     productOptions -- one of the two paths rule 1 protects -- so a seller who leaves the tab open
+     hits the till's own payload every two minutes for as long as it is up. And load() ends in
+     el.innerHTML, so the tick would wipe a half-typed hold: customer, phone, deposit, every line.
+     The Sell screen needs the same payload and deliberately registers no sync either. */
+  BO.tabs.holds = { load: load };
   return { load: load, addRow: addRow, pick: pick, unitToggle: unitToggle, calc: calc, create: create, collect: collect, release: release, setFilter: setFilter };
 })();

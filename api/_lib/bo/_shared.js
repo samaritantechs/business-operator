@@ -40,25 +40,48 @@ const OPTIONAL_COLUMNS = {
   products: ['cost_price'],
   sales: ['unit_cost', 'customer_name', 'customer_phone'],
 };
-const ABSENT = new Set();
+/* WHAT IS LEARNED HAS TO BE FORGOTTEN AGAIN. A lambda that served one request before the
+   migration ran remembers the columns as missing for the rest of its life, and while a READ that
+   is a column short merely heals when the instance recycles, a WRITE that is a column short is
+   gone for good: every sale that instance rings up afterwards has no cost snapshot, and the
+   Profit report counts those as pure margin for ever. The admin is told the save succeeded.
+
+   So the knowledge expires. Ten minutes after learning a column is absent the next query tries it
+   again -- one refused round trip, once, and then either the migration has run and everything is
+   back to full width, or it has not and the clock restarts. Nobody has to redeploy. */
+const ABSENT = new Map();                       // 'table.column' -> when we learned it
+const ABSENT_TTL_MS = 10 * 60 * 1000;
 const absentKey = (table, col) => table + '.' + col;
+const isAbsent = (table, col, nowMs) => {
+  const at = ABSENT.get(absentKey(table, col));
+  if (at === undefined) return false;
+  if ((nowMs || Date.now()) - at < ABSENT_TTL_MS) return true;
+  ABSENT.delete(absentKey(table, col));         // time to ask again
+  return false;
+};
 
 /** For tests: what this process has learned, and a way to forget it again. */
-export const absentColumns = { list: () => [...ABSENT], clear: () => ABSENT.clear(), has: (t, c) => ABSENT.has(absentKey(t, c)) };
+export const absentColumns = {
+  list: () => [...ABSENT.keys()],
+  clear: () => ABSENT.clear(),
+  has: (t, c) => isAbsent(t, c),
+  /** Pretend everything learned was learned long ago -- what a lambda alive across a migration sees. */
+  age: () => { for (const k of ABSENT.keys()) ABSENT.set(k, 0); },
+};
 
 /** A select list with the columns this database turned out not to have taken out of it.
     Call it INSIDE the build function, so a retry rebuilds with what was just learned. */
 export function sel(table, list) {
   const optional = OPTIONAL_COLUMNS[table];
   if (!optional || !ABSENT.size) return list;
-  return list.split(',').map(c => c.trim()).filter(c => !ABSENT.has(absentKey(table, c))).join(', ');
+  return list.split(',').map(c => c.trim()).filter(c => !isAbsent(table, c)).join(', ');
 }
 /** The same, for a row about to be written. */
 export function writable(table, row) {
   const optional = OPTIONAL_COLUMNS[table];
   if (!optional || !ABSENT.size || !row || typeof row !== 'object') return row;
   const out = {};
-  for (const k of Object.keys(row)) if (!ABSENT.has(absentKey(table, k))) out[k] = row[k];
+  for (const k of Object.keys(row)) if (!isAbsent(table, k)) out[k] = row[k];
   return out;
 }
 
@@ -72,7 +95,7 @@ export function writable(table, row) {
    So a caller whose write EXISTS to set an optional column asks first, and is told plainly to run
    the migration rather than being congratulated for a no-op. */
 export function requireColumn(table, col, what) {
-  if (!ABSENT.has(absentKey(table, col))) return;
+  if (!isAbsent(table, col)) return;
   throw badRequest('Hifadhidata bado haijasasishwa kwa ' + what + '. Mwambie meneja aendeshe db/RUN-ME-002 kwenye Supabase. / '
     + 'This database has not been updated for ' + what + ' yet, so it cannot be saved. '
     + 'Ask the manager to run db/RUN-ME-002 in Supabase, then try again.');
@@ -89,30 +112,36 @@ function missingOptionalColumn(table, error) {
   const m = /column\s+"?(?:[\w]+\.)?([\w]+)"?\s+does not exist/i.exec(msg)
          || /Could not find the '([\w]+)' column/i.exec(msg);
   const col = m && m[1];
-  return col && optional.includes(col) && !ABSENT.has(absentKey(table, col)) ? col : null;
+  return col && optional.includes(col) && !isAbsent(table, col) ? col : null;
 }
 
 /** Run a query; if it failed only because an optional column is not there, drop it and retry. */
+/* ONE REFUSAL PER TABLE, NOT ONE PER COLUMN. PostgREST names a single missing column per error,
+   and the sales table declares three, so learning them one at a time cost THREE refused inserts
+   on recordSale -- the hottest write in the system -- on every cold instance while the migration
+   was pending. They arrive together and they go together: the first refusal naming any of a
+   table's optional columns marks all of them absent, and the retry is the last one. */
+function learnAbsent(table, col, nowMs) {
+  const at = nowMs || Date.now();
+  for (const c of (OPTIONAL_COLUMNS[table] || [])) if (!ABSENT.has(absentKey(table, c))) ABSENT.set(absentKey(table, c), at);
+  ABSENT.set(absentKey(table, col), at);
+}
 async function withoutAbsent(table, attempt) {
-  for (let i = 0; i <= (OPTIONAL_COLUMNS[table] || []).length; i++) {
-    const res = await attempt();
-    const col = res && res.error ? missingOptionalColumn(table, res.error) : null;
-    if (!col) return res;
-    ABSENT.add(absentKey(table, col));
-  }
+  const res = await attempt();
+  const col = res && res.error ? missingOptionalColumn(table, res.error) : null;
+  if (!col) return res;
+  learnAbsent(table, col);
   return attempt();
 }
 /** The same, for the paging reader, which throws rather than returning an error. */
 async function withoutAbsentThrowing(table, attempt) {
-  for (let i = 0; i <= (OPTIONAL_COLUMNS[table] || []).length; i++) {
-    try { return await attempt(); }
-    catch (e) {
-      const col = missingOptionalColumn(table, e);
-      if (!col) throw e;
-      ABSENT.add(absentKey(table, col));
-    }
+  try { return await attempt(); }
+  catch (e) {
+    const col = missingOptionalColumn(table, e);
+    if (!col) throw e;
+    learnAbsent(table, col);
+    return attempt();
   }
-  return attempt();
 }
 
 export function dbErr(error) { return new AppError(friendlyDbError(error), 500); }

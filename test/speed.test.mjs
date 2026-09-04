@@ -82,6 +82,22 @@ function bigBook() {
       t.lendings.push({ id: L, legacy_id: 'LEND-' + v + '-' + l, vendor_id: V, branch_id: null, borrower_name: 'Borrower ' + l, borrower_email: l % 2 ? 'b' + l + '@x.tz' : '', borrower_phone: '', recorded_by: 'A' + v, recorded_by_name: 'Admin ' + v, status: active ? 'Active' : 'Returned', return_date: active ? null : iso(NOW - l * DAY), created_at: iso(NOW - (l + 3) * DAY) });
       t.lending_items.push({ id: 'LI' + v + '_' + l, lending_id: L, product_id: 'P' + v + '_' + (SERIALIZED + l), product_name: 'Item ' + (SERIALIZED + l), unit_id: null, qty: 1, price: 5000, total: 5000 });
     }
+    /* Holds: twenty per business, twelve still held with three lines each. The same reasoning as
+       the purchase orders below -- and the Holds budget WAS measured against an empty table, so
+       loadHolds returned at `if (!heads.length)` and the second read the budget exists to bound
+       was never sent at all. */
+    for (let hh = 0; hh < 20; hh++) {
+      const H = 'PS' + v + '_' + hh, open = hh < 12;
+      t.pending_sales.push({ id: H, legacy_id: 'HOLD-' + String(hh + 1).padStart(4, '0'), vendor_id: V, branch_id: null,
+        customer_name: 'Customer ' + hh, customer_phone: '07' + String(10000000 + hh), deposit: 0,
+        payment_method: null, financing_partner_id: null, notes: null, status: open ? 'held' : 'completed',
+        hold_until: null, created_by: 'A' + v, created_by_name: 'Admin ' + v, created_at: iso(NOW - (hh + 1) * DAY),
+        closed_at: open ? null : iso(NOW - hh * DAY), closed_by_name: open ? null : 'Admin ' + v, cancel_reason: null, sale_group_id: null });
+      for (let i = 0; i < 3; i++) {
+        t.pending_sale_items.push({ id: 'PSI' + v + '_' + hh + '_' + i, pending_id: H, product_id: 'P' + v + '_' + (SERIALIZED + i),
+          product_name: 'Item ' + (SERIALIZED + i), unit_id: null, qty: 2, list_price: 5000, discount: 0, total: 10000 });
+      }
+    }
     /* Purchase orders: fifteen per business, ten of them still open with five lines each, which
        is a busier order book than a phone shop actually runs. A budget measured against an empty
        table measures nothing. */
@@ -197,10 +213,12 @@ const BUDGETS = [
      nothing here runs per line, which is the whole reason group_id exists on the sale row. */
   ['Receipt (one checkout)',          'bo', 'saleReceipt',      { sale_id: 'S1_1' },                  ADMIN,    5,     20,   5,    20],
   ['Sales detail (stock)',            'bo', 'salesDetail',      { period: 'stock' },                  ADMIN,    3,    250,   3,   250],
-  /* Credit & Voids reads two BOUNDED sets, and the bounds are the point. Credit is 'not yet
-     settled', which a shop keeps small because chasing it is the job; voids are the window the
-     screen asked for. Neither grows with the size of the book, which is why this can be a screen
-     at all rather than a report. */
+  /* Credit & Voids reads two BOUNDED sets, and the bounds are the point -- but "not yet settled"
+     is only a bound in a shop that SETTLES, and the shop that never taps Paid is the one that
+     most needs the screen. Its unsettled set grew for ever: a year of six credit sales a day
+     already blew this budget, on a phone. Both reads are capped at 500 now and the screen says
+     when it is showing a capped list, so these numbers are a ceiling in every shop rather than
+     in the tidy ones. */
   ['Credit & voids (30 days)',        'bo', 'creditAndVoids',   { days: 30 },                         ADMIN,    5,    500,   5,   500],
   ['Lendings',                        'bo', 'lendings',         {},                                   ADMIN,    4,    100,   4,   100],
   ['Cash receipts (today)',           'bo', 'cashReceipts',     {},                                   ADMIN,    4,     50,   4,    50],
@@ -212,7 +230,7 @@ const BUDGETS = [
      the list. Bounded by 'still open', which is a set a shop keeps small by receiving things. */
   /* Holds: the open ones and their lines, two reads. Bounded by 'still held', which stays small
      because a hold ends the moment somebody collects or gives up on it. */
-  ['Holds (open)',                    'bo', 'pendingSales',     { status: 'held' },                   ADMIN,    2,    100,   2,   100],
+  ['Holds (open)',                    'bo', 'pendingSales',     { status: 'held' },                   ADMIN,    2,     80,   2,    80],
   ['Purchase orders (open)',          'bo', 'purchaseOrders',   { status: 'ordered' },                ADMIN,    2,    100,   2,   100],
   ['Movements (30 days)',             'bo', 'movements',        MONTH,                                ADMIN,    4,   1300,   4,  1300],
   ['Sales report (month)',            'bo', 'reportData',       { type: 'sales', ...MONTH },          ADMIN,    6,   1500,   6,  1500],

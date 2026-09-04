@@ -275,7 +275,15 @@ export const FN = {
       q => q.eq('id', hold.id).eq('status', 'held'));
     if (!claimed.length) throw badRequest('Hifadhi hiyo tayari imeshughulikiwa. / That hold has already been dealt with.');
 
-    const released = await release(db, hold, products, units, user, nowMs, 'Sold from hold ' + hold.legacy_id);
+    let released;
+    try {
+      released = await release(db, hold, products, units, user, nowMs, 'Sold from hold ' + hold.legacy_id);
+    } catch (e) {
+      // Same reasoning as the cancel path: a half-released hold that is already closed is stock
+      // nothing in the app can reach.
+      await update(db, 'pending_sales', { status: 'held', closed_at: null, closed_by_name: null }, q => q.eq('id', hold.id));
+      throw e;
+    }
 
     /* The sale is the ordinary sale, with the ordinary rules. If it refuses -- a product
        deactivated while the phone sat behind the counter, a financing partner withdrawn -- the
@@ -344,7 +352,17 @@ export const FN = {
       status: expired ? 'expired' : 'cancelled', closed_at: iso(nowMs), closed_by_name: user.name, cancel_reason: text(args.reason),
     }, q => q.eq('id', hold.id).eq('status', 'held'));
     if (!claimed.length) throw badRequest('Hifadhi hiyo tayari imeshughulikiwa. / That hold has already been dealt with.');
-    await release(db, hold, products, await heldUnits(db, hold), user, nowMs, 'Released from hold ' + hold.legacy_id);
+    /* AND IF THE RELEASE CANNOT FINISH, THE CLAIM MUST COME BACK. Closing the hold first is what
+       makes the double-tap impossible, but it also means a hold that is closed while its second
+       handset is still 'reserved' has no door left: both hold actions answer "already dealt
+       with", and updateUnit refuses to touch a reserved unit. The stock would be stranded with
+       nothing in the app able to free it. So a failed release hands the hold back. */
+    try {
+      await release(db, hold, products, await heldUnits(db, hold), user, nowMs, 'Released from hold ' + hold.legacy_id);
+    } catch (e) {
+      await update(db, 'pending_sales', { status: 'held', closed_at: null, closed_by_name: null, cancel_reason: null }, q => q.eq('id', hold.id));
+      throw e;
+    }
     return {
       message: hold.legacy_id + ' released — the stock is back on the shelf.'
         + (hold.deposit ? ' The ' + fmtMoney(hold.deposit) + ' deposit is not refunded by the system; settle that at the counter.' : ''),
