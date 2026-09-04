@@ -147,7 +147,7 @@ window.BOPO = (function () {
       h += '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">'
         + '<button class="btn-sm-success" onclick="BOPO.receive(\'' + BO.jsq(po.id) + '\',this)">📥 Receive what arrived</button>'
         + '<button class="btn-sm-warning" onclick="BOPO.cancel(\'' + BO.jsq(po.id) + '\',\'' + BO.jsq(po.legacy_id || '') + '\')">Cancel order</button>'
-        + (po.received_value ? '' : '<button class="btn-sm-danger" onclick="BOPO.del(\'' + BO.jsq(po.id) + '\',\'' + BO.jsq(po.legacy_id || '') + '\')">Delete</button>')
+        + (po.items.some(function (i) { return i.received_qty > 0; }) ? '' : '<button class="btn-sm-danger" onclick="BOPO.del(\'' + BO.jsq(po.id) + '\',\'' + BO.jsq(po.legacy_id || '') + '\')">Delete</button>')
         + '</div>';
     }
     return h + '</div>';

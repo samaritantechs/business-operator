@@ -368,3 +368,31 @@ test('overdue is decided on the East Africa clock, not on UTC', async () => {
   const list = (await FN.pendingSales(db, ADM(), {}, at0100EAT)).rows;
   assert.equal(list[0].overdue, true, 'it is the 5th in the shop, and the hold was due on the 4th');
 });
+
+test('a credit hold is refused without a financing partner, at both ends', async () => {
+  /* The Holds form offered "Credit (financing)" and never asked who was financing it, so the
+     hold could be taken and then never collected: recordSale refuses it, the rollback puts the
+     goods straight back on hold, and every retry fails the same way. The stock sits off the
+     shelf until somebody thinks to press "Put it back". */
+  const db = bookDb();
+  const before = product(db, 'P3').stock;
+  await rejects(FN.createPendingSale(db, SEL(), {
+    items: [{ product_id: 'P3', qty: 2 }], customer_name: 'Neema', payment_method: 'Credit',
+  }, NOW), 400, /financing partner/);
+  assert.equal(product(db, 'P3').stock, before, 'and nothing left the shelf');
+
+  // Named at the hold: it collects cleanly.
+  const h = await FN.createPendingSale(db, SEL(), {
+    items: [{ product_id: 'P3', qty: 2 }], customer_name: 'Neema', payment_method: 'Credit', financing_partner_id: 'FP1',
+  }, NOW);
+  const r = await FN.completePendingSale(db, SEL(), { id: h.id }, NOW);
+  assert.equal(db._dump('sales').find(s => s.group_id === r.group_id).financing_partner_id, 'FP1');
+
+  // Decided at collection instead: the partner may be named then, and must be.
+  const h2 = await FN.createPendingSale(db, SEL(), { items: [{ product_id: 'P3', qty: 1 }], customer_name: 'X' }, NOW);
+  await rejects(FN.completePendingSale(db, SEL(), { id: h2.id, payment_method: 'Credit' }, NOW), 400, /financing partner/);
+  const stillHeld = (await FN.pendingSales(db, ADM(), {}, NOW)).rows.find(x => x.id === h2.id);
+  assert.equal(stillHeld.status, 'held', 'and THAT hold survives the refusal');
+  const r2 = await FN.completePendingSale(db, SEL(), { id: h2.id, payment_method: 'Credit', financing_partner_id: 'FP1' }, NOW);
+  assert.equal(db._dump('sales').find(s => s.group_id === r2.group_id).financing_partner_id, 'FP1');
+});

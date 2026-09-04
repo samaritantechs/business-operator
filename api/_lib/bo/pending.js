@@ -242,6 +242,15 @@ export const FN = {
       }
     }
 
+    /* A credit sale needs the partner who will pay the shop. Taking the hold without one made it
+       uncollectable: recordSale refuses it, the rollback puts the goods back on hold, and every
+       retry fails the same way -- the stock is stuck until somebody thinks to press "Put it back".
+       Refused here, where it can still be corrected, rather than on the day the customer comes. */
+    const method = text(args.payment_method);
+    if (method === 'Credit' && !text(args.financing_partner_id)) {
+      throw badRequest('Mauzo ya mkopo yanahitaji mkopeshaji (MOGO, Watu ...). / A credit hold needs the financing partner who will pay the shop.');
+    }
+
     const total = money(lines.reduce((a, l) => a + l.qty * (l.list - l.discount), 0));
     const deposit = money(args.deposit);
     if (deposit < 0) throw badRequest('Amana haiwezi kuwa hasi. / A deposit cannot be negative.');
@@ -250,7 +259,7 @@ export const FN = {
     const hold = await insertOne(db, 'pending_sales', {
       legacy_id: await nextLegacyId(db, vendorId), vendor_id: vendorId, branch_id: branchId,
       customer_name: customerName, customer_phone: text(args.customer_phone), deposit,
-      payment_method: text(args.payment_method), financing_partner_id: text(args.financing_partner_id),
+      payment_method: method, financing_partner_id: text(args.financing_partner_id),
       notes: text(args.notes), status: 'held', hold_until: text(args.hold_until),
       created_by: user.id, created_by_name: user.name, created_at: iso(nowMs),
     });
@@ -286,6 +295,10 @@ export const FN = {
     if (hold.status !== 'held') throw badRequest('Hifadhi hiyo tayari ni ' + hold.status + '. / That hold is already ' + hold.status + '.');
     const method = text(args.payment_method) || hold.payment_method;
     if (!method) throw badRequest('Analipaje? Cash, Lipa Number au Credit. / How are they paying? Cash, Lipa Number or Credit.');
+    const partner = text(args.financing_partner_id) || hold.financing_partner_id || null;
+    if (method === 'Credit' && !partner) {
+      throw badRequest('Mauzo ya mkopo yanahitaji mkopeshaji. / A credit sale needs the financing partner — pick one, or take this as Cash or Lipa.');
+    }
 
     const ids = [...new Set(hold.items.map(i => String(i.product_id)))];
     const products = await rows(db, 'products', q => q.select(sel('products', PRODUCT_COLS)).in('id', ids).eq('vendor_id', vendorId).limit(500));
@@ -348,7 +361,7 @@ export const FN = {
     try {
       sale = await SALES.recordSale(db, user, {
         items: saleItems, payment_method: method,
-        financing_partner_id: text(args.financing_partner_id) || hold.financing_partner_id || undefined,
+        financing_partner_id: partner || undefined,
         branch_id: hold.branch_id || undefined,
         customer_name: hold.customer_name, customer_phone: hold.customer_phone || undefined,
       }, nowMs);

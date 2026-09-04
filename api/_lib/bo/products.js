@@ -132,11 +132,17 @@ export const FN = {
        form -- or anyone replaying its request -- could write the field they are not allowed to read,
        and the profit figures would quietly become fiction. */
     if (args.cost_price !== undefined && canSeeCost(user)) {
-      /* Setting a cost price is the whole point of the request, so it must not be quietly
-         dropped on a database that has not run the migration -- see requireColumn. */
-      requireColumn('products', 'cost_price', 'cost prices');
-      patch.cost_price = money(args.cost_price);
-      if (patch.cost_price < 0) throw badRequest('Bei ya kununulia haiwezi kuwa hasi. / Cost price cannot be negative.');
+      const wanted = money(args.cost_price);
+      if (wanted < 0) throw badRequest('Bei ya kununulia haiwezi kuwa hasi. / Cost price cannot be negative.');
+      /* ONLY A REAL CHANGE HAS TO BE REFUSED. The edit form posts every field it holds, and on a
+         database with no cost_price it holds a 0 -- so requiring the column on "is it present in
+         the request" blocked EVERY product edit before the migration: the name, the price and any
+         queued photos all went down with it, because the uploads run inside this call's success.
+         A request that would not change the number needs nothing from the database. */
+      if (wanted !== num(p.cost_price)) {
+        requireColumn('products', 'cost_price', 'cost prices');
+        patch.cost_price = wanted;
+      }
     }
     if (args.reorder_point !== undefined) patch.reorder_point = int(args.reorder_point);
     if (args.listing_type !== undefined) patch.listing_type = listingType(args.listing_type);

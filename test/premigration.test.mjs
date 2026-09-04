@@ -311,3 +311,20 @@ test('receiving a delivery SAYS when it could not record the cost', async () => 
   assert.match(r.message, /cost price could NOT be saved/);
   assert.match(r.message, /RUN-ME-002/);
 });
+
+test('a product can still be edited before the migration — only a CHANGED cost is refused', async () => {
+  /* The edit form posts every field it holds, and on a database with no cost_price it holds a 0.
+     Requiring the column on "is it in the request" therefore blocked every product edit: the
+     name, the price, and any queued photos, which upload inside this call's success. */
+  const db = oldDb();
+  await PRODUCTS.products(db, ADM(), {});                       // learn the column is missing
+
+  const ok = await PRODUCTS.updateProduct(db, ADM(), { id: 'P3', name: 'Phone Cover XL', price: 5500, cost_price: 0 }, NOW);
+  assert.equal(ok.product.name, 'Phone Cover XL', 'the edit goes through');
+  assert.equal(db._dump('products').find(p => p.id === 'P3').price, 5500);
+
+  await assert.rejects(PRODUCTS.updateProduct(db, ADM(), { id: 'P3', cost_price: 3000 }, NOW), e => {
+    assert.match(e.message, /RUN-ME-002/, 'and a cost somebody actually typed is still refused');
+    return true;
+  });
+});
