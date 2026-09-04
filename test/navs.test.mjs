@@ -226,3 +226,38 @@ test('every account and marketplace function answers an anonymous caller cleanly
   const home = await marketApi(bookDb(), 'market', {}, NOW);
   assert.ok(Array.isArray(home.products) && home.products.length > 0, 'the marketplace lists the rich book');
 });
+
+/* THE APK BUTTON UNDER "REGISTER YOUR BUSINESS" IS SHOWN ONLY WHEN THERE IS AN APK.
+ *
+ * It is the second place the same download is offered, put where somebody has just decided to
+ * sign up rather than only in a section further down the page than most people scroll. That
+ * makes it the easy one to leave visible by accident -- and a download button with nothing
+ * behind it sends a would-be customer to a dead link on their very first tap. */
+test('the marketplace download button starts hidden and only the release reveals it', () => {
+  const shell = readFileSync(join(PUBLIC, 'bo', 'shell.js'), 'utf8');
+  assert.match(html, /<div id="mkCtaApp" class="hidden"/,
+    'it must start hidden: the page is drawn long before the marketplace payload lands');
+  assert.match(html, /id="mkCtaApkBtn" href="\/download"/, 'and point at /download, never at a version');
+  assert.match(shell, /cta\.classList\.toggle\('hidden', !published\)/,
+    'showAppSection must reveal it only when a release is actually published');
+  /* Both offers of the same file read from ONE decision about whether there is one. Two
+     conditions here would eventually disagree, and one of them would be the dead link. */
+  assert.match(shell, /var published = !!\(release && release\.version_name\);/);
+  assert.equal((shell.match(/version_name\s*\)/g) || []).length, 1, 'one test for "is there a release", not two');
+});
+
+/* THE MARK AND THE WORDMARK ARE EACH DEFINED ONCE-ISH, AND MATCH.
+ *
+ * The logo tiles carry the same two arcs inline in four places plus the favicon, because there
+ * is no build step to share them. What must not happen is four DIFFERENT S's. */
+test('every copy of the Samaritan Techs mark is the same mark', () => {
+  const white = [...html.matchAll(/M63 22\.1 A17 17 0 1 0 50 50/g)];
+  const amber = [...html.matchAll(/M50 50 A17 17 0 1 1 33\.3 70/g)];
+  assert.ok(white.length >= 4, 'the loader, the marketplace header, the sign-in panel and the topbar all carry it');
+  assert.equal(white.length, amber.length, 'every white arc has its amber one');
+  assert.match(html, /rel="icon" href="data:image\/svg\+xml,[^"]*M63%2022\.1/,
+    'and the favicon is the same mark, not the old one left behind');
+  assert.doesNotMatch(html, /M3 24V13L17 4L31 13V24H3Z/, 'the generic house icon must be gone');
+  assert.match(html, /\.st-wm>span\{color:var\(--brand-amber\)\}|\.st-wm>span\{color:var\(--brand-amber\);\}/,
+    'the wordmark sets "Techs" in the brand amber, as the logo does');
+});

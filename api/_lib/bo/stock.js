@@ -53,7 +53,11 @@ export async function recountSerialized(db, productId) {
 }
 
 export const MOVEMENT_TYPES = ['received', 'sold', 'transfer_out', 'transfer_in', 'returned', 'adjustment', 'cancelled_restock', 'lent',
-  'adjustment_in', 'adjustment_out'];
+  'adjustment_in', 'adjustment_out',
+  /* A hold takes goods off the shelf without selling them, and puts them back if the customer
+     never comes. products.stock is therefore what is AVAILABLE, which is why the till needs no
+     extra read to avoid selling a reserved handset twice. */
+  'reserved', 'unreserved'];
 
 /* A stock take goes both ways, and 'adjustment' recorded only that one happened. qty is always
    positive and the type is what carries direction, so "-3, damaged" and "+3, found again" were

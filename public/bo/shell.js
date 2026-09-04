@@ -12,14 +12,18 @@
 
 var WA_NUMBER = '255756749261';
 var S = { token: '', user: null, vendor: null, perms: {}, timings: {}, branches: [], partners: [], features: {},
-  announcement: null, lang: 'en', theme: 'dark', view: 'mobile', screen: 'landing', tab: 'dashboard', loaded: {} };
+  announcement: null, lang: 'en', theme: 'light', view: 'mobile', screen: 'landing', tab: 'dashboard', loaded: {} };
 var BO = { tabs: {}, S: S };
 
 /* ------------------------------------------------------------------ storage */
 function store(k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} }
 function load(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }
 S.lang = load('boLang') || 'en';
-S.theme = load('boTheme') || 'dark';
+/* Whatever the pre-paint script in index.html settled on -- a stored choice, else the device's
+   own preference. Reading it back from the attribute keeps ONE decision in ONE place; reading
+   localStorage again here is how the device preference used to get overwritten with 'dark'
+   before the first screen had even drawn. */
+S.theme = document.documentElement.getAttribute('data-theme') || load('boTheme') || 'light';
 S.view = load('boView') || 'mobile';
 S.token = load('boToken') || '';
 
@@ -217,12 +221,23 @@ function toggleLang() {
   if (arr.length) { var h = arr[Math.floor(Math.random() * arr.length)]; var msg = (S.lang === 'sw' && h.sw) ? h.sw : h.en; document.querySelector('#hintToast .hint-icon').textContent = (S.lang === 'sw' ? '🇹🇿' : '🇬🇧'); document.getElementById('hintText').textContent = msg; var t = document.getElementById('hintToast'); t.classList.add('show'); setTimeout(function () { t.classList.remove('show'); }, (hintLifetime || 3) * 1000); }
   else showToast(S.lang === 'sw' ? 'Lugha ya vidokezo: Kiswahili' : 'Tips language: English', '🌐');
 }
-function applyTheme(t) {
-  S.theme = t; document.documentElement.setAttribute('data-theme', t); store('boTheme', t);
+function applyTheme(t, remember) {
+  S.theme = t; document.documentElement.setAttribute('data-theme', t);
+  /* Light is the default and dark is a choice, so only a deliberate tap writes anything down.
+     applyTheme is also called on every boot to paint the buttons and the status bar, and a boot
+     that wrote to storage would turn the default into a decision nobody made. */
+  if (remember) store('boTheme', t);
   var b1 = document.getElementById('themeToggleBtn'), b2 = document.getElementById('mkThemeBtn');
   if (b1) b1.textContent = t === 'dark' ? '☀️' : '🌙'; if (b2) b2.textContent = t === 'dark' ? '☀️' : '🌙';
+  /* The status bar is part of the app on a phone. Left alone it stays the colour of whichever
+     theme loaded first, and a light app then wears a black bar for the rest of the session. */
+  var m = document.getElementById('themeColorMeta');
+  if (m) m.setAttribute('content', t === 'dark' ? '#0B1120' : '#0B2A6B');
 }
-function toggleTheme() { applyTheme(S.theme === 'dark' ? 'light' : 'dark'); if (S.screen === 'app' && S.tab === 'dashboard' && BO.tabs.dashboard) BO.tabs.dashboard.load(); }
+/* The dashboard draws its chart with colours read out of the theme, so a theme change has to
+   redraw it or the chart keeps the old palette until the next navigation. */
+function redrawForTheme() { if (S.screen === 'app' && S.tab === 'dashboard' && BO.tabs.dashboard) BO.tabs.dashboard.load(); }
+function toggleTheme() { applyTheme(S.theme === 'dark' ? 'light' : 'dark', true); redrawForTheme(); }
 /* Desktop view = the page laid out at 1024px and pinch-zoomable, exactly what the old `?view=`
    reload did -- now a viewport swap and a class, no reload. */
 function applyView(v) {
@@ -421,12 +436,20 @@ function showAppSection(release) {
   qrInto('qrSite', site);
   qrInto('qrApk', apk);
   var meta = document.getElementById('mkApkMeta'), btn = document.getElementById('mkApkBtn');
-  if (release && release.version_name) {
-    if (meta) meta.textContent = 'Version ' + release.version_name + (release.size_bytes ? ' · ' + (release.size_bytes / 1048576).toFixed(1) + ' MB' : '');
-  } else {
-    if (meta) meta.textContent = 'Not published yet — use the browser for now.';
-    if (btn) { btn.classList.add('disabled'); btn.setAttribute('aria-disabled', 'true'); }
-  }
+  var published = !!(release && release.version_name);
+  var label = published
+    ? 'Version ' + release.version_name + (release.size_bytes ? ' · ' + (release.size_bytes / 1048576).toFixed(1) + ' MB' : '')
+    : 'Not published yet — use the browser for now.';
+  if (meta) meta.textContent = label;
+  if (!published && btn) { btn.classList.add('disabled'); btn.setAttribute('aria-disabled', 'true'); }
+
+  /* The same download, offered again under "Register your business" -- the moment somebody has
+     just decided to sign up is the moment to hand them the app, and the section that normally
+     carries this button is further down the page than most people scroll. It appears ONLY when
+     there is a release: a download button with nothing behind it is worse than no button. */
+  var cta = document.getElementById('mkCtaApp'), ctaMeta = document.getElementById('mkCtaApkMeta');
+  if (cta) cta.classList.toggle('hidden', !published);
+  if (ctaMeta && published) ctaMeta.textContent = label + ' · installs on any Android phone';
 }
 /** Nags only a phone that is actually running an older APK than the published one. */
 function checkAppUpdate(release) {

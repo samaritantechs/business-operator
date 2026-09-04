@@ -250,7 +250,25 @@ export function cyclePeriodStart(anchor, nowMs = Date.now()) {
 }
 
 /* ------------------------------------------------------------------ products */
-export const PRODUCT_COLS = 'id, vendor_id, legacy_id, name, category, brand, model, price, stock, is_serialized, supplier, reorder_point, active, image1_url, image2_url, image3_url, listing_type, price_unit, location, created_at';
+export const PRODUCT_COLS = 'id, vendor_id, legacy_id, name, category, brand, model, price, cost_price, stock, is_serialized, supplier, reorder_point, active, image1_url, image2_url, image3_url, listing_type, price_unit, location, created_at';
+
+/* WHAT A SHOP PAID IS NOT FOR THE COUNTER.
+   cost_price rides along on PRODUCT_COLS because recordSale needs it to snapshot a margin, and
+   asking for it separately would be a second read on the hottest write in the system. That makes
+   it the API's job to take it back off anything a seller is handed. Every read that returns a
+   product row to a browser goes through here.
+
+   A seller who can see cost can work out the shop's margin on every line they sell, and in a
+   trade where staff turnover is high and the next shop is fifty metres away, that is the one
+   number an owner does not hand out. Managers and admins see it; nobody else does. */
+export const canSeeCost = user => !!user && (isAdminLevel(user.role) || isManagerLevel(user.role));
+export function stripCost(user, value) {
+  if (canSeeCost(user)) return value;
+  if (Array.isArray(value)) return value.map(r => stripCost(user, r));
+  if (!value || typeof value !== 'object') return value;
+  const { cost_price, unit_cost, ...rest } = value;
+  return rest;
+}
 export async function productById(db, id) {
   if (!id) return null;
   return one(db, 'products', q => q.select(PRODUCT_COLS).eq('id', id));

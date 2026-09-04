@@ -43,10 +43,12 @@ export const REPORT_TYPES = {
   movements:  { label: 'Stock Movements',             stem: 'StockMovements',  dated: true },
   units:      { label: 'Serialized Stock',            stem: 'Units',           dated: false },
   imei:       { label: 'Sales by IMEI',               stem: 'SalesByIMEI',     dated: true },
+  profit:     { label: 'Profit Report',                stem: 'Profit',          dated: true },
+  customer:   { label: 'Sales by Customer',            stem: 'SalesByCustomer', dated: true },
 };
 
-const SALE_COLS = 'id, legacy_id, group_id, vendor_id, branch_id, seller_id, seller_name, product_id, product_name, brand, model, '
-  + 'imei, qty, list_price, discount, price, total, payment_method, financing_partner_id, partner_paid, partner_paid_at, status, '
+const SALE_COLS = 'id, legacy_id, group_id, vendor_id, branch_id, seller_id, seller_name, customer_name, customer_phone, product_id, product_name, brand, model, '
+  + 'imei, qty, list_price, discount, price, total, unit_cost, payment_method, financing_partner_id, partner_paid, partner_paid_at, status, '
   + 'cancelled_by_name, cancelled_at, cancel_reason, sold_at';
 
 /* ------------------------------------------------------------------ small helpers */
@@ -154,6 +156,7 @@ async function salesReport(db, s) {
     grand += num(r.total);
     return {
       n: i + 1, sale_id: label(r.legacy_id, shortId(r.id)), sold_at: fmtDateTime(r.sold_at), seller_name: label(r.seller_name),
+      customer_name: label(r.customer_name), customer_phone: label(r.customer_phone),
       product_name: label(r.product_name), brand: label(r.brand), model: label(r.model), imei: label(r.imei),
       qty: num(r.qty), list_price: num(r.list_price), discount: num(r.discount), price: num(r.price), total: num(r.total),
       payment_method: label(r.payment_method), partner_name: nameOf(maps.partners, r.financing_partner_id),
@@ -161,7 +164,8 @@ async function salesReport(db, s) {
     };
   });
   const columns = withVendor(s, [
-    col('n', '#', I), col('sale_id', 'Sale ID'), col('sold_at', 'Date/Time'), col('seller_name', 'Seller'), col('product_name', 'Product'),
+    col('n', '#', I), col('sale_id', 'Sale ID'), col('sold_at', 'Date/Time'), col('seller_name', 'Seller'),
+    col('customer_name', 'Customer'), col('customer_phone', 'Customer Phone'), col('product_name', 'Product'),
     col('brand', 'Brand'), col('model', 'Model'), col('imei', 'IMEI'), col('qty', 'Qty', I), col('list_price', 'List Price', R),
     col('discount', 'Discount', R), col('price', 'Unit Price', R), col('total', 'Total', R), col('payment_method', 'Payment'),
     col('partner_name', 'Partner'), col('branch_name', 'Branch'), col('group_id', 'Group ID'),
@@ -266,6 +270,99 @@ async function lendingReport(db, s) {
     col('borrower_phone', 'Phone'), col('product_name', 'Product'), col('imei', 'IMEI'), col('qty', 'Qty', I), col('price', 'Unit Price', R),
     col('total', 'Total', R), col('status', 'Status'), col('return_date', 'Returned On')]);
   return { columns, rows: out, totals: [['GRAND TOTAL', cur(s, grand)]], title: 'Lending Report (' + status + ')' };
+}
+
+/* profit -- what the shop actually EARNED, per product, and where it was given away.
+   The old app could tell you a phone sold for 250,000 and that 20,000 came off the sticker; it
+   could not say whether that left anything. Revenue is what was taken, cost is qty x the
+   unit_cost SNAPSHOTTED at the till, and the gap is the margin. The discount column is the
+   "rejareja" question in full: how much of the list price was handed back over the counter.
+
+   A line sold before cost_price existed carries unit_cost 0, which would read as pure profit
+   and be a lie. Those are counted separately and SAID so in the meta, rather than quietly
+   inflating the total -- see rule 2 in CLAUDE.md: a figure nobody can account for is worse
+   than a figure that is missing.
+
+   Cost: 1 paged read of sales (range + vendor/branch), +1 vendors for a manager's ALL. */
+async function profitReport(db, s) {
+  const list = await salesIn(db, s);
+  const maps = await nameMaps(db, s, { vendors: true });
+  const byProduct = new Map();
+  let noCost = 0;
+  for (const r of list) {
+    const key = (s.all ? String(r.vendor_id) + '|' : '') + label(r.product_name, '(unnamed)');
+    const a = bump(byProduct, key, () => ({
+      product_name: label(r.product_name, '(unnamed)'), brand: label(r.brand), model: label(r.model),
+      units: 0, revenue: 0, cost: 0, discount: 0, vendor_name: vendorName(s, maps, r), priced: 0,
+    }));
+    const qty = num(r.qty);
+    a.units += qty;
+    a.revenue += num(r.total);
+    a.cost += qty * num(r.unit_cost);
+    a.discount += qty * num(r.discount);
+    if (num(r.unit_cost) > 0) a.priced += qty; else noCost += qty;
+  }
+  let revenue = 0, cost = 0, discount = 0;
+  const out = [...byProduct.values()].map(a => {
+    revenue += a.revenue; cost += a.cost; discount += a.discount;
+    const profit = money(a.revenue - a.cost);
+    return { product_name: a.product_name, brand: a.brand, model: a.model, units: a.units,
+      revenue: money(a.revenue), cost: money(a.cost), discount: money(a.discount), profit,
+      margin: a.revenue > 0 ? (profit / a.revenue * 100).toFixed(1) + '%' : '—',
+      vendor_name: a.vendor_name };
+  }).sort((a, b) => b.profit - a.profit);
+  const grossProfit = money(revenue - cost);
+  const columns = withVendor(s, [
+    col('product_name', 'Product'), col('brand', 'Brand'), col('model', 'Model'), col('units', 'Units', I),
+    col('revenue', 'Revenue', R), col('cost', 'Cost', R), col('profit', 'Profit', R), col('margin', 'Margin'),
+    col('discount', 'Discounted', R),
+  ]);
+  const meta = ['Cost is the price recorded on the product at the moment of each sale, not today\'s.'];
+  if (noCost) {
+    meta.push('WARNING: ' + noCost + ' unit' + (noCost === 1 ? ' was' : 's were') + ' sold with no cost price recorded, '
+      + 'and count here as costing nothing. The profit below is therefore the HIGHEST it could be. '
+      + 'Set a cost price on those products and the figure will come down to the truth.');
+  }
+  return {
+    columns, rows: out, meta,
+    totals: [['REVENUE', cur(s, money(revenue))], ['COST OF GOODS', cur(s, money(cost))],
+      ['GROSS PROFIT', cur(s, grossProfit)],
+      ['MARGIN', revenue > 0 ? (grossProfit / revenue * 100).toFixed(1) + '%' : '—'],
+      ['GIVEN AWAY IN DISCOUNTS', cur(s, money(discount))]],
+  };
+}
+
+/* customer -- who bought, how much and how often, most valuable first. Walk-ins (no name and
+   no phone) are one row of their own rather than being dropped, because "how much of the month
+   was people we cannot call back" is the point of the report.
+   Cost: 1 paged read of sales (range + vendor/branch), +1 vendors for a manager's ALL. */
+async function customerReport(db, s) {
+  const list = await salesIn(db, s);
+  const maps = await nameMaps(db, s, { vendors: true });
+  const byCustomer = new Map();
+  for (const r of list) {
+    const phone = label(r.customer_phone), name = label(r.customer_name);
+    const walkIn = !phone && !name;
+    const key = walkIn ? '\u0000walk-in' : (phone || name.toLowerCase());
+    const a = bump(byCustomer, key, () => ({
+      customer_name: walkIn ? 'Walk-in (not recorded)' : (name || '(no name)'), customer_phone: phone,
+      visits: new Set(), units: 0, total: 0, last: '', vendor_name: vendorName(s, maps, r),
+    }));
+    a.visits.add(String(r.group_id));
+    a.units += num(r.qty);
+    a.total += num(r.total);
+    if (!a.last || r.sold_at > a.last) a.last = r.sold_at;
+    if (!a.customer_phone && phone) a.customer_phone = phone;
+  }
+  let grand = 0;
+  const out = [...byCustomer.values()].map(a => {
+    grand += a.total;
+    return { customer_name: a.customer_name, customer_phone: a.customer_phone, visits: a.visits.size,
+      units: a.units, total: money(a.total), last_bought: fmtDateTime(a.last), vendor_name: a.vendor_name };
+  }).sort((a, b) => b.total - a.total);
+  const columns = withVendor(s, [col('customer_name', 'Customer'), col('customer_phone', 'Phone'),
+    col('visits', 'Purchases', I), col('units', 'Units', I), col('total', 'Total Spent', R), col('last_bought', 'Last Bought')]);
+  return { columns, rows: out, totals: [['GRAND TOTAL', cur(s, money(grand))]] };
 }
 
 /* commission (manager) -- every vendor's completed sales in the range x the commission rate.
@@ -427,8 +524,8 @@ async function movementsReport(db, s) {
   const maps = await nameMaps(db, s, { branches: true, vendors: true });
   /* 'adjustment' -- with no direction -- is in neither, and cannot be: it is what rows written
      before adjustment_in/out look like, and guessing would make the totals a fiction. */
-  const IN = new Set(['received', 'transfer_in', 'returned', 'cancelled_restock', 'adjustment_in']);
-  const OUT = new Set(['sold', 'lent', 'transfer_out', 'adjustment_out']);
+  const IN = new Set(['received', 'transfer_in', 'returned', 'cancelled_restock', 'adjustment_in', 'unreserved']);
+  const OUT = new Set(['sold', 'lent', 'transfer_out', 'adjustment_out', 'reserved']);
   let qtyIn = 0, qtyOut = 0;
   const out = list.map(m => {
     if (IN.has(m.type)) qtyIn += num(m.qty); else if (OUT.has(m.type)) qtyOut += num(m.qty);
@@ -447,7 +544,7 @@ async function movementsReport(db, s) {
    vendor's products (names), 1 branches (+1 vendors for ALL). */
 async function unitsReport(db, s) {
   const st = s.status ? String(s.status).toLowerCase() : null;
-  if (st && !['in_stock', 'sold', 'lent', 'lost'].includes(st)) throw badRequest('Status must be in_stock, sold, lent or lost.');
+  if (st && !['in_stock', 'sold', 'lent', 'lost', 'reserved'].includes(st)) throw badRequest('Status must be in_stock, sold, lent, lost or reserved.');
   const list = await rows(db, 'product_units', q => {
     let x = q.select('id, product_id, vendor_id, branch_id, imei, serial_no, status, received_at, sold_at');
     if (s.vendor_id) x = x.eq('vendor_id', s.vendor_id);
@@ -491,6 +588,7 @@ async function imeiReport(db, s) {
 const BUILDERS = {
   sales: salesReport, stock: stockReport, cashdue: cashDueReport, lending: lendingReport, commission: commissionReport,
   brandmodel: brandModelReport, partner: partnerReport, cancelled: cancelledReport, employee: employeeReport,
+  profit: profitReport, customer: customerReport,
   branch: branchReport, payment: paymentReport, movements: movementsReport, units: unitsReport, imei: imeiReport,
 };
 

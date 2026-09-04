@@ -131,6 +131,7 @@ create table if not exists products (
   brand text,                                   -- phone retail: Samsung / Tecno / Infinix ...
   model text,                                   -- A05 / Spark 20 ...
   price numeric(14,2) not null default 0,
+  cost_price numeric(14,2) not null default 0,   -- what the shop PAID. Never public, never shown to a seller.
   stock integer not null default 0,             -- authoritative for non-serialized; a maintained count for serialized
   is_serialized boolean not null default false, -- true -> every unit carries an IMEI/serial in product_units
   supplier text,
@@ -209,6 +210,11 @@ create table if not exists sales (
   discount numeric(14,2) not null default 0,    -- per unit; never changes list_price
   price numeric(14,2) not null,                 -- effective unit price = list_price - discount
   total numeric(14,2) not null,                 -- qty x price
+  unit_cost numeric(14,2) not null default 0,   -- SNAPSHOT of products.cost_price at the moment of sale.
+                                                -- Restocking at a new cost must not move last month's profit,
+                                                -- for the same reason product_name is a snapshot and not a join.
+  customer_name text,                           -- blank = a walk-in, which is most of them
+  customer_phone text,
   payment_method payment_method not null,
   financing_partner_id uuid references financing_partners(id),
   partner_paid boolean not null default false,  -- the partner has settled this credit sale with the shop
@@ -375,6 +381,148 @@ do $$ begin
   alter type movement_type add value if not exists 'adjustment_in';
   alter type movement_type add value if not exists 'adjustment_out';
 exception when others then null; end $$;
+
+-- =====================================================================================
+-- PROFIT, AND WHO BOUGHT IT -- added after the first deployments.
+-- =====================================================================================
+-- A shop that cannot see its margin is guessing. The old app could tell you a phone sold for
+-- 250,000 and that 20,000 was knocked off the sticker; it could not tell you whether that left
+-- anything. cost_price is what the shop PAID, and every sale line carries a SNAPSHOT of it, so
+-- restocking at a new cost tomorrow does not silently rewrite what last month earned.
+--
+-- Cost is commercially sensitive: sellers never see it. That is enforced in the API
+-- (api/_lib/bo/_shared.js -> stripCost, and reports.js which lets a seller open one report only).
+--
+-- customer_name / customer_phone sit on the sale because most sales are walk-ins and a
+-- customers table would then be a table of blanks. When somebody IS named, the name is on
+-- every line of the checkout, the same denormalisation seller_name already uses, so
+-- "everything this person ever bought" is one indexed read and not a join.
+alter table if exists products add column if not exists cost_price numeric(14,2) not null default 0;
+alter table if exists sales    add column if not exists unit_cost  numeric(14,2) not null default 0;
+alter table if exists sales    add column if not exists customer_name text;
+alter table if exists sales    add column if not exists customer_phone text;
+
+-- "What has this customer bought?" and "who has not been back since April?" are the two
+-- questions a phone shop asks about a name, and both are this index. Partial, because the
+-- overwhelming majority of sales have no customer and there is no sense indexing blanks.
+create index if not exists idx_sales_customer on sales (vendor_id, customer_phone, sold_at desc)
+  where customer_phone is not null;
+
+-- =====================================================================================
+-- PURCHASE ORDERS -- stock you have ordered and not yet got.
+-- =====================================================================================
+-- Until now the first the system heard of a delivery was somebody typing an opening stock or a
+-- restock after the boxes were already open. Everything between "I have ordered forty covers"
+-- and "forty covers are on the shelf" lived in a WhatsApp thread, so nobody could answer what
+-- is on its way, what did the supplier actually send, or what did it cost this time.
+--
+-- Receiving is the ONLY way an order turns into stock, and it goes through the same
+-- stock.changeStock() every other quantity change goes through, so a delivery is a 'received'
+-- movement like any other and the movements report can still answer "where did these come from".
+--
+-- Partial deliveries are the normal case, not the exception: a supplier who owes forty sends
+-- twenty-eight. So each line carries what was ORDERED and what has been RECEIVED so far, and an
+-- order stays open until they match. Receiving twice tops the line up rather than doubling it.
+do $$ begin
+  create type po_status as enum ('ordered','received','cancelled');
+exception when duplicate_object then null; end $$;
+
+create table if not exists purchase_orders (
+  id uuid primary key default gen_random_uuid(),
+  legacy_id text,                               -- PO-0001, the number said down the phone
+  vendor_id uuid not null references vendors(id),
+  branch_id uuid references branches(id),       -- the shop the delivery lands at
+  supplier text,
+  reference text,                               -- the supplier's own invoice or order number
+  notes text,
+  status po_status not null default 'ordered',
+  expected_at date,
+  created_by uuid references profiles(id),
+  created_by_name text,                         -- snapshot, so a departed buyer still reads
+  created_at timestamptz not null default now(),
+  closed_at timestamptz,                        -- fully received, or cancelled
+  closed_by_name text,
+  cancel_reason text
+);
+create index if not exists idx_po_vendor_status on purchase_orders(vendor_id, status, created_at desc);
+
+create table if not exists purchase_order_items (
+  id uuid primary key default gen_random_uuid(),
+  po_id uuid not null references purchase_orders(id) on delete cascade,
+  product_id uuid not null references products(id),
+  product_name text not null,                   -- snapshot, as everywhere else
+  qty integer not null,                         -- ordered
+  received_qty integer not null default 0,      -- delivered so far; the order closes when these meet
+  unit_cost numeric(14,2) not null default 0,   -- what this delivery is costing, per piece
+  total numeric(14,2) not null default 0
+);
+create index if not exists idx_po_items_po on purchase_order_items(po_id);
+
+-- =====================================================================================
+-- PENDING SALES -- somebody has asked for it and is coming back for it.
+-- =====================================================================================
+-- "Hold the A05 for me, I'll come Friday" is the most ordinary sentence in a phone shop, and
+-- the system had no way to hear it. So the phone stayed on the shelf, somebody else bought it,
+-- and on Friday there was an argument.
+--
+-- A pending sale RESERVES the goods, and it does so the honest way: through the same
+-- stock.changeStock() everything else uses, as a 'reserved' movement out. products.stock is
+-- therefore what is actually AVAILABLE, the till cannot sell a reserved handset because the
+-- number is already gone, and none of this costs the sell screen a single extra read. A
+-- serialized unit goes to status 'reserved' and simply stops appearing in the IMEI picker.
+--
+-- Completing one puts the stock back ('unreserved') and then sells it through the ordinary
+-- recordSale, so every rule about stock, IMEIs, discounts, partners and receipts is the one
+-- that was already there. Three movements for one handset -- reserved, unreserved, sold -- is
+-- not noise: it is what actually happened to it.
+do $$ begin
+  create type pending_status as enum ('held','completed','cancelled','expired');
+exception when duplicate_object then null; end $$;
+
+-- The two movement types the reservation needs, and the unit status that goes with them.
+do $$ begin
+  alter type movement_type add value if not exists 'reserved';
+  alter type movement_type add value if not exists 'unreserved';
+exception when others then null; end $$;
+do $$ begin
+  alter type unit_status add value if not exists 'reserved';
+exception when others then null; end $$;
+
+create table if not exists pending_sales (
+  id uuid primary key default gen_random_uuid(),
+  legacy_id text,                               -- HOLD-0001
+  vendor_id uuid not null references vendors(id),
+  branch_id uuid references branches(id),
+  customer_name text not null,                  -- required here, unlike a sale: a hold with
+  customer_phone text,                          -- nobody's name on it is just missing stock
+  deposit numeric(14,2) not null default 0,     -- what they left to hold it
+  payment_method payment_method,                -- what they said they would pay with, if they said
+  financing_partner_id uuid references financing_partners(id),
+  notes text,
+  status pending_status not null default 'held',
+  hold_until date,                              -- what was agreed; nothing expires on its own
+  created_by uuid references profiles(id),
+  created_by_name text,
+  created_at timestamptz not null default now(),
+  closed_at timestamptz,
+  closed_by_name text,
+  cancel_reason text,
+  sale_group_id uuid                            -- the checkout it became, once it did
+);
+create index if not exists idx_pending_vendor_status on pending_sales(vendor_id, status, created_at desc);
+
+create table if not exists pending_sale_items (
+  id uuid primary key default gen_random_uuid(),
+  pending_id uuid not null references pending_sales(id) on delete cascade,
+  product_id uuid not null references products(id),
+  product_name text not null,
+  unit_id uuid references product_units(id),    -- the exact handset being held
+  qty integer not null,
+  list_price numeric(14,2) not null default 0,
+  discount numeric(14,2) not null default 0,
+  total numeric(14,2) not null default 0
+);
+create index if not exists idx_pending_items on pending_sale_items(pending_id);
 
 -- =====================================================================================
 -- THE ANDROID APP'S RELEASES.

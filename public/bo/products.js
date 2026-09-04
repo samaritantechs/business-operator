@@ -9,6 +9,32 @@ window.BOProd = (function () {
     el.innerHTML = '<div class="empty">Loading…</div>';
     srv('products', { include_inactive: true }).then(function (r) { list = r.rows || []; render(el); }).catch(function (e) { el.innerHTML = BO.errorBox(e); });
   }
+  /* WHAT THE SHOP PAID. The server strips cost_price from anything a seller reads
+     (api/_lib/bo/_shared.js -> stripCost), so this is not the security boundary -- it is the
+     screen agreeing with the server, so a seller is not shown an empty column they cannot fill. */
+  function canSeeCost() { return isAdmin() || isManager(); }
+  function marginOf(price, cost) {
+    price = Number(price) || 0; cost = Number(cost) || 0;
+    if (!cost) return { text: '—', cls: 'muted', pct: null };            // no cost recorded: unknown, not "all profit"
+    var m = price - cost, pct = price > 0 ? (m / price * 100) : 0;
+    return { text: fmtFull(m) + ' (' + pct.toFixed(0) + '%)', cls: m < 0 ? 'rose' : 'ok', pct: pct };
+  }
+  function costCells(p) {
+    if (!canSeeCost()) return '';
+    var m = marginOf(p.price, p.cost_price);
+    return '<td class="mono muted">' + (Number(p.cost_price) ? fmtFull(p.cost_price) : '—') + '</td>'
+      + '<td class="mono small"' + (m.cls === 'rose' ? ' style="color:var(--rose);font-weight:700;"' : '') + '>' + esc(m.text) + '</td>';
+  }
+  /* Live, while the price or the cost is being typed: selling below cost is a thing people do by
+     accident when a supplier's price goes up, and the moment to notice is before saving. */
+  function showMargin() {
+    var box = document.getElementById('editProdMargin'); if (!box) return;
+    var m = marginOf(g('editProdPrice'), g('editProdCost'));
+    box.textContent = m.text + (m.pct !== null && m.pct < 0 ? '  — below cost!' : '');
+    box.style.color = m.cls === 'rose' ? 'var(--rose)' : 'var(--text)';
+    box.style.fontWeight = m.cls === 'rose' ? '700' : '600';
+  }
+
   function shopSelect(id, label) {
     if (!S.features.has_branches || !S.branches.length) return '';
     return '<div class="form-group"><label class="form-label">' + label + '</label><select class="form-select" id="' + id + '"><option value="">— No shop —</option>' + S.branches.map(function (b) { return '<option value="' + esc(b.id) + '">' + esc(b.name) + '</option>'; }).join('') + '</select></div>';
@@ -20,6 +46,7 @@ window.BOProd = (function () {
       + '<div class="form-group"><label class="form-label">Brand</label><input class="form-control" id="newProdBrand" placeholder="e.g. Samsung"></div>'
       + '<div class="form-group"><label class="form-label">Model</label><input class="form-control" id="newProdModel" placeholder="e.g. A05"></div>'
       + '<div class="form-group"><label class="form-label">Price</label><input class="form-control" type="number" id="newProdPrice" min="0"></div>'
+      + (canSeeCost() ? '<div class="form-group"><label class="form-label">Cost Price <span class="muted small">(what you paid)</span></label><input class="form-control" type="number" id="newProdCost" min="0" value="0"></div>' : '')
       + '<div class="form-group"><label class="form-label">Stock</label><input class="form-control" type="number" id="newProdStock" min="0" value="0"></div>'
       + '<div class="form-group"><label class="form-label">Reorder Pt</label><input class="form-control" type="number" id="newProdReorder" value="20" min="0"></div>'
       + '<div class="form-group"><label class="form-label">Type</label><select class="form-select" id="newProdType"><option value="Sale">For Sale</option><option value="Rent">For Rent</option></select></div>'
@@ -29,12 +56,12 @@ window.BOProd = (function () {
       + '<div class="form-group"><label class="form-label">&nbsp;</label><label class="form-check-label" style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="newProdSerial" onchange="BOProd.serialToggle()"> Track each unit by IMEI / serial</label></div>'
       + '<button class="btn-primary" onclick="BOProd.add()">+ Add</button></div>'
       + '<div class="small muted" style="margin-top:8px;">💡 After adding, tap <strong>Edit</strong> on the product to upload a marketplace photo. For IMEI-tracked products, add the units under <strong>Stock &amp; Shops</strong>.</div></div></div>';
-    h += '<div class="section-card" style="margin-bottom:18px;"><div class="section-hdr"><span>📦</span><div class="section-hdr-title">All Products</div><div class="small muted" style="margin-left:auto;">Inactive shown — reactivate anytime</div></div><div style="padding:0;"><div class="table-wrap"><table class="bo-table"><thead><tr><th>Photo</th><th>ID</th><th>Name</th><th>Brand / Model</th><th>Category</th><th>Price</th><th>Stock</th><th>Reorder</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
+    h += '<div class="section-card" style="margin-bottom:18px;"><div class="section-hdr"><span>📦</span><div class="section-hdr-title">All Products</div><div class="small muted" style="margin-left:auto;">Inactive shown — reactivate anytime</div></div><div style="padding:0;"><div class="table-wrap"><table class="bo-table"><thead><tr><th>Photo</th><th>ID</th><th>Name</th><th>Brand / Model</th><th>Category</th><th>Price</th>' + (canSeeCost() ? '<th>Cost</th><th>Margin</th>' : '') + '<th>Stock</th><th>Reorder</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
     if (!list.length) h += '<tr><td colspan="10" class="empty">No products yet — add your first one above.</td></tr>';
     list.forEach(function (p, i) {
       var thumb = p.image1_url ? '<img src="' + esc(p.image1_url) + '" style="width:34px;height:34px;border-radius:7px;object-fit:cover;" onerror="this.style.display=\'none\'">' : '<div style="width:34px;height:34px;border-radius:7px;background:var(--surface2);display:flex;align-items:center;justify-content:center;color:var(--muted);">🛍️</div>';
       var stock = p.is_serialized ? (p.units_in_stock != null ? p.units_in_stock : p.stock) : p.stock;
-      h += '<tr style="opacity:' + (p.active ? '1' : '0.6') + '"><td>' + thumb + '</td><td class="mono small muted">' + esc(p.legacy_id || '') + '</td><td style="font-weight:600;">' + esc(p.name) + (p.listing_type === 'Rent' ? ' <span class="badge badge-low">Rent</span>' : '') + (p.is_serialized ? ' <span class="badge badge-seller">IMEI</span>' : '') + '</td><td class="muted">' + esc([p.brand, p.model].filter(Boolean).join(' ')) + '</td><td class="muted">' + esc(p.category || '') + '</td><td class="mono">' + fmtFull(p.price) + '</td><td>' + stock + '</td><td>' + p.reorder_point + '</td><td>' + (p.active ? '<span class="badge badge-active">Active</span>' : '<span class="badge badge-inactive">Inactive</span>') + '</td><td style="white-space:nowrap;">' + (p.active ? '<button class="btn-sm-primary" onclick="BOProd.edit(' + i + ')">Edit</button> ' : '') + '<button class="btn-sm-' + (p.active ? 'warning' : 'success') + '" onclick="BOProd.toggle(\'' + BO.jsq(p.id) + '\',' + (p.active ? 'false' : 'true') + ')">' + (p.active ? 'Deactivate' : 'Activate') + '</button></td></tr>';
+      h += '<tr style="opacity:' + (p.active ? '1' : '0.6') + '"><td>' + thumb + '</td><td class="mono small muted">' + esc(p.legacy_id || '') + '</td><td style="font-weight:600;">' + esc(p.name) + (p.listing_type === 'Rent' ? ' <span class="badge badge-low">Rent</span>' : '') + (p.is_serialized ? ' <span class="badge badge-seller">IMEI</span>' : '') + '</td><td class="muted">' + esc([p.brand, p.model].filter(Boolean).join(' ')) + '</td><td class="muted">' + esc(p.category || '') + '</td><td class="mono">' + fmtFull(p.price) + '</td>' + costCells(p) + '<td>' + stock + '</td><td>' + p.reorder_point + '</td><td>' + (p.active ? '<span class="badge badge-active">Active</span>' : '<span class="badge badge-inactive">Inactive</span>') + '</td><td style="white-space:nowrap;">' + (p.active ? '<button class="btn-sm-primary" onclick="BOProd.edit(' + i + ')">Edit</button> ' : '') + '<button class="btn-sm-' + (p.active ? 'warning' : 'success') + '" onclick="BOProd.toggle(\'' + BO.jsq(p.id) + '\',' + (p.active ? 'false' : 'true') + ')">' + (p.active ? 'Deactivate' : 'Activate') + '</button></td></tr>';
     });
     h += '</tbody></table></div></div></div>';
     var restockable = list.filter(function (p) { return p.active && !p.is_serialized; });
@@ -48,7 +75,7 @@ window.BOProd = (function () {
     if (!n || !c || p === '') { alert('Fill in at least the name, category and price.'); return; }
     var serial = document.getElementById('newProdSerial').checked;
     if (!BO.confirm('Add "' + n + '"' + (serial ? ' (IMEI-tracked)' : ' with ' + (s || 0) + ' units') + '?')) return;
-    var args = { name: n, category: c, brand: g('newProdBrand').trim(), model: g('newProdModel').trim(), price: Number(p), stock: serial ? 0 : Number(s || 0), reorder_point: Number(g('newProdReorder') || 20), listing_type: g('newProdType'), price_unit: g('newProdUnit'), location: g('newProdLoc').trim(), is_serialized: serial };
+    var args = { name: n, category: c, brand: g('newProdBrand').trim(), model: g('newProdModel').trim(), price: Number(p), cost_price: Number(g('newProdCost') || 0), stock: serial ? 0 : Number(s || 0), reorder_point: Number(g('newProdReorder') || 20), listing_type: g('newProdType'), price_unit: g('newProdUnit'), location: g('newProdLoc').trim(), is_serialized: serial };
     var br = g('newProdBranch'); if (br) args.branch_id = br;
     srv('addProduct', args).then(function (r) { showToast('Product ' + (r.product.legacy_id || '') + ' added! Tap Edit to add a photo.'); load(); }).catch(BO.fail);
   }
@@ -67,7 +94,8 @@ window.BOProd = (function () {
     + '<div class="modal-body"><input type="hidden" id="editProdId">'
     + '<div class="form-group" style="margin-bottom:12px;"><label class="form-label">Product Name</label><input class="form-control" id="editProdName"></div>'
     + '<div class="fg2" style="margin-bottom:12px;"><div class="form-group"><label class="form-label">Category</label><input class="form-control" id="editProdCat"></div><div class="form-group"><label class="form-label">Brand</label><input class="form-control" id="editProdBrand"></div></div>'
-    + '<div class="fg2" style="margin-bottom:12px;"><div class="form-group"><label class="form-label">Model</label><input class="form-control" id="editProdModel"></div><div class="form-group"><label class="form-label">Price</label><input type="number" class="form-control" id="editProdPrice"></div></div>'
+    + '<div class="fg2" style="margin-bottom:12px;"><div class="form-group"><label class="form-label">Model</label><input class="form-control" id="editProdModel"></div><div class="form-group"><label class="form-label">Price</label><input type="number" class="form-control" id="editProdPrice" oninput="BOProd.showMargin()"></div></div>'
+    + (canSeeCost() ? '<div class="fg2" style="margin-bottom:12px;"><div class="form-group"><label class="form-label">Cost Price <span class="muted small">(what you paid — never shown to sellers or on the marketplace)</span></label><input type="number" class="form-control" id="editProdCost" min="0" oninput="BOProd.showMargin()"></div><div class="form-group"><label class="form-label">Margin</label><div class="form-control" id="editProdMargin" style="background:var(--surface2);"></div></div></div>' : '')
     + '<div class="fg2" style="margin-bottom:12px;"><div class="form-group" id="editProdStockWrap"><label class="form-label">Stock QTY</label><input type="number" class="form-control" id="editProdStock"></div><div class="form-group"><label class="form-label">Reorder Point</label><input type="number" class="form-control" id="editProdReorder"></div></div>'
     + '<div class="fg2" style="margin-bottom:12px;"><div class="form-group"><label class="form-label">Type</label><select class="form-select" id="editProdType"><option value="Sale">For Sale</option><option value="Rent">For Rent</option></select></div><div class="form-group"><label class="form-label">Price Unit (rent)</label><select class="form-select" id="editProdUnit"><option value="">—</option><option value="per day">per day</option><option value="per week">per week</option><option value="per month">per month</option><option value="per event">per event</option></select></div></div>'
     + '<div class="form-group" style="margin-bottom:14px;"><label class="form-label">Location (optional)</label><input class="form-control" id="editProdLoc" placeholder="e.g. Kariakoo, Dar"></div>'
@@ -84,7 +112,7 @@ window.BOProd = (function () {
     var p = list[i]; if (!p) return;
     BO.ensureModal('editProductModal', MODAL);
     var set = function (id, v) { document.getElementById(id).value = v == null ? '' : v; };
-    set('editProdId', p.id); set('editProdName', p.name); set('editProdCat', p.category); set('editProdBrand', p.brand); set('editProdModel', p.model); set('editProdPrice', p.price); set('editProdStock', p.stock); set('editProdReorder', p.reorder_point); set('editProdType', p.listing_type === 'Rent' ? 'Rent' : 'Sale'); set('editProdUnit', p.price_unit || ''); set('editProdLoc', p.location || '');
+    set('editProdId', p.id); set('editProdName', p.name); set('editProdCat', p.category); set('editProdBrand', p.brand); set('editProdModel', p.model); set('editProdPrice', p.price); set('editProdStock', p.stock); set('editProdReorder', p.reorder_point); set('editProdType', p.listing_type === 'Rent' ? 'Rent' : 'Sale'); set('editProdUnit', p.price_unit || ''); set('editProdLoc', p.location || ''); if (canSeeCost()) { set('editProdCost', p.cost_price == null ? 0 : p.cost_price); showMargin(); }
     document.getElementById('editProdStockWrap').style.display = p.is_serialized ? 'none' : '';
     pending = {}; document.getElementById('prodImgMsg').textContent = '';
     [1, 2, 3].forEach(function (n) { showSlot(n, p['image' + n + '_url'] || ''); });
@@ -119,7 +147,7 @@ window.BOProd = (function () {
   }
   function save() {
     var id = g('editProdId');
-    var args = { id: id, name: g('editProdName').trim(), category: g('editProdCat').trim(), brand: g('editProdBrand').trim(), model: g('editProdModel').trim(), price: Number(g('editProdPrice')), reorder_point: Number(g('editProdReorder') || 0), listing_type: g('editProdType'), price_unit: g('editProdUnit'), location: g('editProdLoc').trim() };
+    var args = { id: id, name: g('editProdName').trim(), category: g('editProdCat').trim(), brand: g('editProdBrand').trim(), model: g('editProdModel').trim(), price: Number(g('editProdPrice')), cost_price: canSeeCost() ? Number(g('editProdCost') || 0) : undefined, reorder_point: Number(g('editProdReorder') || 0), listing_type: g('editProdType'), price_unit: g('editProdUnit'), location: g('editProdLoc').trim() };
     if (document.getElementById('editProdStockWrap').style.display !== 'none') args.stock = Number(g('editProdStock'));
     srv('updateProduct', args).then(function () {
       var slots = Object.keys(pending);
@@ -138,5 +166,5 @@ window.BOProd = (function () {
   }
 
   BO.tabs.products = { load: load, sync: load };
-  return { load: load, clearImage: clearImage, add: add, toggle: toggle, restock: restock, edit: edit, save: save, previewImage: previewImage, serialToggle: serialToggle };
+  return { load: load, clearImage: clearImage, add: add, toggle: toggle, restock: restock, edit: edit, save: save, previewImage: previewImage, serialToggle: serialToggle, showMargin: showMargin };
 })();

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { rows, rowsAll, one, insertMany, update, count, iso, num, money, text, mustText, fmtMoney, badRequest, forbidden, notFound,
-  isAdminLevel, isManagerLevel, vendorScope, scopedVendor, requireVendorUser, requireSameVendor, mustProduct, productById, vendorById,
+  isAdminLevel, isManagerLevel, vendorScope, scopedVendor, requireVendorUser, requireSameVendor, mustProduct, productById, vendorById, stripCost,
   currencyOf, periodBounds, localNow } from './_shared.js';
 import { requireAdmin } from '../auth.js';
 import { changeStock, claimUnits } from './stock.js';
@@ -23,11 +23,12 @@ import { APP_NAME } from '../brand.js';
 export const deps = { fetch: null };                      // tests capture the seller's email here
 
 const PAYMENT_METHODS = ['Cash', 'Lipa Number', 'Credit'];
-const SALE_COLS = 'id, legacy_id, group_id, vendor_id, branch_id, seller_id, seller_name, product_id, product_name, brand, model, unit_id, imei, '
+const SALE_COLS = 'id, legacy_id, group_id, vendor_id, branch_id, seller_id, seller_name, customer_name, customer_phone, product_id, product_name, brand, model, unit_id, imei, '
   + 'qty, list_price, discount, price, total, payment_method, financing_partner_id, partner_paid, partner_paid_at, status, '
-  + 'cancelled_by, cancelled_by_name, cancelled_at, cancel_reason, sold_at';
+  + 'unit_cost, cancelled_by, cancelled_by_name, cancelled_at, cancel_reason, sold_at';
 
 const isBlank = v => v == null || String(v).trim() === '';
+const shortId = id => (id ? String(id).slice(0, 8) : '');
 const uniq = list => [...new Set(list.filter(Boolean).map(String))];
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -49,6 +50,14 @@ async function recordSale(db, user, args, nowMs) {
     const fp = await one(db, 'financing_partners', q => q.select('id, vendor_id, active').eq('id', partnerId));
     if (!fp || !fp.active || (fp.vendor_id && String(fp.vendor_id) !== String(vid))) throw badRequest('That financing partner is not available to your business.');
   }
+
+  /* Who bought it. Most sales are walk-ins and stay blank; when a name IS given it goes on
+     every line of the checkout, the same way seller_name does, so "everything this person ever
+     bought" is one indexed read rather than a join through a customers table that would
+     otherwise be nine parts empty. */
+  const cut = (v, n) => { const t = text(v); return t ? t.slice(0, n) : null; };   // text() is null when blank
+  const customerName = cut(args.customer_name, 120);
+  const customerPhone = cut(args.customer_phone, 40);
 
   const branchId = text(args.branch_id) || user.branch_id || null;
   if (branchId) {
@@ -114,7 +123,12 @@ async function recordSale(db, user, args, nowMs) {
   for (const l of lines) {
     const base = {
       group_id: groupId, vendor_id: vid, branch_id: branchId, seller_id: user.id, seller_name: user.name,
+      customer_name: customerName, customer_phone: customerPhone,
       product_id: l.product.id, product_name: l.product.name, brand: l.product.brand || null, model: l.product.model || null,
+      /* The margin is fixed HERE, at the till, not worked out later from whatever the product
+         costs by then. Buy the same handset cheaper next month and last month's profit must not
+         move: that is the whole reason product_name is a snapshot too. */
+      unit_cost: num(l.product.cost_price),
       list_price: l.list, discount: l.discount, price: l.price, payment_method: method, financing_partner_id: partnerId,
       partner_paid: false, status: 'completed', sold_at: soldAt,
     };
@@ -241,6 +255,7 @@ async function nameLookups(db, list) {
 
 const saleRow = (s, names) => ({
   id: s.id, legacy_id: s.legacy_id, group_id: s.group_id, sold_at: s.sold_at, seller_id: s.seller_id, seller_name: s.seller_name,
+  customer_name: s.customer_name || '', customer_phone: s.customer_phone || '', unit_cost: num(s.unit_cost),
   product_id: s.product_id, product_name: s.product_name, brand: s.brand || '', model: s.model || '', unit_id: s.unit_id, imei: s.imei || '',
   qty: num(s.qty), list_price: num(s.list_price), discount: num(s.discount), price: num(s.price), total: num(s.total),
   payment_method: s.payment_method, financing_partner_id: s.financing_partner_id, partner_paid: !!s.partner_paid, partner_paid_at: s.partner_paid_at || null,
@@ -293,12 +308,182 @@ async function salesDetail(db, user, args, nowMs) {
     let g = groups.get(name);
     if (!g) { g = { seller_name: name, total: 0, rows: [] }; groups.set(name, g); }
     g.total += num(s.total);
-    g.rows.push(saleRow(s, names));
+    /* salesDetail is the one sale read a SELLER can reach (their own lines, from the dashboard
+       tiles), and saleRow now carries unit_cost. Stripped here rather than left to the page:
+       a field that never leaves the server cannot be read out of the network tab. */
+    g.rows.push(stripCost(user, saleRow(s, names)));
   }
   const out = [...groups.values()].sort((a, c) => a.seller_name.localeCompare(c.seller_name));
   for (const g of out) { g.total = money(g.total); g.rows.sort((a, c) => (a.sold_at < c.sold_at ? -1 : a.sold_at > c.sold_at ? 1 : 0)); }
   return { kind: 'sales', currency: vendor ? currencyOf(vendor) : 'TZS', groups: out, grand_total: money(out.reduce((a, g) => a + g.total, 0)) };
 }
 
-export const FN = { recordSale, cancelSale, markPartnerPaid, recentSales, salesDetail };
+/* =====================================================================================
+   THE RECEIPT -- one checkout, on paper or on a phone.
+   =====================================================================================
+   A checkout is already one group_id across however many sale rows it wrote, so a receipt is
+   that group read back with the shop's own details on top. Nothing is stored: a receipt is a
+   VIEW of the sale, not a second record of it, because a stored receipt is one more thing that
+   can disagree with the sale it came from (CLAUDE.md rule 2 -- one definition, in one place).
+
+   WHO MAY SEE ONE. The seller who rang it up, any admin of that business, or a manager. A
+   seller is pinned to their own sales: a receipt carries a customer's name and phone, and
+   "let me just look up that sale" is not a reason to hand one member of staff another's
+   customer list.
+
+   COST: 2 reads (the group, the vendor) + at most 2 more for a branch or a partner name, and
+   only when the sale actually had one. Nothing here runs per line. */
+async function saleReceipt(db, user, args) {
+  const groupId = text(args.group_id), saleId = text(args.sale_id);
+  if (!groupId && !saleId) throw badRequest('Name the sale or the checkout.');
+  const vid = isManagerLevel(user.role) ? null : requireVendorUser(user);
+
+  /* When only one line was named, its group is what we actually want -- a receipt for one of
+     three items on a docket is not a receipt. That is the only reason for the extra hop. */
+  let gid = groupId;
+  if (!gid) {
+    const seed = await one(db, 'sales', q => {
+      let x = q.select('group_id, vendor_id').eq('id', saleId);
+      if (vid) x = x.eq('vendor_id', vid);
+      return x;
+    });
+    if (!seed) throw notFound('That sale is not one of yours.');
+    gid = seed.group_id;
+  }
+  const list = await rows(db, 'sales', q => {
+    let x = q.select(SALE_COLS).eq('group_id', gid);
+    if (vid) x = x.eq('vendor_id', vid);
+    return x.order('legacy_id').limit(500);
+  });
+  if (!list.length) throw notFound('That sale is not one of yours.');
+
+  const own = !isAdminLevel(user.role) && !isManagerLevel(user.role);
+  if (own && list.some(r => String(r.seller_id) !== String(user.id))) {
+    throw forbidden('That is not your sale. Ask the business admin for a copy.');
+  }
+
+  const vendor = await vendorById(db, list[0].vendor_id);
+  if (!vendor) throw notFound('That business no longer exists.');
+  const names = await nameLookups(db, list);
+  const first = list[0], extra = names(first);
+
+  const items = list.map(r => ({
+    product_name: r.product_name, brand: r.brand || '', model: r.model || '', imei: r.imei || '',
+    qty: num(r.qty), list_price: num(r.list_price), discount: num(r.discount), price: num(r.price), total: num(r.total),
+  }));
+  const subtotal = money(items.reduce((a, i) => a + i.qty * i.list_price, 0));
+  const discount = money(items.reduce((a, i) => a + i.qty * i.discount, 0));
+  const total = money(items.reduce((a, i) => a + i.total, 0));
+  const cancelled = list.filter(r => r.status === 'cancelled');
+
+  return {
+    group_id: gid,
+    /* The label people read out over the phone. A checkout of three lines wrote SALE-0007,
+       SALE-0008 and SALE-0009, so the receipt names the range rather than picking one. */
+    receipt_no: list.length > 1 ? (first.legacy_id || '') + ' – ' + (list[list.length - 1].legacy_id || '') : (first.legacy_id || shortId(first.id)),
+    sold_at: first.sold_at, currency: currencyOf(vendor),
+    vendor: { name: vendor.name, phone: vendor.phone || '', address: vendor.address || '', logo_url: vendor.logo_url || '', business_type: vendor.business_type || '' },
+    branch_name: extra.branch_name || '', seller_name: first.seller_name || '',
+    customer_name: first.customer_name || '', customer_phone: first.customer_phone || '',
+    payment_method: first.payment_method, partner_name: extra.partner_name || '',
+    items, subtotal, discount, total,
+    /* A cancelled line still gets a receipt -- somebody is holding the old one and needs to be
+       shown what happened to it -- but it says so at the top, in as many words. */
+    status: cancelled.length === list.length ? 'cancelled' : (cancelled.length ? 'part-cancelled' : 'completed'),
+    cancelled_note: cancelled.length
+      ? cancelled.length + ' of ' + list.length + ' line' + (list.length > 1 ? 's' : '') + ' cancelled'
+        + (cancelled[0].cancelled_by_name ? ' by ' + cancelled[0].cancelled_by_name : '')
+        + (cancelled[0].cancel_reason ? ': ' + cancelled[0].cancel_reason : '')
+      : '',
+  };
+}
+
+/* =====================================================================================
+   CREDIT & VOIDS -- the two piles of paper on the desk, on one screen.
+   =====================================================================================
+   Both already existed, scattered: an unsettled credit sale was a row in the recent-sales table
+   you had to spot by its badge, and a cancelled one was a report you had to download. Neither is
+   a thing you go looking for; both are things that need chasing. Money owed by a financing
+   partner and sales somebody voided are exactly the two questions an owner asks on a Friday.
+
+   Grouped by CHECKOUT, not by line, because that is what gets settled and what gets cancelled:
+   three handsets on one MOGO docket are one conversation with MOGO, not three.
+
+   COST: 2 paged reads (unsettled credit, cancelled in the window) + 2 small name reads. Both are
+   bounded -- credit by "not yet paid", which is a set a shop keeps small on purpose, and voids by
+   the date range the screen asks for. Neither grows with the size of the book. */
+async function creditAndVoids(db, user, args, nowMs) {
+  requireAdmin(user);
+  const vid = vendorScope(user, args);
+  if (!vid) throw badRequest('Pick a business to see its credit and cancelled sales.');
+  const branchId = text(args.branch_id);
+  const days = Math.min(Math.max(parseInt(args.days, 10) || 30, 1), 365);
+  const since = iso(nowMs - days * 86400000);
+
+  const credit = await rowsAll(db, 'sales', q => {
+    let x = q.select(SALE_COLS).eq('vendor_id', vid).eq('payment_method', 'Credit')
+      .eq('status', 'completed').eq('partner_paid', false);
+    if (branchId) x = x.eq('branch_id', branchId);
+    return x.order('sold_at', { ascending: true });        // oldest debt first: that is the one to chase
+  });
+  const voids = await rowsAll(db, 'sales', q => {
+    let x = q.select(SALE_COLS).eq('vendor_id', vid).eq('status', 'cancelled').gte('cancelled_at', since);
+    if (branchId) x = x.eq('branch_id', branchId);
+    return x.order('cancelled_at', { ascending: false });  // newest void first: that is the one being asked about
+  });
+  const names = await nameLookups(db, [...credit, ...voids]);
+
+  return {
+    currency: currencyOf(user.vendor),
+    days,
+    credit: groupByCheckout(credit, names, nowMs),
+    voids: groupByCheckout(voids, names, nowMs),
+    credit_total: money(credit.reduce((a, r) => a + num(r.total), 0)),
+    voids_total: money(voids.reduce((a, r) => a + num(r.total), 0)),
+    /* By partner, because that is who the phone call is to. */
+    by_partner: partnerTotals(credit, names),
+  };
+}
+
+/** Sale lines folded back into the checkouts they were rung up as. */
+function groupByCheckout(list, names, nowMs) {
+  const out = new Map();
+  for (const r of list) {
+    const key = String(r.group_id);
+    let g = out.get(key);
+    if (!g) {
+      const extra = names(r);
+      g = {
+        group_id: r.group_id, receipt_no: r.legacy_id || shortId(r.id), sold_at: r.sold_at,
+        seller_name: r.seller_name || '', customer_name: r.customer_name || '', customer_phone: r.customer_phone || '',
+        payment_method: r.payment_method, partner_name: extra.partner_name || '', branch_name: extra.branch_name || '',
+        cancelled_by_name: r.cancelled_by_name || '', cancelled_at: r.cancelled_at || null, cancel_reason: r.cancel_reason || '',
+        items: [], total: 0, sale_ids: [],
+        /* How long it has been owed. A number of days is what makes a list of debts a list of
+           priorities, and it is free -- the date is already in the row. */
+        age_days: r.sold_at ? Math.max(0, Math.floor((nowMs - Date.parse(r.sold_at)) / 86400000)) : null,
+      };
+      out.set(key, g);
+    }
+    g.items.push({ product_name: r.product_name, brand: r.brand || '', model: r.model || '', imei: r.imei || '', qty: num(r.qty), total: num(r.total) });
+    g.total = money(g.total + num(r.total));
+    g.sale_ids.push(r.id);
+  }
+  return [...out.values()];
+}
+/** Owed per financing partner, biggest first. */
+function partnerTotals(list, names) {
+  const by = new Map();
+  for (const r of list) {
+    const key = names(r).partner_name || '(no partner named)';
+    const b = by.get(key) || { partner_name: key, checkouts: new Set(), total: 0 };
+    b.checkouts.add(String(r.group_id));
+    b.total = money(b.total + num(r.total));
+    by.set(key, b);
+  }
+  return [...by.values()].map(b => ({ partner_name: b.partner_name, checkouts: b.checkouts.size, total: b.total }))
+    .sort((a, b) => b.total - a.total);
+}
+
+export const FN = { recordSale, cancelSale, markPartnerPaid, recentSales, salesDetail, saleReceipt, creditAndVoids };
 export const WRITES = ['recordSale', 'cancelSale', 'markPartnerPaid'];

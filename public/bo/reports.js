@@ -5,6 +5,8 @@ window.BORep = (function () {
   var vendors = [], mgrType = '';
   var TYPES = [
     ['sales', '📊', 'Sales Report', 'Every line sold in the period'],
+    ['profit', '📈', 'Profit Report', 'Revenue minus cost, and what was discounted'],
+    ['customer', '🧾', 'Sales by Customer', 'Who bought, how often, how much'],
     ['stock', '📦', 'Stock Report', 'Current inventory, value & status'],
     ['cashdue', '💰', 'Cash Due Report', "Today's seller balances"],
     ['lending', '📋', 'Lending Report', 'Active, returned or all'],

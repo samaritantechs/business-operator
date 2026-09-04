@@ -22,8 +22,6 @@ import assert from 'node:assert/strict';
 import { fakeDb, setPageCap } from './fake-db.mjs';
 import { emptyBook, PASSWORD } from './_book.mjs';
 
-process.env.SUPABASE_URL = process.env.SUPABASE_URL || 'https://test.invalid';
-process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'test-key';
 delete process.env.RESEND_API_KEY;
 const { boApi } = await import('../api/_lib/bo-core.js');
 const { marketApi, clearMarketCache } = await import('../api/_lib/bo/market.js');
@@ -83,6 +81,20 @@ function bigBook() {
       const L = 'L' + v + '_' + l, active = l < 10;
       t.lendings.push({ id: L, legacy_id: 'LEND-' + v + '-' + l, vendor_id: V, branch_id: null, borrower_name: 'Borrower ' + l, borrower_email: l % 2 ? 'b' + l + '@x.tz' : '', borrower_phone: '', recorded_by: 'A' + v, recorded_by_name: 'Admin ' + v, status: active ? 'Active' : 'Returned', return_date: active ? null : iso(NOW - l * DAY), created_at: iso(NOW - (l + 3) * DAY) });
       t.lending_items.push({ id: 'LI' + v + '_' + l, lending_id: L, product_id: 'P' + v + '_' + (SERIALIZED + l), product_name: 'Item ' + (SERIALIZED + l), unit_id: null, qty: 1, price: 5000, total: 5000 });
+    }
+    /* Purchase orders: fifteen per business, ten of them still open with five lines each, which
+       is a busier order book than a phone shop actually runs. A budget measured against an empty
+       table measures nothing. */
+    for (let o = 0; o < 15; o++) {
+      const O = 'PO' + v + '_' + o, open = o < 10;
+      t.purchase_orders.push({ id: O, legacy_id: 'PO-' + String(o + 1).padStart(4, '0'), vendor_id: V, branch_id: null,
+        supplier: 'Supplier ' + (o % 3), reference: 'INV' + o, notes: null, status: open ? 'ordered' : 'received',
+        expected_at: null, created_by: 'A' + v, created_by_name: 'Admin ' + v, created_at: iso(NOW - (o + 1) * DAY),
+        closed_at: open ? null : iso(NOW - o * DAY), closed_by_name: open ? null : 'Admin ' + v, cancel_reason: null });
+      for (let i = 0; i < 5; i++) {
+        t.purchase_order_items.push({ id: 'POI' + v + '_' + o + '_' + i, po_id: O, product_id: 'P' + v + '_' + (SERIALIZED + i),
+          product_name: 'Item ' + (SERIALIZED + i), qty: 20, received_qty: open ? 0 : 20, unit_cost: 2800, total: 56000 });
+      }
     }
   }
   for (let h = 0; h < 20; h++) t.hints.push({ id: 'H' + h, role: ['seller', 'admin', 'all', 'marketplace'][h % 4], message_en: 'Tip ' + h, message_sw: '', active: true, sort: h });
@@ -180,13 +192,28 @@ const BUDGETS = [
   ['Sell form options (seller)',      'bo', 'productOptions',   {},                                   SELLER,   6,    400,   6,   400],
   ['Recent sales',                    'bo', 'recentSales',      {},                                   ADMIN,    5,    100,   5,   100],
   ['Sales detail (month)',            'bo', 'salesDetail',      { period: 'month' },                  ADMIN,    5,    200,   5,   200],
+  /* A receipt is one checkout: the group, the shop it was sold from, the partner if it was
+     financed, and the business's own name and address. Four reads whatever is on the docket --
+     nothing here runs per line, which is the whole reason group_id exists on the sale row. */
+  ['Receipt (one checkout)',          'bo', 'saleReceipt',      { sale_id: 'S1_1' },                  ADMIN,    5,     20,   5,    20],
   ['Sales detail (stock)',            'bo', 'salesDetail',      { period: 'stock' },                  ADMIN,    3,    250,   3,   250],
+  /* Credit & Voids reads two BOUNDED sets, and the bounds are the point. Credit is 'not yet
+     settled', which a shop keeps small because chasing it is the job; voids are the window the
+     screen asked for. Neither grows with the size of the book, which is why this can be a screen
+     at all rather than a report. */
+  ['Credit & voids (30 days)',        'bo', 'creditAndVoids',   { days: 30 },                         ADMIN,    5,    500,   5,   500],
   ['Lendings',                        'bo', 'lendings',         {},                                   ADMIN,    4,    100,   4,   100],
   ['Cash receipts (today)',           'bo', 'cashReceipts',     {},                                   ADMIN,    4,     50,   4,    50],
   ['Users (admin)',                   'bo', 'users',            {},                                   ADMIN,    4,     50,   4,    50],
   ['Users (manager, everybody)',      'bo', 'users',            {},                                   MANAGER,  5,    300,   5,   300],
   ['Branch stock',                    'bo', 'branchStock',      {},                                   ADMIN,    6,    800,   6,   800],
   ['Units (IMEI list)',               'bo', 'units',            {},                                   ADMIN,    4,    200,   4,   200],
+  /* Purchase orders: the open ones and every line on them, in two reads whatever the shape of
+     the list. Bounded by 'still open', which is a set a shop keeps small by receiving things. */
+  /* Holds: the open ones and their lines, two reads. Bounded by 'still held', which stays small
+     because a hold ends the moment somebody collects or gives up on it. */
+  ['Holds (open)',                    'bo', 'pendingSales',     { status: 'held' },                   ADMIN,    2,    100,   2,   100],
+  ['Purchase orders (open)',          'bo', 'purchaseOrders',   { status: 'ordered' },                ADMIN,    2,    100,   2,   100],
   ['Movements (30 days)',             'bo', 'movements',        MONTH,                                ADMIN,    4,   1300,   4,  1300],
   ['Sales report (month)',            'bo', 'reportData',       { type: 'sales', ...MONTH },          ADMIN,    6,   1500,   6,  1500],
   /* A report over a range must read that range: there is no honest way to list every line sold
