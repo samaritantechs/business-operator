@@ -42,8 +42,8 @@ Routine calls made while building, so nobody has to re-derive them. Newest at th
 13. **Discounts** are per unit and never change `list_price`: `price = list_price − discount`,
     `total = qty × price`.
 14. **Reports are real files** (PDF via pdf-lib, .xlsx via a 150-line dependency-free writer),
-    served by a plain GET with a 5-minute signed ticket so the phone's download manager and the
-    old APK's new-tab handler both work, and no session token ever sits in a URL.
+    served by a plain GET with a 5-minute signed ticket, so the phone's own download manager
+    handles the file and no session token ever sits in a URL.
 15. **Desktop/mobile toggle is pure CSS** (`html.bo-desktop`), no reload — the `?view=` iframe
     trick and the 2-second boot loader are gone (loading time defaults to 0 and stays editable).
 16. **Time is East Africa Time** everywhere, via HOPE's `time.js`.

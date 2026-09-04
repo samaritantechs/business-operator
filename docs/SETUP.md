@@ -5,12 +5,8 @@ each other. Nothing here touches HOPE PMO or HOOP: this app has its **own databa
 its **own Vercel project** and its **own environment variables**, and the only thing it shares
 with them is the git repository it happens to live in.
 
-Two paths through this file:
-
-| You are | Read |
-|---|---|
-| Starting **clean** (no data to bring over) | 1 → 2 → 3 → 4 → 5 → 7 |
-| Bringing the **old spreadsheet** over | all of it, in order |
+Work through sections 1 to 5 in order; each one proves the one before it. Section 6 is an
+appendix you can ignore — this system starts empty and fills up as you use it.
 
 ---
 
@@ -167,7 +163,10 @@ Nothing you do there touches any real database; restarting the server resets the
 
 ---
 
-## 6. Bringing the old spreadsheet over *(skip if starting clean)*
+## 6. Appendix: importing an old spreadsheet
+
+**You do not need this.** This system starts empty and fills up as you use it, which is the
+plan. The importer is kept only in case a workbook ever has to be brought across later.
 
 Export the nine tabs of the Apps Script workbook as CSV (**File → Download → CSV**, one per
 tab) into a single folder:
@@ -192,26 +191,8 @@ goes in foreign-key order, keeps every old identifier in a `legacy_*` column, an
 run twice — rows already present are matched on those identifiers and skipped. `--only=users,products`
 limits it to named steps when you are re-running one part.
 
-If you migrated, **skip step 2**: the old manager account comes across with everybody else.
-
----
-
-## 7. Keeping the printed QR codes working *(only if the old app was in the field)*
-
-From §9 of the handoff. Street flyers and an installed Android APK point at the old Apps
-Script `/exec` URL, and neither can be recalled.
-
-**Day one — the bridge.** Replace the Apps Script `doGet` with a redirector to the new URL
-(meta-refresh plus `location.replace`, preserving query parameters) and ship it with
-**Manage deployments → Edit → New version**. Never "New deployment": the `/exec` URL must
-survive, and a new deployment mints a different one.
-
-**Then — the APK.** Rebuild as **v1.3** (versionCode 4) with `APP_URL` set to the new
-production URL and the new domain added to the WebView allowlist. Sign it with the **same**
-permanent keystore (`samaritan.keystore`, alias `businessoperator` — Markii holds the
-password; it is never committed), and replace the file **in place** on Google Drive via
-**Manage versions**, so the printed QR code keeps resolving. The build recipe is in Markii's
-`APK_GENERATOR_HANDOFF.md`.
+If you ever do run it, **skip step 2** on that database: the old manager account comes across
+with everybody else.
 
 ---
 
