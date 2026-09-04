@@ -68,35 +68,58 @@ for (const [name, palette] of [['light', light], ['dark', dark]]) {
   });
 }
 
-test('the -solid fills stay dark in both themes, because #fff sits on them', () => {
-  for (const name of ['accent', 'accent2', 'amber', 'rose', 'purple']) {
-    const key = name + '-solid';
-    assert.ok(light[key], '--' + key + ' must be declared in :root');
-    assert.equal(tokensOf('[data-theme="dark"]')[key], undefined,
-      '--' + key + ' must NOT be redeclared for dark: a fill carrying white text is dark in both themes');
-    const ratio = contrast('#ffffff', light[key]);
-    assert.ok(ratio >= AA, '#fff on --' + key + ' (' + light[key] + ') is only ' + ratio.toFixed(2) + ':1');
-  }
+test('white-on-a-fill is a token, not a hardcoded colour', () => {
+  /* A fill and the text on it are one decision. --accent-solid is navy on white paper and a
+     light blue on a dark ground, so the text on it cannot be #fff in both -- it is --on-solid,
+     which flips with the theme. Any surviving literal is a button that goes unreadable the
+     moment somebody taps the toggle. */
+  const offenders = [...html.matchAll(/background:var\(--[a-z0-9]+-solid\);color:#[0-9a-fA-F]{3,8}/g)];
+  assert.deepEqual(offenders.map(m => m[0]), [], 'use color:var(--on-solid) on a -solid fill');
+  const perTheme = [...html.matchAll(/background:var\(--(accent|accent2|amber|rose|purple)\);color:/g)];
+  assert.deepEqual(perTheme.map(m => m[0]), [],
+    'a fill takes the -solid token; the bare token is the READING colour and lightens for dark');
 });
 
-test('no solid fill carrying white text is painted with a per-theme token', () => {
-  /* --accent lightens in dark mode so it can be READ on near-black. Any rule that fills a
-     button with it and writes #fff on top therefore turns unreadable the moment the theme
-     flips -- which is exactly what happened to .btn-primary, .tab-chip.active and the update
-     bar. Solid fills take the -solid tokens; this is the guard that keeps them there. */
-  const offenders = [...html.matchAll(/background:var\(--(accent|accent2|amber|rose|purple)\);color:#fff/g)];
-  assert.deepEqual(offenders.map(m => m[0]), [],
-    'use var(--<name>-solid) for a fill that carries white text');
+for (const [name, palette] of [['light', light], ['dark', dark]]) {
+  test('a filled button can be found and read — ' + name, () => {
+    const on = palette['on-solid'];
+    assert.match(on, /^#[0-9A-Fa-f]{3,8}$/, name + ' must declare --on-solid');
+    for (const key of ['accent', 'accent2', 'amber', 'rose', 'purple']) {
+      const fill = palette[key + '-solid'];
+      assert.match(fill, /^#[0-9A-Fa-f]{3,8}$/, name + ' --' + key + '-solid must be a hex colour');
+      const read = contrast(on, fill);
+      assert.ok(read >= AA, name + ': --on-solid on --' + key + '-solid (' + fill + ') is only '
+        + read.toFixed(2) + ':1, and the label on a button is ordinary text');
+      /* And the button has to be VISIBLE, not just legible once found. A navy fill on a
+         near-black page is a button people hunt for. WCAG asks 3:1 of a UI component. */
+      for (const surface of SURFACES) {
+        const seen = contrast(fill, palette[surface]);
+        assert.ok(seen >= 3, name + ': --' + key + '-solid (' + fill + ') on --' + surface + ' ('
+          + palette[surface] + ') is only ' + seen.toFixed(2) + ':1 — the button disappears into the page');
+      }
+    }
+  });
+}
+
+test('the brand is the Samaritan Techs mark, in one place', () => {
+  /* Navy and amber were pasted as raw hex into logo tiles, gradients and glows. One token each
+     means the next change to the mark is one line, not a hunt through 68KB of CSS. */
+  assert.match(light['brand-navy'], /^#0B2A6B$/i);
+  assert.match(light['brand-amber'], /^#F0A020$/i);
+  assert.doesNotMatch(html, /#2563EB|#7C3AED/,
+    'the old blue-and-violet palette must be gone; use the brand tokens');
 });
 
-test('the first visit follows the device, and only a tap is remembered', () => {
-  assert.match(html, /prefers-color-scheme: light/,
-    'the pre-paint script must consult the device when nothing is stored');
+test('light is the default, and a choice is what gets remembered', () => {
+  assert.match(html, /localStorage\.getItem\('boTheme'\)==='dark'\?'dark':'light'/,
+    'the pre-paint script opens light unless dark was chosen');
+  assert.doesNotMatch(html, /prefers-color-scheme: light/,
+    'following the device would let a phone in night mode override the default we were asked for');
   const shell = readFileSync(new URL('../public/bo/shell.js', import.meta.url).pathname, 'utf8');
-  assert.match(shell, /S\.theme = document\.documentElement\.getAttribute\('data-theme'\)/,
-    'shell.js must read back what the pre-paint script decided, not re-decide it');
+  assert.match(shell, /S\.theme = document\.documentElement\.getAttribute\('data-theme'\)[^;]*\|\| 'light';/,
+    'shell.js reads back what the pre-paint script decided and falls back to light, not dark');
   assert.match(shell, /function applyTheme\(t, remember\)[\s\S]{0,400}?if \(remember\) store\('boTheme', t\);/,
-    'applyTheme must persist only when asked, so the device preference is not pinned on first load');
+    'applyTheme persists only when asked, so booting does not turn the default into a decision');
   assert.match(shell, /toggleTheme\(\) \{ applyTheme\([^)]*, true\)/,
     'the toggle is the one caller that remembers');
 });

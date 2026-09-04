@@ -12,7 +12,7 @@
 
 var WA_NUMBER = '255756749261';
 var S = { token: '', user: null, vendor: null, perms: {}, timings: {}, branches: [], partners: [], features: {},
-  announcement: null, lang: 'en', theme: 'dark', view: 'mobile', screen: 'landing', tab: 'dashboard', loaded: {} };
+  announcement: null, lang: 'en', theme: 'light', view: 'mobile', screen: 'landing', tab: 'dashboard', loaded: {} };
 var BO = { tabs: {}, S: S };
 
 /* ------------------------------------------------------------------ storage */
@@ -23,7 +23,7 @@ S.lang = load('boLang') || 'en';
    own preference. Reading it back from the attribute keeps ONE decision in ONE place; reading
    localStorage again here is how the device preference used to get overwritten with 'dark'
    before the first screen had even drawn. */
-S.theme = document.documentElement.getAttribute('data-theme') || load('boTheme') || 'dark';
+S.theme = document.documentElement.getAttribute('data-theme') || load('boTheme') || 'light';
 S.view = load('boView') || 'mobile';
 S.token = load('boToken') || '';
 
@@ -223,27 +223,17 @@ function toggleLang() {
 }
 function applyTheme(t, remember) {
   S.theme = t; document.documentElement.setAttribute('data-theme', t);
-  /* Only a deliberate tap is remembered. Persisting the device's own preference would pin it:
-     a phone later switched to light mode would go on showing a dark app for ever, and nothing
-     on screen would explain why. */
+  /* Light is the default and dark is a choice, so only a deliberate tap writes anything down.
+     applyTheme is also called on every boot to paint the buttons and the status bar, and a boot
+     that wrote to storage would turn the default into a decision nobody made. */
   if (remember) store('boTheme', t);
   var b1 = document.getElementById('themeToggleBtn'), b2 = document.getElementById('mkThemeBtn');
   if (b1) b1.textContent = t === 'dark' ? '☀️' : '🌙'; if (b2) b2.textContent = t === 'dark' ? '☀️' : '🌙';
   /* The status bar is part of the app on a phone. Left alone it stays the colour of whichever
      theme loaded first, and a light app then wears a black bar for the rest of the session. */
   var m = document.getElementById('themeColorMeta');
-  if (m) m.setAttribute('content', t === 'dark' ? '#0D1117' : '#F4F6FB');
+  if (m) m.setAttribute('content', t === 'dark' ? '#0B1120' : '#0B2A6B');
 }
-/* No stored choice means we are following the device, so keep following it: a phone that flips
-   to night mode at dusk flips the app with it, without a reload. */
-try {
-  if (window.matchMedia) {
-    var mq = window.matchMedia('(prefers-color-scheme: light)');
-    var onScheme = function (e) { if (load('boTheme')) return; applyTheme(e.matches ? 'light' : 'dark'); redrawForTheme(); };
-    if (mq.addEventListener) mq.addEventListener('change', onScheme);
-    else if (mq.addListener) mq.addListener(onScheme);
-  }
-} catch (e) {}
 /* The dashboard draws its chart with colours read out of the theme, so a theme change has to
    redraw it or the chart keeps the old palette until the next navigation. */
 function redrawForTheme() { if (S.screen === 'app' && S.tab === 'dashboard' && BO.tabs.dashboard) BO.tabs.dashboard.load(); }
