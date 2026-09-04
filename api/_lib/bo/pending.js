@@ -60,7 +60,7 @@ async function loadHolds(db, { vendorId, status, id, nowMs, limit = 200 }) {
   });
   if (!heads.length) return [];
   const ids = heads.map(h => h.id);
-  const items = await rowsAll(db, 'pending_sale_items', q => q.select(ITEM_COLS).in('pending_id', ids));
+  const items = await rowsAll(db, 'pending_sale_items', q => q.select(ITEM_COLS).in('pending_id', ids).order('id'));
   const byHold = new Map();
   for (const it of items) {
     const list = byHold.get(String(it.pending_id)) || [];
@@ -94,30 +94,48 @@ async function heldUnits(db, hold) {
   return new Map(list.map(u => [String(u.id), u]));
 }
 
-/** Puts the goods back on the shelf. Used by completing, cancelling, and by the rollback below. */
+/* Puts the goods back on the shelf, and RETURNS what it actually put back -- the rollback below
+   has to re-reserve exactly that and nothing else.
+
+   Two things it deliberately does not do:
+
+   It does not touch the handset's BRANCH. changeStock rewrites product_units.branch_id whenever
+   toBranchId is passed at all, and this used to pass the HOLD's branch: a seller at Sinza taking
+   a booking for a phone sitting in Kariakoo would, on release, teleport that phone to Sinza in
+   the book while it stayed in the Kariakoo drawer -- and an admin with no branch would drop it
+   out of every per-shop view entirely. Reserving never moved it, so releasing must not either.
+
+   And it does not force a unit that is NOT reserved back into stock. Anything else -- a handset
+   somebody sold, or marked lost -- would be resurrected by the release and sold a second time. */
 async function release(db, hold, products, units, user, nowMs, note) {
+  const done = [];
   for (const it of hold.items) {
     const product = products.find(p => String(p.id) === String(it.product_id));
     if (!product) continue;                 // the product was deleted; the count has nowhere to go
     if (product.is_serialized) {
       const unit = units.get(String(it.unit_id));
-      if (!unit) continue;
+      if (!unit || unit.status !== 'reserved') continue;
       await changeStock(db, { product, delta: 1, unit, unitStatus: 'in_stock',
-        type: 'unreserved', user, note, toBranchId: hold.branch_id || null }, nowMs);
+        type: 'unreserved', user, note, toBranchId: unit.branch_id || null }, nowMs);
+      unit.status = 'in_stock';
     } else {
       await changeStock(db, { product, delta: it.qty, branchId: hold.branch_id || null, type: 'unreserved', user, note }, nowMs);
     }
+    done.push(it);
   }
+  return done;
 }
-/** And takes them back off it, which is both the hold itself and the rollback when a sale is refused. */
-async function reserve(db, hold, products, units, user, nowMs, note) {
-  for (const it of hold.items) {
+/** And takes them back off it -- the rollback when a sale is refused, over exactly what release
+    handed back. Re-reserving a line release skipped would take stock that was never held. */
+async function reserve(db, hold, items, products, units, user, nowMs, note) {
+  for (const it of items) {
     const product = products.find(p => String(p.id) === String(it.product_id));
     if (!product) continue;
     if (product.is_serialized) {
       const unit = units.get(String(it.unit_id));
       if (!unit) continue;
-      await changeStock(db, { product, delta: -1, unit, unitStatus: 'reserved', type: 'reserved', user, note, fromBranchId: hold.branch_id || null }, nowMs);
+      await changeStock(db, { product, delta: -1, unit, unitStatus: 'reserved', type: 'reserved', user, note, fromBranchId: unit.branch_id || null }, nowMs);
+      unit.status = 'reserved';
     } else {
       await changeStock(db, { product, delta: -it.qty, branchId: hold.branch_id || null, type: 'reserved', user, note }, nowMs);
     }
@@ -152,6 +170,7 @@ export const FN = {
     /* Everything is checked before anything is written or moved, the same discipline recordSale
        keeps. A half-made hold is stock nobody can find. */
     const lines = [], asked = new Map(), seenUnits = new Set();
+    const branchHave = new Map();          // product -> what THIS shop holds, read at most once each
     for (const it of items) {
       const p = products.find(x => String(x.id) === String(it && it.product_id));
       if (!p) throw notFound('Mojawapo ya bidhaa hizo haiko kwenye orodha yako. / One of those products is not in your catalogue.');
@@ -169,7 +188,24 @@ export const FN = {
       } else {
         const soFar = (asked.get(p.id) || 0) + qty;
         asked.set(p.id, soFar);
-        if (num(p.stock) < soFar) throw badRequest('Not enough "' + p.name + '" to hold. Available: ' + num(p.stock));
+        if (num(p.stock) < soFar) throw badRequest('Hakuna "' + p.name + '" ya kutosha kuweka. Zilizopo: ' + num(p.stock)
+          + ' / Not enough "' + p.name + '" to hold. Available: ' + num(p.stock));
+        /* AND THE SHOP IT IS HELD AT MUST ACTUALLY HOLD IT. recordSale carries this check with a
+           comment describing exactly what happens without it -- a counter holding fifteen takes
+           thirty off its own row and that row goes to MINUS fifteen, so the per-shop figures stop
+           adding up to the business total. The hold path reserves through the same branchId and
+           repeated only the business-wide half, which let the same negative in through a new
+           door. One bounded read per product, cached, as the till does it. */
+        if (branchId) {
+          let have = branchHave.get(p.id);
+          if (have === undefined) {
+            const r = await one(db, 'branch_stock', q => q.select('qty').eq('product_id', p.id).eq('branch_id', branchId));
+            have = num(r && r.qty);
+            branchHave.set(p.id, have);
+          }
+          if (have < soFar) throw badRequest('"' + p.name + '" hazitoshi kwenye duka hili. Hapa: ' + have + ', biashara nzima: ' + num(p.stock)
+            + ' / "' + p.name + '" is short at this shop. Here: ' + have + ', for the whole business: ' + num(p.stock) + '.');
+        }
         lines.push({ product: p, qty, list, discount, units: null });
       }
     }
@@ -225,7 +261,21 @@ export const FN = {
     if (missing) throw badRequest('"' + missing.product_name + '" is no longer in your catalogue, so this hold cannot be sold. Cancel it and the stock comes back.');
     const units = await heldUnits(db, hold);
 
-    await release(db, hold, products, units, user, nowMs, 'Sold from hold ' + hold.legacy_id);
+    /* CLAIM THE HOLD BEFORE MOVING ANYTHING. Reading the status and writing it back afterwards is
+       not a lock: two taps on "They collected it" -- and the button did not even disable itself --
+       both read 'held', both released the stock, and both sold it. Four covers on the shelf became
+       eight sold and receipted; a held handset was written into TWO completed sales.
+
+       lendings.js already does it this way, and says why: "one whose update still finds it Active
+       gets a row back, and the other must stop here". I wrote that and then did not apply it here.
+       The flip goes FIRST, conditional on the hold still being held; whoever loses gets nothing
+       back and stops before a single unit moves. */
+    const claimed = await update(db, 'pending_sales',
+      { status: 'completed', closed_at: iso(nowMs), closed_by_name: user.name },
+      q => q.eq('id', hold.id).eq('status', 'held'));
+    if (!claimed.length) throw badRequest('Hifadhi hiyo tayari imeshughulikiwa. / That hold has already been dealt with.');
+
+    const released = await release(db, hold, products, units, user, nowMs, 'Sold from hold ' + hold.legacy_id);
 
     /* The sale is the ordinary sale, with the ordinary rules. If it refuses -- a product
        deactivated while the phone sat behind the counter, a financing partner withdrawn -- the
@@ -236,7 +286,20 @@ export const FN = {
       const mine = hold.items.filter(i => String(i.product_id) === String(p.id));
       if (!mine.length) continue;
       if (p.is_serialized) {
-        saleItems.push({ product_id: p.id, qty: mine.length, price: mine[0].list_price, discount: mine[0].discount, unit_ids: mine.map(i => i.unit_id) });
+        /* One line per PRICE, not one per product. Collapsing every handset onto mine[0] charged
+           them all at the first line's discount: a hold of two phones, one at full price and one
+           with 50,000 off, was agreed at 650,000 and rung up at 700,000 -- and with the rows
+           coming back unordered, which line won was whatever the database felt like. */
+        const byPrice = new Map();
+        for (const i of mine) {
+          const key = num(i.list_price) + '|' + num(i.discount);
+          const g = byPrice.get(key) || { price: num(i.list_price), discount: num(i.discount), unit_ids: [] };
+          g.unit_ids.push(i.unit_id);
+          byPrice.set(key, g);
+        }
+        for (const g of byPrice.values()) {
+          saleItems.push({ product_id: p.id, qty: g.unit_ids.length, price: g.price, discount: g.discount, unit_ids: g.unit_ids });
+        }
       } else {
         for (const i of mine) saleItems.push({ product_id: p.id, qty: i.qty, price: i.list_price, discount: i.discount });
       }
@@ -251,15 +314,15 @@ export const FN = {
       }, nowMs);
     } catch (e) {
       /* The sale was refused after the goods came off hold -- a product deactivated while the
-         phone sat behind the counter, a financing partner withdrawn. Put them straight back on
-         hold rather than leaving them loose on the shelf with a hold record still claiming them. */
-      await reserve(db, hold, products, units, user, nowMs, 'Re-held: ' + hold.legacy_id + ' could not be sold');
+         phone sat behind the counter, a financing partner withdrawn. Put back exactly what was
+         released, and hand the hold back to whoever is holding it, rather than leaving the goods
+         loose on the shelf with a completed hold record still claiming them. */
+      await reserve(db, hold, released, products, units, user, nowMs, 'Re-held: ' + hold.legacy_id + ' could not be sold');
+      await update(db, 'pending_sales', { status: 'held', closed_at: null, closed_by_name: null }, q => q.eq('id', hold.id));
       throw e;
     }
 
-    await update(db, 'pending_sales', {
-      status: 'completed', closed_at: iso(nowMs), closed_by_name: user.name, sale_group_id: sale.group_id,
-    }, q => q.eq('id', hold.id));
+    await update(db, 'pending_sales', { sale_group_id: sale.group_id }, q => q.eq('id', hold.id));
     return {
       message: hold.legacy_id + ' collected by ' + hold.customer_name + '. ' + sale.message,
       group_id: sale.group_id, grand_total: sale.grand_total,
@@ -276,10 +339,12 @@ export const FN = {
     const expired = args.expired === true || String(args.expired) === 'true';
     const ids = [...new Set(hold.items.map(i => String(i.product_id)))];
     const products = await rows(db, 'products', q => q.select(sel('products', PRODUCT_COLS)).in('id', ids).eq('vendor_id', vendorId).limit(500));
-    await release(db, hold, products, await heldUnits(db, hold), user, nowMs, 'Released from hold ' + hold.legacy_id);
-    await update(db, 'pending_sales', {
+    // The same claim-before-you-move lock as collection: two taps must not put the stock back twice.
+    const claimed = await update(db, 'pending_sales', {
       status: expired ? 'expired' : 'cancelled', closed_at: iso(nowMs), closed_by_name: user.name, cancel_reason: text(args.reason),
-    }, q => q.eq('id', hold.id));
+    }, q => q.eq('id', hold.id).eq('status', 'held'));
+    if (!claimed.length) throw badRequest('Hifadhi hiyo tayari imeshughulikiwa. / That hold has already been dealt with.');
+    await release(db, hold, products, await heldUnits(db, hold), user, nowMs, 'Released from hold ' + hold.legacy_id);
     return {
       message: hold.legacy_id + ' released — the stock is back on the shelf.'
         + (hold.deposit ? ' The ' + fmtMoney(hold.deposit) + ' deposit is not refunded by the system; settle that at the counter.' : ''),

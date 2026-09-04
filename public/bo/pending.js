@@ -155,14 +155,19 @@ window.BOHold = (function () {
     if (open) {
       h += '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center;">'
         + '<select class="form-select" style="width:auto;" id="pay_' + esc(hd.id) + '"><option value="">' + (hd.payment_method ? esc(hd.payment_method) + ' (as agreed)' : 'Paying by…') + '</option><option value="Cash">💵 Cash</option><option value="Lipa Number">📱 Lipa Number</option><option value="Credit">🏦 Credit</option></select>'
-        + '<button class="btn-sm-success" onclick="BOHold.collect(\'' + BO.jsq(hd.id) + '\')">✅ They collected it</button>'
-        + '<button class="btn-sm-warning" onclick="BOHold.release(\'' + BO.jsq(hd.id) + '\',\'' + BO.jsq(hd.customer_name) + '\',' + (hd.overdue ? 'true' : 'false') + ')">↩︎ Put it back</button>'
+        + '<button class="btn-sm-success" onclick="BOHold.collect(\'' + BO.jsq(hd.id) + '\',this)">✅ They collected it</button>'
+        + '<button class="btn-sm-warning" onclick="BOHold.release(\'' + BO.jsq(hd.id) + '\',\'' + BO.jsq(hd.customer_name) + '\',' + (hd.overdue ? 'true' : 'false') + ',this)">↩︎ Put it back</button>'
         + '</div>';
     }
     return h + '</div>';
   }
 
-  function collect(id) {
+  /* The server now refuses a second collection outright, but the button still has to stop trying:
+     on a slow connection a seller taps it twice and the second tap is a request that can only end
+     in an error message they did not earn. Disabled the moment it is pressed, like create() does. */
+  function collect(id, btn) {
+    if (btn) { if (btn.disabled) return; btn.disabled = true; }
+    var done = function () { if (btn) btn.disabled = false; };
     var sel = document.getElementById('pay_' + id);
     var args = { id: id };
     if (sel && sel.value) args.payment_method = sel.value;
@@ -171,15 +176,16 @@ window.BOHold = (function () {
       if (r.balance_due > 0 && r.deposit > 0) alert('Take ' + fmtFull(r.balance_due) + ' ' + currency + ' now (' + fmtFull(r.deposit) + ' was already left as a deposit).');
       load(); BO.reload('dashboard'); BO.reload('products'); BO.reload('stock');
       BORcpt.open({ group_id: r.group_id });
-    }).catch(BO.fail);
+    }).catch(function (e) { done(); BO.fail(e); });
   }
-  function release(id, who, overdue) {
+  function release(id, who, overdue, btn) {
+    if (btn) { if (btn.disabled) return; btn.disabled = true; }
     var reason = prompt('Putting the goods back on the shelf. Why is ' + who + "'s hold ending?");
-    if (reason == null) return;
+    if (reason == null) { if (btn) btn.disabled = false; return; }
     srv('cancelPendingSale', { id: id, reason: reason.trim(), expired: !!overdue }).then(function (r) {
       showToast(r.message, '↩︎');
       load(); BO.reload('sale'); BO.reload('products'); BO.reload('stock'); BO.reload('dashboard');
-    }).catch(BO.fail);
+    }).catch(function (e) { if (btn) btn.disabled = false; BO.fail(e); });
   }
   function setFilter(v) { filter = v; load(); }
   function g(id) { var e = document.getElementById(id); return e ? e.value : ''; }

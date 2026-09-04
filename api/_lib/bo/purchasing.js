@@ -174,11 +174,31 @@ export const FN = {
     let taken = 0;
     for (const p of plan) {
       const product = products.find(x => String(x.id) === String(p.item.product_id));
-      await changeStock(db, {
-        product, delta: p.take, branchId: po.branch_id || null, type: 'received', user,
-        note: 'Purchase order ' + (po.legacy_id || ''),
-      }, nowMs);
-      await update(db, 'purchase_order_items', { received_qty: p.item.received_qty + p.take }, q => q.eq('id', p.item.id));
+      /* CLAIM THE LINE BEFORE THE STOCK MOVES. The header of this file promised that receiving
+         the same delivery twice is refused rather than doubled, and that was only true of
+         SEQUENTIAL calls: the "how much is still owed" check reads a snapshot, and the top-up was
+         read-modify-write. Frank taps Receive on his phone while the assistant taps it on the
+         counter tablet, both see 40 owed, and one box of forty becomes eighty in the count and two
+         'received' movements in the ledger.
+
+         The conditional update is the lock: it only applies if received_qty is still what we read,
+         so exactly one of the two wins and the other is told to look again. It goes FIRST, so a
+         lost race costs nothing; if the stock move then fails, the line is put back. */
+      const claimed = await update(db, 'purchase_order_items', { received_qty: p.item.received_qty + p.take },
+        q => q.eq('id', p.item.id).eq('received_qty', p.item.received_qty));
+      if (!claimed.length) {
+        throw badRequest('"' + p.item.product_name + '" imepokelewa na mtu mwingine hivi punde. Fungua oda upya uone kilichobaki. / '
+          + '"' + p.item.product_name + '" was received by somebody else a moment ago. Reopen the order to see what is still owed.');
+      }
+      try {
+        await changeStock(db, {
+          product, delta: p.take, branchId: po.branch_id || null, type: 'received', user,
+          note: 'Purchase order ' + (po.legacy_id || ''),
+        }, nowMs);
+      } catch (e) {
+        await update(db, 'purchase_order_items', { received_qty: p.item.received_qty }, q => q.eq('id', p.item.id));
+        throw e;
+      }
       /* THE COST FOLLOWS THE DELIVERY. Otherwise cost_price is whatever somebody typed once,
          months ago, and every profit figure quietly drifts away from what the shop is really
          paying. A zero on the order means "no cost recorded", not "free", so it is left alone. */

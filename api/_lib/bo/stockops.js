@@ -234,6 +234,13 @@ export const FN = {
     if (status && status !== unit.status) {
       if (!['in_stock', 'lost'].includes(status)) throw badRequest('A unit can only be set to in_stock or lost here.');
       if (unit.status === 'sold' || unit.status === 'lent') throw badRequest('This unit is ' + unit.status + ' -- cancel the sale or mark the lending returned instead.');
+      /* A HELD HANDSET IS SPOKEN FOR TOO. 'reserved' was added to UNIT_STATUSES for the Holds
+         screen and this guard was not extended to it, while the Edit dialog offers only "In stock"
+         and "Lost" -- so a reserved unit pre-selected "In stock" and an admin correcting a typo in
+         an IMEI silently released somebody's phone back onto the shelf, with the hold still
+         claiming it. The hold is the only thing that may let it go. */
+      if (unit.status === 'reserved') throw badRequest('Simu hii imewekwa kwa mteja -- ishughulikie kwenye Zilizowekwa. / '
+        + 'This handset is being held for a customer -- collect or release it on the Holds screen instead.');
       const lost = status === 'lost';
       const { branch_id: _b, ...rest } = patch;            // changeStock sets branch_id itself via toBranchId
       await changeStock(db, {
