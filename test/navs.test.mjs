@@ -111,6 +111,24 @@ test('every BOxxx.method() the markup calls is exported by that tab, and every B
   assert.deepEqual(used.filter(n => !shellHas.has(n)), [], 'BO.<helper> used but never defined by the shell');
 });
 
+/* THE CDN CAN BE AWAY. Bootstrap is loaded from jsdelivr, and when that does not answer --
+   a bad connection, a network that blocks it -- `bootstrap` is undefined. The modal helpers
+   used to call it straight, so Edit Product, Sell, Add User and every confirmation threw
+   ReferenceError and did NOTHING, silently, which reads as a frozen app rather than a missing
+   stylesheet. openModal/closeModal must go through hasBootstrap() and fall back. */
+test('a missing Bootstrap CDN cannot kill the modals', () => {
+  assert.match(shell, /function hasBootstrap\(\)/, 'the guard is gone');
+  for (const fn of ['openModal', 'closeModal']) {
+    const at = shell.indexOf('function ' + fn + '(');
+    assert.ok(at > 0, fn + ' moved -- update this guard');
+    const body = shell.slice(at, shell.indexOf('\n}', at));
+    assert.match(body, /hasBootstrap\(\)/, fn + ' calls Bootstrap without checking it is there');
+  }
+  // And the fallback needs its own styling, or the modal "opens" invisibly.
+  assert.match(html, /\.modal\.bo-fb\s*\{/, 'index.html lost the .bo-fb fallback CSS');
+  assert.match(shell, /data-bs-dismiss="modal"/, 'without Bootstrap the dismiss buttons need wiring too');
+});
+
 test('every bare onclick / onchange / onkeypress handler in the markup is a shell function', () => {
   const defined = new Set([...names(shell, /^function ([A-Za-z_]\w*)\(/gm), ...names(shell, /\bwindow\.([A-Za-z_]\w*)\s*=/g)]);
   const builtins = new Set(['alert', 'confirm', 'prompt', 'parseInt', 'parseFloat', 'Number', 'String', 'Boolean', 'setTimeout', 'clearTimeout', 'encodeURIComponent', 'decodeURIComponent', 'open']);

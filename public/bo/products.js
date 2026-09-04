@@ -1,7 +1,7 @@
 /* PRODUCTS -- the catalogue: add, edit, photos, activate, restock. Serialized products (phones
    with an IMEI) are added here and get their units under Stock & Shops. */
 window.BOProd = (function () {
-  var list = [], pendingPhoto = null;
+  var list = [], pending = {};
 
   function load() {
     var el = document.getElementById('productsContent'); if (!el) return;
@@ -71,7 +71,13 @@ window.BOProd = (function () {
     + '<div class="fg2" style="margin-bottom:12px;"><div class="form-group" id="editProdStockWrap"><label class="form-label">Stock QTY</label><input type="number" class="form-control" id="editProdStock"></div><div class="form-group"><label class="form-label">Reorder Point</label><input type="number" class="form-control" id="editProdReorder"></div></div>'
     + '<div class="fg2" style="margin-bottom:12px;"><div class="form-group"><label class="form-label">Type</label><select class="form-select" id="editProdType"><option value="Sale">For Sale</option><option value="Rent">For Rent</option></select></div><div class="form-group"><label class="form-label">Price Unit (rent)</label><select class="form-select" id="editProdUnit"><option value="">—</option><option value="per day">per day</option><option value="per week">per week</option><option value="per month">per month</option><option value="per event">per event</option></select></div></div>'
     + '<div class="form-group" style="margin-bottom:14px;"><label class="form-label">Location (optional)</label><input class="form-control" id="editProdLoc" placeholder="e.g. Kariakoo, Dar"></div>'
-    + '<label class="form-label">Marketplace Photo</label><div class="prod-img-slot" onclick="document.getElementById(\'prodImg1Input\').click()"><img id="prodImg1Preview" src="" style="display:none;"><div id="prodImg1Ph" class="muted small">📷 Add photo</div></div><input type="file" id="prodImg1Input" accept="image/*" style="display:none;" onchange="BOProd.previewImage(this)"><div id="prodImgMsg" class="small muted" style="margin-top:8px;"></div></div>'
+    + '<label class="form-label">Marketplace Photos</label><div class="prod-img-row">' + [1, 2, 3].map(function (n) {
+      return '<div class="prod-img-slot" onclick="document.getElementById(\'prodImg' + n + 'Input\').click()">'
+        + '<img id="prodImg' + n + 'Preview" src="" style="display:none;">'
+        + '<div id="prodImg' + n + 'Ph" class="muted small">📷 ' + (n === 1 ? 'Main' : 'Photo ' + n) + '</div>'
+        + '<button type="button" class="prod-img-x" id="prodImg' + n + 'X" style="display:none;" onclick="event.stopPropagation();BOProd.clearImage(' + n + ')">✕</button></div>'
+        + '<input type="file" id="prodImg' + n + 'Input" accept="image/*" style="display:none;" onchange="BOProd.previewImage(this,' + n + ')">';
+    }).join('') + '</div><div class="small muted" style="margin-top:6px;">The first photo is the one the marketplace shows. Large pictures are shrunk on this phone before they are sent.</div><div id="prodImgMsg" class="small muted" style="margin-top:8px;"></div></div>'
     + '<div class="modal-footer"><button class="btn-secondary" data-bs-dismiss="modal">Cancel</button><button class="btn-primary" onclick="BOProd.save()">Save Changes</button></div></div></div></div>';
 
   function edit(i) {
@@ -80,28 +86,57 @@ window.BOProd = (function () {
     var set = function (id, v) { document.getElementById(id).value = v == null ? '' : v; };
     set('editProdId', p.id); set('editProdName', p.name); set('editProdCat', p.category); set('editProdBrand', p.brand); set('editProdModel', p.model); set('editProdPrice', p.price); set('editProdStock', p.stock); set('editProdReorder', p.reorder_point); set('editProdType', p.listing_type === 'Rent' ? 'Rent' : 'Sale'); set('editProdUnit', p.price_unit || ''); set('editProdLoc', p.location || '');
     document.getElementById('editProdStockWrap').style.display = p.is_serialized ? 'none' : '';
-    pendingPhoto = null; document.getElementById('prodImgMsg').textContent = '';
-    var img = document.getElementById('prodImg1Preview'), ph = document.getElementById('prodImg1Ph');
-    if (p.image1_url) { img.src = p.image1_url; img.style.display = 'block'; ph.style.display = 'none'; } else { img.style.display = 'none'; ph.style.display = ''; }
+    pending = {}; document.getElementById('prodImgMsg').textContent = '';
+    [1, 2, 3].forEach(function (n) { showSlot(n, p['image' + n + '_url'] || ''); });
     openModal('editProductModal');
   }
-  function previewImage(input) {
+  /** Paints one slot: a picture (with its remove button) or the empty placeholder. */
+  function showSlot(n, src) {
+    var img = document.getElementById('prodImg' + n + 'Preview'), ph = document.getElementById('prodImg' + n + 'Ph'), x = document.getElementById('prodImg' + n + 'X');
+    if (!img) return;
+    if (src) { img.src = src; img.style.display = 'block'; ph.style.display = 'none'; if (x) x.style.display = ''; }
+    else { img.removeAttribute('src'); img.style.display = 'none'; ph.style.display = ''; if (x) x.style.display = 'none'; }
+  }
+  /* 1000px and JPEG is the WhatsApp-status trade: small enough that a photo posts over a shop's
+     data bundle and cheap enough to keep three of per product, still sharp on a phone screen.
+     The shrinking happens HERE, on the phone, so the big original never leaves it. */
+  function previewImage(input, n) {
     BO.fileToDataUrl(input, function (dataUrl, err) {
       if (!dataUrl) { showToast(err || 'Could not read the photo.', '⚠️'); return; }
-      pendingPhoto = dataUrl; var img = document.getElementById('prodImg1Preview'); img.src = dataUrl; img.style.display = 'block'; document.getElementById('prodImg1Ph').style.display = 'none';
-    });
+      pending[n] = dataUrl;
+      showSlot(n, dataUrl);
+      input.value = '';                      // so choosing the same file again still fires onchange
+    }, 1000);
+  }
+  /** Clears a slot that has not been saved yet. A picture already on the product stays until
+      the shop replaces it: there is no "delete photo" on the server and inventing one here
+      would only look like it worked. */
+  function clearImage(n) {
+    if (!pending[n]) { showToast('Choose a new picture to replace this one.', 'ℹ️'); return; }
+    delete pending[n];
+    var p = list.filter(function (x) { return x.id === g('editProdId'); })[0];
+    showSlot(n, (p && p['image' + n + '_url']) || '');
   }
   function save() {
     var id = g('editProdId');
     var args = { id: id, name: g('editProdName').trim(), category: g('editProdCat').trim(), brand: g('editProdBrand').trim(), model: g('editProdModel').trim(), price: Number(g('editProdPrice')), reorder_point: Number(g('editProdReorder') || 0), listing_type: g('editProdType'), price_unit: g('editProdUnit'), location: g('editProdLoc').trim() };
     if (document.getElementById('editProdStockWrap').style.display !== 'none') args.stock = Number(g('editProdStock'));
     srv('updateProduct', args).then(function () {
-      if (!pendingPhoto) { closeModal('editProductModal'); load(); return; }
-      document.getElementById('prodImgMsg').textContent = 'Uploading photo…';
-      return srv('uploadProductImage', { product_id: id, slot: 1, data_url: pendingPhoto }).then(function () { closeModal('editProductModal'); load(); });
+      var slots = Object.keys(pending);
+      if (!slots.length) { closeModal('editProductModal'); load(); return; }
+      // One at a time, not in parallel: three photos at once over a shop's connection is how
+      // an upload times out, and the message below is the only progress a phone gets.
+      var i = 0;
+      var next = function () {
+        if (i >= slots.length) { closeModal('editProductModal'); load(); return null; }
+        var n = slots[i++];
+        document.getElementById('prodImgMsg').textContent = 'Uploading photo ' + i + ' of ' + slots.length + '…';
+        return srv('uploadProductImage', { product_id: id, slot: Number(n), data_url: pending[n] }).then(next);
+      };
+      return next();
     }).catch(function (e) { document.getElementById('prodImgMsg').textContent = ''; BO.fail(e); });
   }
 
   BO.tabs.products = { load: load, sync: load };
-  return { load: load, add: add, toggle: toggle, restock: restock, edit: edit, save: save, previewImage: previewImage, serialToggle: serialToggle };
+  return { load: load, clearImage: clearImage, add: add, toggle: toggle, restock: restock, edit: edit, save: save, previewImage: previewImage, serialToggle: serialToggle };
 })();

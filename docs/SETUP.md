@@ -32,8 +32,10 @@ Then, in that project only, **SQL Editor → New query**, paste the whole of
 [`db/schema.sql`](../db/schema.sql), and run it. It creates the tables, the enums, the
 marketplace view, the storage buckets, the database-side aggregates and the default settings.
 
-It is **idempotent** — every statement is `if not exists` / `or replace` — so running it again
-after an update is safe and is how you install new database functions later.
+It is **idempotent** — every statement is `if not exists` / `or replace`, and columns added
+after the first release come with their own `alter table ... add column if not exists` — so
+running the whole file again after an update is safe, and is how a database made last month
+gets this month's functions and columns.
 
 Check it landed: **Table Editor** should list `vendors`, `profiles`, `products`, `sales`,
 `product_units`, `stock_movements` and the rest; **Database → Functions** should list five

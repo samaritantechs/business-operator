@@ -185,7 +185,13 @@ test('uploadProductImage: into the product-images bucket at vendor/product-slot,
   const r1 = await FN.uploadProductImage(db, userOf(richBook(), 'ADM1'), { product_id: 'P3', slot: '1', data_url: 'data:image/jpeg;base64,' + Buffer.from('jpg').toString('base64') }, NOW);
   assert.equal(product(db, 'P3').image1_url, r1.url);
   assert.ok(db._storageDump('product-images')['V1/P3-1.jpg']);
-  await rejects(FN.uploadProductImage(db, userOf(richBook(), 'ADM1'), { product_id: 'P3', slot: 3, data_url: PNG }, NOW), 400, /slot/);
+  // Three slots: the marketplace shows the first and offers the rest in the detail view.
+  const r3 = await FN.uploadProductImage(db, userOf(richBook(), 'ADM1'), { product_id: 'P3', slot: 3, data_url: PNG }, NOW);
+  assert.match(r3.url, /\/V1\/P3-3\.png\?v=\d+$/);
+  assert.equal(product(db, 'P3').image3_url, r3.url);
+  assert.equal(product(db, 'P3').image1_url, r1.url, 'and the other slots are untouched');
+  await rejects(FN.uploadProductImage(db, userOf(richBook(), 'ADM1'), { product_id: 'P3', slot: 4, data_url: PNG }, NOW), 400, /slot/);
+  await rejects(FN.uploadProductImage(db, userOf(richBook(), 'ADM1'), { product_id: 'P3', slot: 0, data_url: PNG }, NOW), 400, /slot/);
   await rejects(FN.uploadProductImage(db, userOf(richBook(), 'ADM1'), { product_id: 'P3', slot: 1, data_url: 'hello' }, NOW), 400);
   await rejects(FN.uploadProductImage(db, userOf(richBook(), 'ADM1'), { product_id: 'P3', slot: 1, data_url: 'data:text/plain;base64,aGk=' }, NOW), 400);
 });

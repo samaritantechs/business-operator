@@ -51,3 +51,18 @@ Routine calls made while building, so nobody has to re-derive them. Newest at th
     public). Old `drive.google.com/thumbnail` URLs are kept as they are.
 18. **No Supabase Auth**: `profiles` is our own table, so the migration can keep every legacy
     handle/email pair and the `manager` accounts need no vendor.
+
+19. **Three photos per product, shrunk on the phone.** `image3_url` joins `image1_url` and
+    `image2_url` on `products` and on the marketplace view; the first is the one the grid
+    shows, the rest appear in the detail view. The browser resizes to 1000px and re-encodes as
+    JPEG (`BO.fileToDataUrl`) **before** upload, so a 6MB camera photo leaves the phone as
+    roughly 150KB: the shop pays less data, storage stays small, and the picture is still sharp
+    on a phone screen. There is no "delete photo" — a slot is replaced, not emptied — because a
+    half-built delete that only clears the preview would look like it worked.
+
+20. **The app survives its CDN.** Bootstrap is loaded from jsdelivr, so on a network that
+    cannot reach it `bootstrap` is undefined. The modal helpers used to call it directly, which
+    meant Edit Product, Sell, Add User and every confirmation threw and did **nothing**, with no
+    message — indistinguishable from a frozen app. `openModal`/`closeModal` now check first and
+    fall back to the app's own `.modal.bo-fb` styling, with the dismiss buttons, the backdrop
+    and Escape wired by hand. `test/navs.test.mjs` fails if that guard is removed.

@@ -178,13 +178,13 @@ export const FN = {
   uploadProductImage: async (db, user, args, nowMs) => {
     requireAdmin(user);
     const vendor = await writeVendor(db, user, args);
-    const slot = String(args.slot) === '2' ? 2 : String(args.slot) === '1' ? 1 : 0;
-    if (!slot) throw badRequest('Image slot must be 1 or 2.');
+    const slot = [1, 2, 3].find(n => String(args.slot) === String(n)) || 0;
+    if (!slot) throw badRequest('Image slot must be 1, 2 or 3.');
     const p = await mustProduct(db, args.product_id, vendor.id);
     let img;
     try { img = decodeDataUrl(args.data_url); } catch (e) { throw badRequest(e.message); }
     const url = await uploadImage(db, BUCKETS.product, vendor.id + '/' + p.id + '-' + slot + '.' + img.ext, img, nowMs);
-    await update(db, 'products', { [slot === 2 ? 'image2_url' : 'image1_url']: url, updated_at: iso(nowMs) }, q => q.eq('id', p.id));
+    await update(db, 'products', { ['image' + slot + '_url']: url, updated_at: iso(nowMs) }, q => q.eq('id', p.id));
     return { url };
   },
 };

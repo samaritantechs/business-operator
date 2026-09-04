@@ -87,13 +87,14 @@ test('market: every card carries exactly what the page draws', async () => {
   const by = Object.fromEntries(out.products.map(p => [p.id, p]));
 
   assert.deepEqual(by.P6, { id: 'P6', name: 'Wedding Gown', cat: 'Bridal', brand: '', model: '', price: 150000, stock: 1,
-    vendor: 'Mama Ntilie Grocery', vendor_id: 'V2', image1: '', image2: '', currency: 'TZS', vendorPhone: '255756000002',
+    vendor: 'Mama Ntilie Grocery', vendor_id: 'V2', image1: '', image2: '', image3: '', currency: 'TZS', vendorPhone: '255756000002',
     vendorType: 'Groceries', listingType: 'Rent', priceUnit: 'per event', location: 'Kariakoo', clicks: 0, hot: false });
   assert.deepEqual(by.P1, { id: 'P1', name: 'Samsung Galaxy A05', cat: 'Phones', brand: 'Samsung', model: 'A05', price: 350000, stock: 3,
-    vendor: 'Fromville Phones', vendor_id: 'V1', image1: '', image2: '', currency: 'TZS', vendorPhone: '+255 756 000 001',
+    vendor: 'Fromville Phones', vendor_id: 'V1', image1: '', image2: '', image3: '', currency: 'TZS', vendorPhone: '+255 756 000 001',
     vendorType: 'Electronics', listingType: 'Sale', priceUnit: '', location: 'Sinza', clicks: 0, hot: false });
   assert.equal(by.P3.image1, 'https://drive.google.com/thumbnail?id=cov&sz=w400');
   assert.equal(by.P3.image2, '');
+  assert.equal(by.P3.image3, '', 'the third slot is on every card, empty until a shop fills it');
   assert.equal(typeof by.P3.price, 'number'); assert.equal(typeof by.P3.stock, 'number');
 
   assert.deepEqual(out.vendors, [

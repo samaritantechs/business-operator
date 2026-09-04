@@ -114,7 +114,7 @@ Exports `buildBoot(db, user, nowMs)` used by account.login / me.
 | `updateProduct` | `{ id, name, category, price, stock?, reorder_point, listing_type, price_unit, location, brand, model }` | `{ product }` — a changed `stock` on a non-serialized product writes an `adjustment` movement for the difference |
 | `toggleProduct` | `{ id, active }` | `{ message }` |
 | `addStock` | `{ product_id, qty, branch_id?, note? }` | `{ message, stock }` — `received` (non-serialized only) |
-| `uploadProductImage` | `{ product_id, slot: 1\|2, data_url }` | `{ url }` |
+| `uploadProductImage` | `{ product_id, slot: 1\|2\|3, data_url }` | `{ url }` — three photos per product; the page shrinks them to 1000px JPEG before sending |
 
 ### stockops — `stockops.js` (Frank Amos's phone-retail additions)
 | fn | args | returns |

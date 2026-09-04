@@ -24,7 +24,7 @@ import { hintsForRole } from './hints.js';
 const CACHE_MS = 60 * 1000;
 const RECENT_MS = 30 * 86400000;              // legacy cutoff: 2592000000 ms = 30 days
 const VENDOR_COLS = 'id, name, business_type, phone, address, currency, logo_url';
-const PRODUCT_COLS = 'id, vendor_id, legacy_id, name, category, brand, model, price, stock, image1_url, image2_url, listing_type, price_unit, location';
+const PRODUCT_COLS = 'id, vendor_id, legacy_id, name, category, brand, model, price, stock, image1_url, image2_url, image3_url, listing_type, price_unit, location';
 
 /* One cache per database client (WeakMap so a test's throwaway fake does not pin memory).
    The entry keeps the PROMISE, not just the answer: two visitors arriving together on a cold
@@ -96,7 +96,7 @@ async function buildMarket(db, nowMs) {
       id: String(p.id), name: String(p.name || ''), cat: String(p.category || ''), brand: String(p.brand || ''), model: String(p.model || ''),
       price: num(p.price), stock,
       vendor: String(v.name || ''), vendor_id: String(v.id),
-      image1: String(p.image1_url || ''), image2: String(p.image2_url || ''),
+      image1: String(p.image1_url || ''), image2: String(p.image2_url || ''), image3: String(p.image3_url || ''),
       currency: currencyOf(v), vendorPhone: String(v.phone || ''), vendorType: String(v.business_type || ''),
       listingType: String(p.listing_type || '').trim() === 'Rent' ? 'Rent' : 'Sale',
       priceUnit: String(p.price_unit || ''), location: String(p.location || ''),

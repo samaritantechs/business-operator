@@ -57,8 +57,43 @@ function showToast(msg, icon) {
 BO.toast = showToast;
 
 /* Bootstrap modals, by id, without every tab re-learning the API. */
-function openModal(id) { var el = document.getElementById(id); if (!el) return; bootstrap.Modal.getOrCreateInstance(el).show(); }
-function closeModal(id) { var el = document.getElementById(id); if (!el) return; var m = bootstrap.Modal.getInstance(el); if (m) m.hide(); }
+/* MODALS WITHOUT BOOTSTRAP.
+   Bootstrap comes from a CDN. When that CDN is unreachable -- a shop on a bad connection, a
+   network that blocks jsdelivr, a captive portal -- `bootstrap` is simply not defined, and the
+   old one-liner here threw ReferenceError on every modal: Edit Product, Sell, Add User and the
+   confirmations all did NOTHING, with no message, for as long as the CDN stayed away. A dead
+   button that looks like a hang is the worst failure this app has, so the modal now falls back
+   to showing itself with the app's own CSS (.modal.bo-fb in index.html). */
+function hasBootstrap() { try { return typeof bootstrap !== 'undefined' && !!(bootstrap && bootstrap.Modal); } catch (e) { return false; } }
+function openModal(id) {
+  var el = document.getElementById(id); if (!el) return;
+  if (hasBootstrap()) { bootstrap.Modal.getOrCreateInstance(el).show(); return; }
+  el.classList.add('bo-fb');
+  document.body.classList.add('bo-fb-open');
+}
+function closeModal(id) {
+  var el = document.getElementById(id); if (!el) return;
+  if (hasBootstrap()) { var m = bootstrap.Modal.getInstance(el); if (m) m.hide(); return; }
+  el.classList.remove('bo-fb');
+  if (!document.querySelector('.modal.bo-fb')) document.body.classList.remove('bo-fb-open');
+}
+/* The dismiss buttons are Bootstrap's own attributes, so without it they need wiring too:
+   the X and Cancel buttons, a click on the backdrop, and Escape. Registered once, and inert
+   whenever Bootstrap did load. */
+document.addEventListener('click', function (ev) {
+  if (hasBootstrap()) return;
+  var t = ev.target;
+  var dismiss = t && t.closest && t.closest('[data-bs-dismiss="modal"]');
+  var open = document.querySelector('.modal.bo-fb');
+  if (!open) return;
+  if (dismiss) { closeModal(open.id); return; }
+  if (t === open) closeModal(open.id);            // the backdrop is the .modal element itself
+});
+document.addEventListener('keydown', function (ev) {
+  if (ev.key !== 'Escape' || hasBootstrap()) return;
+  var open = document.querySelector('.modal.bo-fb');
+  if (open) closeModal(open.id);
+});
 BO.openModal = openModal; BO.closeModal = closeModal;
 /** A tab's own modal markup, appended to the body exactly once. */
 BO.ensureModal = function (id, html) {
@@ -359,7 +394,7 @@ function renderMarketPage() {
   if (!list.length) { grid.innerHTML = '<div class="mk-empty">No products match your search.</div>'; if (wrap) wrap.innerHTML = ''; return; }
   var shown = Math.min(_mkShown, list.length), all = _market.products, html = '';
   for (var i = 0; i < shown; i++) {
-    var p = list[i], gi = all.indexOf(p), img = p.image1 || p.image2, isRent = (p.listingType || 'Sale') === 'Rent';
+    var p = list[i], gi = all.indexOf(p), img = p.image1 || p.image2 || p.image3, isRent = (p.listingType || 'Sale') === 'Rent';
     var imgHtml = img ? '<div class="mk-img" style="background-image:url(\'' + esc(img) + '\');">' : '<div class="mk-img">🛍️';
     imgHtml += (p.stock > 0 ? '<span class="mk-stock">' + (isRent ? 'Available' : 'In stock') + '</span>' : '<span class="mk-stock out">' + (isRent ? 'Booked' : 'Out') + '</span>') + (p.hot ? '<span class="mk-fire">🔥 Hot</span>' : '') + '</div>';
     var v = findVendor(p.vendor), vlogo = (v && v.logo) ? '<img src="' + esc(v.logo) + '" onerror="this.style.display=\'none\'">' : '<div class="mk-vinit">' + esc((p.vendor || 'B')[0]).toUpperCase() + '</div>';
@@ -375,7 +410,10 @@ function openProductDetail(idx) {
   try { mk('click', { product_id: p.id }).catch(function () {}); } catch (e) {}
   var v = findVendor(p.vendor) || {}, isRent = (p.listingType || 'Sale') === 'Rent';
   document.getElementById('pdTitle').textContent = p.name;
-  var imgs = '<div class="pd-imgs">' + (p.image1 ? '<img class="pd-img" src="' + esc(p.image1) + '" onerror="this.outerHTML=\'<div class=\\\'pd-img-ph\\\'>🛍️</div>\'">' : '<div class="pd-img-ph">🛍️</div>') + (p.image2 ? '<img class="pd-img" src="' + esc(p.image2) + '">' : '') + '</div>';
+  var shots = [p.image1, p.image2, p.image3].filter(function (u) { return !!u; });
+  var imgs = '<div class="pd-imgs">' + (shots.length
+    ? shots.map(function (u, k) { return '<img class="pd-img" src="' + esc(u) + '"' + (k === 0 ? ' onerror="this.outerHTML=\'<div class=\\\'pd-img-ph\\\'>🛍️</div>\'"' : ' onerror="this.remove()"') + '>'; }).join('')
+    : '<div class="pd-img-ph">🛍️</div>') + '</div>';
   var phone = digitsOnly(p.vendorPhone || v.phone || '');
   var contact = phone ? '<a class="btn-primary w-100" style="justify-content:center;margin-top:6px;" href="https://wa.me/' + phone + '?text=' + encodeURIComponent('Hello ' + p.vendor + ', I am interested in "' + p.name + '" I saw on the Business Operator marketplace.') + '" target="_blank" rel="noopener">📲 Contact seller on WhatsApp</a>' : '<div class="alert-info" style="margin-top:6px;">This seller has not listed a contact number.</div>';
   document.getElementById('pdBody').innerHTML = imgs

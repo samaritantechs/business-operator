@@ -210,7 +210,7 @@ export function cyclePeriodStart(anchor, nowMs = Date.now()) {
 }
 
 /* ------------------------------------------------------------------ products */
-export const PRODUCT_COLS = 'id, vendor_id, legacy_id, name, category, brand, model, price, stock, is_serialized, supplier, reorder_point, active, image1_url, image2_url, listing_type, price_unit, location, created_at';
+export const PRODUCT_COLS = 'id, vendor_id, legacy_id, name, category, brand, model, price, stock, is_serialized, supplier, reorder_point, active, image1_url, image2_url, image3_url, listing_type, price_unit, location, created_at';
 export async function productById(db, id) {
   if (!id) return null;
   return one(db, 'products', q => q.select(PRODUCT_COLS).eq('id', id));

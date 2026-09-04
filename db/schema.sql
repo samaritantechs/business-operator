@@ -137,6 +137,7 @@ create table if not exists products (
   active boolean not null default true,
   image1_url text,
   image2_url text,
+  image3_url text,                              -- three photos per listing (added after the port)
   listing_type listing_type not null default 'Sale',
   price_unit text,                              -- per day / week / month / event (rent only)
   location text,
@@ -354,12 +355,16 @@ create index if not exists idx_audit_vendor_time on audit_log(vendor_id, at desc
 -- =====================================================================================
 create or replace view marketplace_products as
   select p.id, p.vendor_id, p.legacy_id, p.name, p.category, p.brand, p.model, p.price, p.stock,
-         p.image1_url, p.image2_url, p.listing_type, p.price_unit, p.location,
+         p.image1_url, p.image2_url, p.image3_url, p.listing_type, p.price_unit, p.location,
          v.name as vendor_name, v.phone as vendor_phone, v.logo_url as vendor_logo,
          v.business_type as vendor_type, v.address as vendor_address, v.currency
   from products p
   join vendors v on v.id = p.vendor_id
   where p.active and v.active and not v.restricted;
+
+-- Added after the first deployments: a third product photo. The CREATE TABLE above already
+-- has it for a new database; this is what gives it to one that was made before.
+alter table if exists products add column if not exists image3_url text;
 
 -- =====================================================================================
 -- DATABASE-SIDE AGGREGATES -- "ask the database, don't drag rows" (the Postgres budget).
