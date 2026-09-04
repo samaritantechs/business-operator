@@ -55,11 +55,11 @@ await step('sign in as the phone-shop admin', async () => {
 });
 await page.screenshot({ path: OUT + '02-dashboard.png' });
 
-const tabs = ['sale', 'lendings', 'products', 'stock', 'po', 'cash', 'credit', 'users', 'reports', 'account'];
+const tabs = ['sale', 'holds', 'lendings', 'products', 'stock', 'po', 'cash', 'credit', 'users', 'reports', 'account'];
 for (const t of tabs) {
   await step('tab renders: ' + t, async () => {
     await page.evaluate(n => switchTab(n), t);
-    const id = { sale: 'saleContent', lendings: 'lendingsContent', products: 'productsContent', stock: 'stockContent',
+    const id = { sale: 'saleContent', holds: 'holdsContent', lendings: 'lendingsContent', products: 'productsContent', stock: 'stockContent',
                  po: 'poContent', cash: 'cashContent', credit: 'creditContent', users: 'usersContent', reports: 'reportsContent', account: 'accountContent' }[t];
     await page.waitForFunction(el => {
       const e = document.getElementById(el);
@@ -84,6 +84,34 @@ await step('sell a phone cover through the form', async () => {
   const after = await page.evaluate(async () => (await BO.srv('dashboard', {})).stock_value);
   if (!(after < before)) throw new Error('stock value did not drop: ' + before + ' -> ' + after);
   console.log('       ' + done + '; stock value ' + before + ' -> ' + after);
+});
+
+/* A HOLD, END TO END. The one thing only a browser can show: that holding a handset takes it out
+   of the till's own IMEI picker, which is the whole mechanism -- the till was never taught about
+   holds, the number simply left. */
+await step('holding a phone takes it off the till, and collecting sells that exact handset', async () => {
+  const out = await page.evaluate(async () => {
+    const free = async () => {
+      const p = (await BO.srv('productOptions', {})).products.find(x => x.id === 'P1');
+      return (p.units || []).map(u => u.id);
+    };
+    const before = await free();
+    const h = await BO.srv('createPendingSale', { items: [{ product_id: 'P1', qty: 1, unit_ids: [before[0]] }], customer_name: 'Smoke Customer', deposit: 50000 });
+    const during = await free();
+    const done = await BO.srv('completePendingSale', { id: h.id, payment_method: 'Cash' });
+    const after = await free();
+    const sold = (await BO.srv('recentSales', { limit: 5 })).rows.find(s => s.group_id === done.group_id);
+    return { held: before[0], before: before.length, during: during.length, after: after.length,
+      stillThere: during.indexOf(before[0]), soldUnit: sold && sold.unit_id, balance: done.balance_due };
+  });
+  if (out.during !== out.before - 1) throw new Error('holding did not take the handset off the till: ' + JSON.stringify(out));
+  if (out.stillThere !== -1) throw new Error('the held IMEI is still in the picker');
+  if (out.soldUnit !== out.held) throw new Error('collecting sold a different handset: ' + out.soldUnit + ' vs ' + out.held);
+  if (out.after !== out.during) throw new Error('the handset came back to the picker after being sold');
+  await page.evaluate(() => { switchTab('holds'); BO.tabs.holds.load(); });
+  await page.waitForSelector('#holdsContent .section-card', { timeout: 10000 });
+  await page.screenshot({ path: OUT + '09-holds.png' });
+  console.log('       held ' + out.held + ', till went ' + out.before + ' -> ' + out.during + ', balance due ' + out.balance);
 });
 
 /* A PURCHASE ORDER, END TO END. The suite proves the rules; only a browser proves the screen
@@ -134,15 +162,17 @@ await step('the till can lend instead of sell', async () => {
    file compiles; only a browser proves the modal opens, fills, and produces the plain text that
    goes into a WhatsApp message. */
 await step('a receipt opens for the sale that was just made', async () => {
-  const group = await page.evaluate(async () => {
+  const latest = await page.evaluate(async () => {
     const r = await BO.srv('recentSales', { limit: 1 });
-    return r.rows[0].group_id;
+    return { group_id: r.rows[0].group_id, product: r.rows[0].product_name };
   });
-  await page.evaluate(g => BORcpt.open({ group_id: g }), group);
+  await page.evaluate(g => BORcpt.open({ group_id: g }), latest.group_id);
   await page.waitForSelector('#rcptSheet .rcpt-total', { timeout: 10000 });
   const text = await page.evaluate(() => BORcpt.asText());
   if (!/TOTAL: /.test(text)) throw new Error('the copyable receipt has no total: ' + text.slice(0, 120));
-  if (!/Phone Cover/.test(text)) throw new Error('the item is missing from the receipt text');
+  /* Whatever the newest sale actually was -- the order of the steps above has changed before and
+     will again, so the check is against the sale, not against a product name typed in here. */
+  if (text.indexOf(latest.product) === -1) throw new Error('"' + latest.product + '" is missing from the receipt text');
   await page.screenshot({ path: OUT + '06-receipt.png' });
   await page.evaluate(() => BO.closeDialog());
   await page.waitForSelector('#rcptSheet', { state: 'detached', timeout: 8000 }).catch(() => {});

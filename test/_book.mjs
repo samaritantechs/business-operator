@@ -21,7 +21,7 @@ export const PASSWORD = 'pass1234';
 export const TABLES = ['vendors', 'branches', 'profiles', 'sessions', 'password_resets', 'products', 'branch_stock',
   'product_units', 'financing_partners', 'sales', 'lendings', 'lending_items', 'cash_receipts', 'stock_movements',
   'settings', 'hints', 'product_clicks', 'suggestions', 'audit_log', 'app_releases',
-  'purchase_orders', 'purchase_order_items'];
+  'purchase_orders', 'purchase_order_items', 'pending_sales', 'pending_sale_items'];
 
 export function emptyBook() {
   const t = {};

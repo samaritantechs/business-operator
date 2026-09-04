@@ -524,8 +524,8 @@ async function movementsReport(db, s) {
   const maps = await nameMaps(db, s, { branches: true, vendors: true });
   /* 'adjustment' -- with no direction -- is in neither, and cannot be: it is what rows written
      before adjustment_in/out look like, and guessing would make the totals a fiction. */
-  const IN = new Set(['received', 'transfer_in', 'returned', 'cancelled_restock', 'adjustment_in']);
-  const OUT = new Set(['sold', 'lent', 'transfer_out', 'adjustment_out']);
+  const IN = new Set(['received', 'transfer_in', 'returned', 'cancelled_restock', 'adjustment_in', 'unreserved']);
+  const OUT = new Set(['sold', 'lent', 'transfer_out', 'adjustment_out', 'reserved']);
   let qtyIn = 0, qtyOut = 0;
   const out = list.map(m => {
     if (IN.has(m.type)) qtyIn += num(m.qty); else if (OUT.has(m.type)) qtyOut += num(m.qty);
@@ -544,7 +544,7 @@ async function movementsReport(db, s) {
    vendor's products (names), 1 branches (+1 vendors for ALL). */
 async function unitsReport(db, s) {
   const st = s.status ? String(s.status).toLowerCase() : null;
-  if (st && !['in_stock', 'sold', 'lent', 'lost'].includes(st)) throw badRequest('Status must be in_stock, sold, lent or lost.');
+  if (st && !['in_stock', 'sold', 'lent', 'lost', 'reserved'].includes(st)) throw badRequest('Status must be in_stock, sold, lent, lost or reserved.');
   const list = await rows(db, 'product_units', q => {
     let x = q.select('id, product_id, vendor_id, branch_id, imei, serial_no, status, received_at, sold_at');
     if (s.vendor_id) x = x.eq('vendor_id', s.vendor_id);

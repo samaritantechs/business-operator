@@ -20,7 +20,7 @@ export const PARTNER_COLS = 'id, vendor_id, name, contact, active, created_at';
 export const UNIT_COLS = 'id, product_id, vendor_id, branch_id, imei, serial_no, status, received_at, sold_sale_id, sold_at, note, updated_at';
 const MOVEMENT_COLS = 'id, vendor_id, product_id, product_name, unit_id, imei, type, qty, from_branch_id, to_branch_id, reference_sale_id, reference_lending_id, by_user, by_name, note, created_at';
 const SALE_COLS = 'id, legacy_id, group_id, vendor_id, branch_id, seller_name, product_name, brand, model, unit_id, imei, qty, list_price, discount, price, total, payment_method, financing_partner_id, partner_paid, status, cancelled_by_name, cancelled_at, cancel_reason, sold_at';
-const UNIT_STATUSES = ['in_stock', 'sold', 'lent', 'lost'];
+const UNIT_STATUSES = ['in_stock', 'sold', 'lent', 'lost', 'reserved'];
 const PICK_VENDOR = 'Chagua biashara kwanza. / Pick a business first (vendor_id).';
 
 /* ------------------------------------------------------------------ scope helpers

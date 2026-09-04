@@ -425,6 +425,7 @@ body.bo-restricted .topbar{position:relative;z-index:260;}
       <div class="nav-group-label" data-nav-group="main">Main</div>
       <button class="nav-item active" id="nav-dashboard" data-roles="seller admin assistant-admin manager assistant-manager" onclick="switchTab('dashboard',this)"><span class="ni">📊</span>Dashboard</button>
       <button class="nav-item" id="nav-sale" data-roles="seller admin assistant-admin" onclick="switchTab('sale',this)"><span class="ni">🛒</span>Sell</button>
+      <button class="nav-item" id="nav-holds" data-roles="seller admin assistant-admin" onclick="switchTab('holds',this)"><span class="ni">🔖</span>Holds</button>
       <button class="nav-item" id="nav-lendings" data-roles="seller admin assistant-admin manager assistant-manager" onclick="switchTab('lendings',this)"><span class="ni">📋</span>Lendings</button>
       <div class="nav-group-label" data-roles="admin assistant-admin">Inventory</div>
       <button class="nav-item" id="nav-products" data-roles="admin assistant-admin" onclick="switchTab('products',this)"><span class="ni">📦</span>Products</button>
@@ -450,6 +451,7 @@ body.bo-restricted .topbar{position:relative;z-index:260;}
       <div id="tab-stock" class="hidden"><div class="page-hdr"><div><div class="page-title">Stock &amp; Shops</div><div class="page-sub">Branches, IMEI units, transfers, movements &amp; financing partners</div></div></div><div id="stockContent"></div></div>
       <div id="tab-users" class="hidden"><div class="page-hdr"><div><div class="page-title">Users</div><div class="page-sub">Manage team access &amp; business profile</div></div></div><div id="usersContent"></div></div>
       <div id="tab-cash" class="hidden"><div class="page-hdr"><div><div class="page-title">Cash Tracking</div><div class="page-sub">Record payments from sellers</div></div></div><div id="cashContent"></div></div>
+      <div id="tab-holds" class="hidden"><div class="page-hdr"><div><div class="page-title">Holds</div><div class="page-sub">Kept back for a customer who is coming for it</div></div></div><div id="holdsContent"></div></div>
       <div id="tab-po" class="hidden"><div class="page-hdr"><div><div class="page-title">Purchase Orders</div><div class="page-sub">What you have ordered, and what actually arrived</div></div></div><div id="poContent"></div></div>
       <div id="tab-credit" class="hidden"><div class="page-hdr"><div><div class="page-title">Credit &amp; Voids</div><div class="page-sub">What financing partners still owe you, and what was cancelled</div></div></div><div id="creditContent"></div></div>
       <div id="tab-reports" class="hidden"><div class="page-hdr"><div><div class="page-title">Reports</div><div class="page-sub">Download business reports</div></div></div><div id="reportsContent"></div></div>
@@ -493,6 +495,7 @@ body.bo-restricted .topbar{position:relative;z-index:260;}
 <script src="/bo/reports.js"></script>
 <script src="/bo/manager.js"></script>
 <script src="/bo/settings.js"></script>
+<script src="/bo/pending.js"></script>
 <script src="/bo/purchasing.js"></script>
 <script src="/bo/credit.js"></script>
 <script src="/bo/receipt.js"></script>

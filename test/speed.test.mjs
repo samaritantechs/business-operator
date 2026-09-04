@@ -210,6 +210,9 @@ const BUDGETS = [
   ['Units (IMEI list)',               'bo', 'units',            {},                                   ADMIN,    4,    200,   4,   200],
   /* Purchase orders: the open ones and every line on them, in two reads whatever the shape of
      the list. Bounded by 'still open', which is a set a shop keeps small by receiving things. */
+  /* Holds: the open ones and their lines, two reads. Bounded by 'still held', which stays small
+     because a hold ends the moment somebody collects or gives up on it. */
+  ['Holds (open)',                    'bo', 'pendingSales',     { status: 'held' },                   ADMIN,    2,    100,   2,   100],
   ['Purchase orders (open)',          'bo', 'purchaseOrders',   { status: 'ordered' },                ADMIN,    2,    100,   2,   100],
   ['Movements (30 days)',             'bo', 'movements',        MONTH,                                ADMIN,    4,   1300,   4,  1300],
   ['Sales report (month)',            'bo', 'reportData',       { type: 'sales', ...MONTH },          ADMIN,    6,   1500,   6,  1500],

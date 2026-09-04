@@ -459,6 +459,72 @@ create table if not exists purchase_order_items (
 create index if not exists idx_po_items_po on purchase_order_items(po_id);
 
 -- =====================================================================================
+-- PENDING SALES -- somebody has asked for it and is coming back for it.
+-- =====================================================================================
+-- "Hold the A05 for me, I'll come Friday" is the most ordinary sentence in a phone shop, and
+-- the system had no way to hear it. So the phone stayed on the shelf, somebody else bought it,
+-- and on Friday there was an argument.
+--
+-- A pending sale RESERVES the goods, and it does so the honest way: through the same
+-- stock.changeStock() everything else uses, as a 'reserved' movement out. products.stock is
+-- therefore what is actually AVAILABLE, the till cannot sell a reserved handset because the
+-- number is already gone, and none of this costs the sell screen a single extra read. A
+-- serialized unit goes to status 'reserved' and simply stops appearing in the IMEI picker.
+--
+-- Completing one puts the stock back ('unreserved') and then sells it through the ordinary
+-- recordSale, so every rule about stock, IMEIs, discounts, partners and receipts is the one
+-- that was already there. Three movements for one handset -- reserved, unreserved, sold -- is
+-- not noise: it is what actually happened to it.
+do $$ begin
+  create type pending_status as enum ('held','completed','cancelled','expired');
+exception when duplicate_object then null; end $$;
+
+-- The two movement types the reservation needs, and the unit status that goes with them.
+do $$ begin
+  alter type movement_type add value if not exists 'reserved';
+  alter type movement_type add value if not exists 'unreserved';
+exception when others then null; end $$;
+do $$ begin
+  alter type unit_status add value if not exists 'reserved';
+exception when others then null; end $$;
+
+create table if not exists pending_sales (
+  id uuid primary key default gen_random_uuid(),
+  legacy_id text,                               -- HOLD-0001
+  vendor_id uuid not null references vendors(id),
+  branch_id uuid references branches(id),
+  customer_name text not null,                  -- required here, unlike a sale: a hold with
+  customer_phone text,                          -- nobody's name on it is just missing stock
+  deposit numeric(14,2) not null default 0,     -- what they left to hold it
+  payment_method payment_method,                -- what they said they would pay with, if they said
+  financing_partner_id uuid references financing_partners(id),
+  notes text,
+  status pending_status not null default 'held',
+  hold_until date,                              -- what was agreed; nothing expires on its own
+  created_by uuid references profiles(id),
+  created_by_name text,
+  created_at timestamptz not null default now(),
+  closed_at timestamptz,
+  closed_by_name text,
+  cancel_reason text,
+  sale_group_id uuid                            -- the checkout it became, once it did
+);
+create index if not exists idx_pending_vendor_status on pending_sales(vendor_id, status, created_at desc);
+
+create table if not exists pending_sale_items (
+  id uuid primary key default gen_random_uuid(),
+  pending_id uuid not null references pending_sales(id) on delete cascade,
+  product_id uuid not null references products(id),
+  product_name text not null,
+  unit_id uuid references product_units(id),    -- the exact handset being held
+  qty integer not null,
+  list_price numeric(14,2) not null default 0,
+  discount numeric(14,2) not null default 0,
+  total numeric(14,2) not null default 0
+);
+create index if not exists idx_pending_items on pending_sale_items(pending_id);
+
+-- =====================================================================================
 -- THE ANDROID APP'S RELEASES.
 -- =====================================================================================
 -- The app on a phone is a window onto this website, so ordinary updates need no new APK at
