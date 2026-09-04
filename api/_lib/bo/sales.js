@@ -28,6 +28,7 @@ const SALE_COLS = 'id, legacy_id, group_id, vendor_id, branch_id, seller_id, sel
   + 'unit_cost, cancelled_by, cancelled_by_name, cancelled_at, cancel_reason, sold_at';
 
 const isBlank = v => v == null || String(v).trim() === '';
+const shortId = id => (id ? String(id).slice(0, 8) : '');
 const uniq = list => [...new Set(list.filter(Boolean).map(String))];
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -317,5 +318,85 @@ async function salesDetail(db, user, args, nowMs) {
   return { kind: 'sales', currency: vendor ? currencyOf(vendor) : 'TZS', groups: out, grand_total: money(out.reduce((a, g) => a + g.total, 0)) };
 }
 
-export const FN = { recordSale, cancelSale, markPartnerPaid, recentSales, salesDetail };
+/* =====================================================================================
+   THE RECEIPT -- one checkout, on paper or on a phone.
+   =====================================================================================
+   A checkout is already one group_id across however many sale rows it wrote, so a receipt is
+   that group read back with the shop's own details on top. Nothing is stored: a receipt is a
+   VIEW of the sale, not a second record of it, because a stored receipt is one more thing that
+   can disagree with the sale it came from (CLAUDE.md rule 2 -- one definition, in one place).
+
+   WHO MAY SEE ONE. The seller who rang it up, any admin of that business, or a manager. A
+   seller is pinned to their own sales: a receipt carries a customer's name and phone, and
+   "let me just look up that sale" is not a reason to hand one member of staff another's
+   customer list.
+
+   COST: 2 reads (the group, the vendor) + at most 2 more for a branch or a partner name, and
+   only when the sale actually had one. Nothing here runs per line. */
+async function saleReceipt(db, user, args) {
+  const groupId = text(args.group_id), saleId = text(args.sale_id);
+  if (!groupId && !saleId) throw badRequest('Name the sale or the checkout.');
+  const vid = isManagerLevel(user.role) ? null : requireVendorUser(user);
+
+  /* When only one line was named, its group is what we actually want -- a receipt for one of
+     three items on a docket is not a receipt. That is the only reason for the extra hop. */
+  let gid = groupId;
+  if (!gid) {
+    const seed = await one(db, 'sales', q => {
+      let x = q.select('group_id, vendor_id').eq('id', saleId);
+      if (vid) x = x.eq('vendor_id', vid);
+      return x;
+    });
+    if (!seed) throw notFound('That sale is not one of yours.');
+    gid = seed.group_id;
+  }
+  const list = await rows(db, 'sales', q => {
+    let x = q.select(SALE_COLS).eq('group_id', gid);
+    if (vid) x = x.eq('vendor_id', vid);
+    return x.order('legacy_id').limit(500);
+  });
+  if (!list.length) throw notFound('That sale is not one of yours.');
+
+  const own = !isAdminLevel(user.role) && !isManagerLevel(user.role);
+  if (own && list.some(r => String(r.seller_id) !== String(user.id))) {
+    throw forbidden('That is not your sale. Ask the business admin for a copy.');
+  }
+
+  const vendor = await vendorById(db, list[0].vendor_id);
+  if (!vendor) throw notFound('That business no longer exists.');
+  const names = await nameLookups(db, list);
+  const first = list[0], extra = names(first);
+
+  const items = list.map(r => ({
+    product_name: r.product_name, brand: r.brand || '', model: r.model || '', imei: r.imei || '',
+    qty: num(r.qty), list_price: num(r.list_price), discount: num(r.discount), price: num(r.price), total: num(r.total),
+  }));
+  const subtotal = money(items.reduce((a, i) => a + i.qty * i.list_price, 0));
+  const discount = money(items.reduce((a, i) => a + i.qty * i.discount, 0));
+  const total = money(items.reduce((a, i) => a + i.total, 0));
+  const cancelled = list.filter(r => r.status === 'cancelled');
+
+  return {
+    group_id: gid,
+    /* The label people read out over the phone. A checkout of three lines wrote SALE-0007,
+       SALE-0008 and SALE-0009, so the receipt names the range rather than picking one. */
+    receipt_no: list.length > 1 ? (first.legacy_id || '') + ' – ' + (list[list.length - 1].legacy_id || '') : (first.legacy_id || shortId(first.id)),
+    sold_at: first.sold_at, currency: currencyOf(vendor),
+    vendor: { name: vendor.name, phone: vendor.phone || '', address: vendor.address || '', logo_url: vendor.logo_url || '', business_type: vendor.business_type || '' },
+    branch_name: extra.branch_name || '', seller_name: first.seller_name || '',
+    customer_name: first.customer_name || '', customer_phone: first.customer_phone || '',
+    payment_method: first.payment_method, partner_name: extra.partner_name || '',
+    items, subtotal, discount, total,
+    /* A cancelled line still gets a receipt -- somebody is holding the old one and needs to be
+       shown what happened to it -- but it says so at the top, in as many words. */
+    status: cancelled.length === list.length ? 'cancelled' : (cancelled.length ? 'part-cancelled' : 'completed'),
+    cancelled_note: cancelled.length
+      ? cancelled.length + ' of ' + list.length + ' line' + (list.length > 1 ? 's' : '') + ' cancelled'
+        + (cancelled[0].cancelled_by_name ? ' by ' + cancelled[0].cancelled_by_name : '')
+        + (cancelled[0].cancel_reason ? ': ' + cancelled[0].cancel_reason : '')
+      : '',
+  };
+}
+
+export const FN = { recordSale, cancelSale, markPartnerPaid, recentSales, salesDetail, saleReceipt };
 export const WRITES = ['recordSale', 'cancelSale', 'markPartnerPaid'];

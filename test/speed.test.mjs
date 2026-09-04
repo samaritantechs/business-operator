@@ -178,6 +178,10 @@ const BUDGETS = [
   ['Sell form options (seller)',      'bo', 'productOptions',   {},                                   SELLER,   6,    400,   6,   400],
   ['Recent sales',                    'bo', 'recentSales',      {},                                   ADMIN,    5,    100,   5,   100],
   ['Sales detail (month)',            'bo', 'salesDetail',      { period: 'month' },                  ADMIN,    5,    200,   5,   200],
+  /* A receipt is one checkout: the group, the shop it was sold from, the partner if it was
+     financed, and the business's own name and address. Four reads whatever is on the docket --
+     nothing here runs per line, which is the whole reason group_id exists on the sale row. */
+  ['Receipt (one checkout)',          'bo', 'saleReceipt',      { sale_id: 'S1_1' },                  ADMIN,    5,     20,   5,    20],
   ['Sales detail (stock)',            'bo', 'salesDetail',      { period: 'stock' },                  ADMIN,    3,    250,   3,   250],
   ['Lendings',                        'bo', 'lendings',         {},                                   ADMIN,    4,    100,   4,   100],
   ['Cash receipts (today)',           'bo', 'cashReceipts',     {},                                   ADMIN,    4,     50,   4,    50],

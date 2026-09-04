@@ -351,6 +351,35 @@ body.bo-fb-open{overflow:hidden;}
 #hintToast{position:fixed;bottom:22px;right:22px;max-width:340px;min-width:260px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow-md);z-index:8888;display:flex;align-items:flex-start;gap:10px;font-size:.83rem;opacity:0;transform:translateY(14px) scale(.97);transition:all .35s ease;pointer-events:none;}#hintToast.show{opacity:1;transform:translateY(0) scale(1);}#hintToast .hint-icon{font-size:1rem;flex-shrink:0;margin-top:1px;}#hintToast .hint-text{color:var(--text);line-height:1.5;}
 .modal-content{background:var(--surface) !important;border:1px solid var(--border) !important;border-radius:16px !important;color:var(--text);box-shadow:var(--shadow-md) !important;}.modal-header{border-bottom:1px solid var(--border) !important;padding:18px 22px 14px !important;}.modal-title{font-weight:800 !important;font-size:.95rem !important;color:var(--text) !important;}.modal-body{padding:18px 22px !important;max-height:70vh;overflow-y:auto;}.modal-footer{border-top:1px solid var(--border) !important;padding:12px 22px !important;gap:8px;}.btn-close{filter:var(--close-filter,none) !important;}[data-theme="dark"] .btn-close{filter:invert(1) !important;}
 .perm-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;}.perm-item{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;display:flex;align-items:center;justify-content:space-between;}.perm-label{font-size:.82rem;font-weight:500;color:var(--text);}.perm-sub{font-size:.72rem;color:var(--muted);margin-top:2px;}
+/* THE RECEIPT SHEET. Narrow, quiet, and the same on screen as it is on paper -- a person
+   handed a printout and a person sent a photograph of the screen should be holding the same
+   thing. Printing hides the whole app and leaves this alone on the page. */
+.rcpt{max-width:420px;margin:0 auto;font-size:.86rem;color:var(--text);}
+.rcpt-hd{text-align:center;padding-bottom:12px;border-bottom:1px dashed var(--border);margin-bottom:12px;}
+.rcpt-logo{width:56px;height:56px;object-fit:contain;border-radius:10px;margin-bottom:8px;}
+.rcpt-biz{font-size:1.05rem;font-weight:800;letter-spacing:-.01em;}
+.rcpt-sub{font-size:.78rem;color:var(--text2);}
+.rcpt-meta,.rcpt-sum{display:flex;flex-direction:column;gap:4px;}
+.rcpt-row{display:flex;justify-content:space-between;gap:14px;font-size:.8rem;}
+.rcpt-row>span:first-child{color:var(--text2);}
+.rcpt-row>span:last-child{font-weight:600;text-align:right;}
+.rcpt-tbl{width:100%;border-collapse:collapse;margin:12px 0;}
+.rcpt-tbl th{text-align:left;font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;color:var(--text2);border-bottom:1px solid var(--border);padding:6px 4px;}
+.rcpt-tbl td{padding:7px 4px;border-bottom:1px dashed var(--border);vertical-align:top;}
+.rcpt-tbl .num{text-align:right;white-space:nowrap;}
+.rcpt-dim{font-size:.72rem;color:var(--text2);}
+.rcpt-total{display:flex;justify-content:space-between;gap:14px;font-size:1rem;font-weight:800;padding:8px 0;margin:6px 0;border-top:2px solid var(--text);border-bottom:2px solid var(--text);}
+.rcpt-foot{text-align:center;font-size:.74rem;color:var(--text2);margin-top:14px;padding-top:10px;border-top:1px dashed var(--border);}
+@media print{
+  body.printing-receipt>*{display:none !important;}
+  body.printing-receipt #boModal{display:block !important;position:static !important;background:none !important;}
+  body.printing-receipt #boModal .modal-dialog{max-width:none !important;margin:0 !important;}
+  body.printing-receipt #boModal .modal-content{border:none !important;box-shadow:none !important;background:#fff !important;color:#000 !important;}
+  body.printing-receipt #boModal .modal-header,body.printing-receipt #boModal .modal-footer{display:none !important;}
+  body.printing-receipt .rcpt{color:#000;max-width:none;}
+  body.printing-receipt .rcpt-sub,body.printing-receipt .rcpt-dim,body.printing-receipt .rcpt-row>span:first-child,body.printing-receipt .rcpt-foot{color:#333;}
+  body.printing-receipt .rcpt-tbl th{color:#333;}
+}
 .suggestion-box{background:linear-gradient(135deg,#EFF6FF,#F5F3FF);border:1px solid rgba(11,42,107,.18);border-radius:var(--radius);padding:20px;}[data-theme="dark"] .suggestion-box{background:linear-gradient(135deg,rgba(11,42,107,.08),rgba(240,160,32,.07));}
 .search-wrap{position:relative;margin-bottom:14px;}.search-wrap .form-control{padding-left:38px;}.search-ico{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:.9rem;pointer-events:none;}
 .mgr-report-card{background:var(--surface2);border:2px solid var(--border);border-radius:var(--radius);padding:20px 18px;cursor:pointer;transition:all .2s;text-align:center;}.mgr-report-card:hover,.mgr-report-card.selected{border-color:var(--accent);background:var(--accent-lt);}.mgr-report-card .mrc-icon{font-size:2rem;margin-bottom:8px;}.mgr-report-card .mrc-title{font-weight:700;font-size:.9rem;color:var(--text);}.mgr-report-card .mrc-sub{font-size:.75rem;color:var(--muted);margin-top:4px;}
@@ -451,6 +480,7 @@ body.bo-restricted .topbar{position:relative;z-index:260;}
 <script src="/bo/reports.js"></script>
 <script src="/bo/manager.js"></script>
 <script src="/bo/settings.js"></script>
+<script src="/bo/receipt.js"></script>
 <script src="/bo/account.js"></script>
 <script>BO.boot();</script>
 </body>

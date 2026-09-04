@@ -115,7 +115,8 @@ window.BOSell = (function () {
       showToast('Sale recorded.');
       btn.disabled = false;
       BO.reload('dashboard');
-      load('<div class="alert-success" style="font-size:.9rem;">✅ ' + esc(r.message) + ' — <strong>' + fmtFull(r.grand_total) + ' ' + cur() + '</strong></div>');
+      load('<div class="alert-success" style="font-size:.9rem;">✅ ' + esc(r.message) + ' — <strong>' + fmtFull(r.grand_total) + ' ' + cur() + '</strong>'
+        + ' <button class="btn-sm-primary" style="margin-left:8px;" onclick="BORcpt.open({group_id:\'' + BO.jsq(r.group_id) + '\'})">🧾 Receipt</button></div>');
     }).catch(function (e) { btn.disabled = false; document.getElementById('saleMsg').innerHTML = '<div class="alert-danger">' + esc(e.message) + '</div>'; });
   }
   function branchName() { for (var i = 0; i < opts.branches.length; i++) if (opts.branches[i].id === branchId) return opts.branches[i].name; return ''; }

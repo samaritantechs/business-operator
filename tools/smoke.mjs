@@ -86,6 +86,24 @@ await step('sell a phone cover through the form', async () => {
   console.log('       ' + done + '; stock value ' + before + ' -> ' + after);
 });
 
+/* THE RECEIPT ACTUALLY DRAWS. The suite proves the server builds one and the parser proves the
+   file compiles; only a browser proves the modal opens, fills, and produces the plain text that
+   goes into a WhatsApp message. */
+await step('a receipt opens for the sale that was just made', async () => {
+  const group = await page.evaluate(async () => {
+    const r = await BO.srv('recentSales', { limit: 1 });
+    return r.rows[0].group_id;
+  });
+  await page.evaluate(g => BORcpt.open({ group_id: g }), group);
+  await page.waitForSelector('#rcptSheet .rcpt-total', { timeout: 10000 });
+  const text = await page.evaluate(() => BORcpt.asText());
+  if (!/TOTAL: /.test(text)) throw new Error('the copyable receipt has no total: ' + text.slice(0, 120));
+  if (!/Phone Cover/.test(text)) throw new Error('the item is missing from the receipt text');
+  await page.screenshot({ path: OUT + '06-receipt.png' });
+  await page.evaluate(() => BO.closeDialog());
+  await page.waitForSelector('#rcptSheet', { state: 'detached', timeout: 8000 }).catch(() => {});
+});
+
 await step('manager signs in and the manager tabs render', async () => {
   await page.evaluate(() => logout(true));
   await page.waitForSelector('#landingPage:not(.hidden), #loginPage:not(.hidden)', { timeout: 10000 });
