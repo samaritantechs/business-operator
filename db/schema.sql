@@ -377,6 +377,33 @@ do $$ begin
 exception when others then null; end $$;
 
 -- =====================================================================================
+-- THE ANDROID APP'S RELEASES.
+-- =====================================================================================
+-- The app on a phone is a window onto this website, so ordinary updates need no new APK at
+-- all -- a shopkeeper gets them the moment they are deployed. An APK is only ever rebuilt
+-- when the address or the WebView allowlist changes, which is rare and deliberate.
+--
+-- When that does happen the new file goes in the `app-releases` bucket and gets a row here,
+-- and /download always sends people to whichever row is current. That is why the printed QR
+-- code can be printed once: it points at /download, never at a version.
+create table if not exists app_releases (
+  id uuid primary key default gen_random_uuid(),
+  version_name text not null,                   -- what a person reads: '1.3'
+  version_code integer not null,                -- what the phone compares: 4
+  file_name text not null,                      -- object name inside the app-releases bucket
+  url text not null,                            -- its public URL, stored so /download is one read
+  size_bytes bigint,
+  notes text,                                   -- what changed, shown on the update notice
+  is_current boolean not null default false,    -- exactly one row is true; /download follows it
+  published_at timestamptz not null default now(),
+  published_by uuid references profiles(id)
+);
+create unique index if not exists app_releases_version_code_idx on app_releases (version_code);
+-- Only one release can be the current one. A partial unique index says so in the database
+-- rather than trusting every future code path to remember.
+create unique index if not exists app_releases_one_current_idx on app_releases (is_current) where is_current;
+
+-- =====================================================================================
 -- DATABASE-SIDE AGGREGATES -- "ask the database, don't drag rows" (the Postgres budget).
 -- Each has a JavaScript fallback in the code for a deployment that has not run this file yet.
 -- =====================================================================================
@@ -440,7 +467,10 @@ $$;
 insert into storage.buckets (id, name, public) values
   ('product-images', 'product-images', true),
   ('logos', 'logos', true),
-  ('profile-photos', 'profile-photos', true)
+  ('profile-photos', 'profile-photos', true),
+  -- The Android APK. Public because /download hands the file to anyone with the link, which
+  -- is the point of a printed QR code on a shop counter.
+  ('app-releases', 'app-releases', true)
 on conflict (id) do nothing;
 
 -- =====================================================================================

@@ -83,7 +83,8 @@ test('market: hot = at least the average clicks among clicked products', async (
 
 test('market: every card carries exactly what the page draws', async () => {
   const out = await FN.market(bookDb(), {}, NOW);
-  assert.deepEqual(Object.keys(out).sort(), ['avgClicks', 'hints', 'products', 'timings', 'totalClicks', 'vendors']);
+  assert.deepEqual(Object.keys(out).sort(), ['avgClicks', 'hints', 'products', 'release', 'timings', 'totalClicks', 'vendors']);
+  assert.equal(out.release, null, 'no Android build published yet, and that is a null rather than an error');
   const by = Object.fromEntries(out.products.map(p => [p.id, p]));
 
   assert.deepEqual(by.P6, { id: 'P6', name: 'Wedding Gown', cat: 'Bridal', brand: '', model: '', price: 150000, stock: 1,
@@ -117,12 +118,13 @@ test('market: every card carries exactly what the page draws', async () => {
 test('market: cache -- one build a minute per client, a click does not bust it, clearMarketCache does', async () => {
   const { db, calls } = counted(richBook());
   const first = await FN.market(db, {}, NOW);
-  // Cold, without the RPC installed: vendors, products, product_clicks (fallback), hints, settings.
-  assert.equal(calls.from, 5); assert.equal(calls.rpc, 1);
-  assert.deepEqual(calls.tables, { vendors: 1, products: 1, product_clicks: 1, hints: 1, settings: 1 });
+  // Cold, without the RPC installed: vendors, products, product_clicks (fallback), hints,
+  // settings, and the Android release the Download button points at.
+  assert.equal(calls.from, 6); assert.equal(calls.rpc, 1);
+  assert.deepEqual(calls.tables, { vendors: 1, products: 1, product_clicks: 1, hints: 1, settings: 1, app_releases: 1 });
 
   const again = await FN.market(db, {}, NOW);
-  assert.equal(calls.from, 5); assert.equal(calls.rpc, 1);                        // warm: nothing read
+  assert.equal(calls.from, 6); assert.equal(calls.rpc, 1);                        // warm: nothing read
   assert.equal(again, first);
 
   // A view logged in between is not on the page yet: popularity may lag a minute, as before.
@@ -134,13 +136,13 @@ test('market: cache -- one build a minute per client, a click does not bust it, 
 
   // A minute later the page is rebuilt and the click is counted.
   const later = await FN.market(db, {}, NOW + 61000);
-  assert.equal(calls.from, afterClick + 5); assert.equal(calls.rpc, 2);
+  assert.equal(calls.from, afterClick + 6); assert.equal(calls.rpc, 2);
   assert.equal(later.products.find(p => p.id === 'P1').clicks, 1);
 
   // clearMarketCache drops the entry even inside the minute.
   clearMarketCache(db);
   await FN.market(db, {}, NOW + 61000);
-  assert.equal(calls.from, afterClick + 10);
+  assert.equal(calls.from, afterClick + 12);
   clearMarketCache(undefined);                                                    // harmless
 });
 
@@ -148,7 +150,7 @@ test('market: two visitors on a cold cache share one build', async () => {
   const { db, calls } = counted(richBook());
   const [a, b] = await Promise.all([FN.market(db, {}, NOW), FN.market(db, {}, NOW)]);
   assert.equal(a, b);
-  assert.equal(calls.from, 5);
+  assert.equal(calls.from, 6);
 });
 
 test('market: a failed build is not cached', async () => {
@@ -171,7 +173,7 @@ test('market: the click-count RPC is used when the database has it', async () =>
   assert.deepEqual(seen, { p_since: new Date(NOW - 30 * DAY).toISOString() });
   assert.equal(calls.rpc, 1);
   assert.equal(calls.tables.product_clicks, undefined);                           // the log itself is never read
-  assert.equal(calls.from, 4);
+  assert.equal(calls.from, 5);   // +1: the Android release row
   assert.deepEqual(ids(out.products).slice(0, 2), ['P5', 'P3']);                  // pop 21 vs pop 2
   const by = Object.fromEntries(out.products.map(p => [p.id, p]));
   assert.equal(by.P5.clicks, 7); assert.equal(by.P3.clicks, 2);

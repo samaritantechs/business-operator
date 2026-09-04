@@ -1,0 +1,53 @@
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'com.samaritantechs.industrial'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.samaritantechs.industrial"
+        minSdk 24
+        targetSdk 34
+
+        /* THE TWO NUMBERS THAT MATTER.
+         *
+         * versionCode must go UP by at least one on every build you hand out. Android refuses
+         * to install an APK over one with an equal or higher code, and the refusal looks to a
+         * shopkeeper like the download is broken. The Settings screen enforces the same rule
+         * on the web side, so the two agree.
+         *
+         * versionName is what a person reads. */
+        versionCode 4
+        versionName "1.3"
+    }
+
+    signingConfigs {
+        release {
+            /* THE KEYSTORE NEVER ENTERS THIS REPOSITORY. Pass it in from the machine doing the
+             * build. If a future APK is signed with a different key, Android will not install
+             * it over the existing app and every shop has to uninstall first -- which loses
+             * nothing here (the data is all server-side) but is a bad afternoon. */
+            storeFile file(System.getenv("SAMIND_KEYSTORE") ?: "keystore-not-set.jks")
+            storePassword System.getenv("SAMIND_KEYSTORE_PASSWORD")
+            keyAlias System.getenv("SAMIND_KEY_ALIAS") ?: "businessoperator"
+            keyPassword System.getenv("SAMIND_KEY_PASSWORD")
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+    buildFeatures { buildConfig true }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'androidx.activity:activity:1.9.2'
+}

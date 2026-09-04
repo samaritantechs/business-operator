@@ -22,7 +22,7 @@ export const PASSWORD = 'pass1234';
 
 export const TABLES = ['vendors', 'branches', 'profiles', 'sessions', 'password_resets', 'products', 'branch_stock',
   'product_units', 'financing_partners', 'sales', 'lendings', 'lending_items', 'cash_receipts', 'stock_movements',
-  'settings', 'hints', 'product_clicks', 'suggestions', 'audit_log'];
+  'settings', 'hints', 'product_clicks', 'suggestions', 'audit_log', 'app_releases'];
 
 export function emptyBook() {
   const t = {};

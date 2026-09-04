@@ -1,5 +1,6 @@
 import { rowsAll, one, insertOne, rpcOr, getSettings, num, int, iso, currencyOf, mustText, badRequest } from './_shared.js';
 import { hintsForRole } from './hints.js';
+import { currentRelease, publicRelease } from './releases.js';
 
 /* =====================================================================================
    MARKET -- the PUBLIC marketplace: no sign-in. See docs/API-CONTRACT.md ("market").
@@ -116,6 +117,11 @@ async function buildMarket(db, nowMs) {
       businessType: String(v.business_type || ''), phone: String(v.phone || ''), address: String(v.address || ''), currency: currencyOf(v),
     })),
     avgClicks, totalClicks, hints, timings: hintTimings(settings),
+    /* The Android build, for the Download button and the printed QR. It rides the market
+       payload because that is built once a minute and shared by everyone behind the cache --
+       so it costs one read an hour rather than one per sign-in, which is what putting it in
+       the boot payload would have cost. */
+    release: publicRelease(await currentRelease(db)),
   };
 }
 

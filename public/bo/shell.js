@@ -297,6 +297,10 @@ function applyLogin(boot) {
   document.getElementById('footerYear').textContent = new Date().getFullYear();
   var lt = Number(S.timings.loadingTime) || 0; if (lt > 0) showLoader(lt * 1000);
   startHintTimer(boot.hints || []); startAutoSync(S.timings.autoSyncSeconds); startIdleTimer(S.timings.sessionTimeoutMinutes);
+  /* Somebody who signs straight in never loads the shopfront, so the update check has to
+     happen here too -- but ONLY inside the app. A browser has no version to be behind, so a
+     browser never makes this request and never sees a nag. */
+  if (androidApp_()) srv('appRelease', {}).then(function (r) { checkAppUpdate(r.release); }).catch(function () {});
   showAnnouncement();
 }
 function switchTab(name, btn) {
@@ -369,6 +373,78 @@ function submitSetup() {
   });
 }
 
+
+/* ------------------------------------------------------------------ the Android app
+   The app is a WebView onto this site, so a feature or a fix is on every phone the moment it
+   deploys -- nobody is ever sent an APK for an ordinary change. A NEW APK is needed only when
+   the web address or the app's allowed-domain list changes.
+
+   The printed QR code therefore points at /download and never at a version: /download looks up
+   whichever build is current and redirects. Print the sticker once; it keeps working.
+
+   The app announces itself through window.SamaritanApp, the way HOPE Calls does. A browser has
+   no such object, so a browser is never nagged to install anything. */
+function androidApp_() {
+  try { return (window.SamaritanApp && window.SamaritanApp.versionCode) ? window.SamaritanApp : null; }
+  catch (e) { return null; }
+}
+function qrInto(id, text) {
+  var box = document.getElementById(id); if (!box) return;
+  box.innerHTML = '';
+  try {
+    var c = document.createElement('canvas');
+    box.appendChild(c);
+    new QRious({ element: c, value: text, size: 200, level: 'M', background: '#fff', foreground: '#111' });
+  } catch (e) {
+    // The CDN is away. A person can still read and type the address, which beats an empty box.
+    box.innerHTML = '<div class="small" style="color:#111;word-break:break-all;padding:8px;">' + esc(text) + '</div>';
+  }
+}
+function downloadQr(id, filename) {
+  var c = document.querySelector('#' + id + ' canvas');
+  if (!c) { showToast('The code is not drawn yet.', '⚠️'); return; }
+  try {
+    var a = document.createElement('a');
+    a.href = c.toDataURL('image/png'); a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  } catch (e) { showToast('Could not save the picture on this device.', '⚠️'); }
+}
+/** Draws the two codes and the download button from whatever the market payload reported. */
+function showAppSection(release) {
+  var origin = window.location.origin;
+  var site = origin + '/', apk = origin + '/download';
+  var sec = document.getElementById('mkAppSection'), link = document.getElementById('mkAppLink');
+  if (sec) sec.classList.remove('hidden');
+  if (link) link.classList.remove('hidden');
+  var su = document.getElementById('qrSiteUrl'); if (su) su.textContent = site;
+  var au = document.getElementById('qrApkUrl'); if (au) au.textContent = apk;
+  qrInto('qrSite', site);
+  qrInto('qrApk', apk);
+  var meta = document.getElementById('mkApkMeta'), btn = document.getElementById('mkApkBtn');
+  if (release && release.version_name) {
+    if (meta) meta.textContent = 'Version ' + release.version_name + (release.size_bytes ? ' · ' + (release.size_bytes / 1048576).toFixed(1) + ' MB' : '');
+  } else {
+    if (meta) meta.textContent = 'Not published yet — use the browser for now.';
+    if (btn) { btn.classList.add('disabled'); btn.setAttribute('aria-disabled', 'true'); }
+  }
+}
+/** Nags only a phone that is actually running an older APK than the published one. */
+function checkAppUpdate(release) {
+  var app = androidApp_();
+  if (!app || !release || !release.version_code) return;
+  var running = Number(app.versionCode) || 0;
+  if (!(release.version_code > running)) return;
+  if (load('boSkipUpdate') === String(release.version_code)) return;
+  var bar = document.getElementById('appUpdateBar'), txt = document.getElementById('appUpdateText');
+  if (txt) txt.textContent = 'A newer app is available: ' + release.version_name + (release.notes ? ' — ' + release.notes : '');
+  if (bar) bar.classList.remove('hidden');
+  window._pendingUpdateCode = release.version_code;
+}
+function dismissUpdate() {
+  store('boSkipUpdate', String(window._pendingUpdateCode || ''));
+  var bar = document.getElementById('appUpdateBar'); if (bar) bar.classList.add('hidden');
+}
+
 /* ------------------------------------------------------------------ login / register / reset */
 function doLogin() {
   var uid = document.getElementById('loginId').value.trim(), pwd = document.getElementById('loginPwd').value;
@@ -411,7 +487,13 @@ var _market = { products: [], vendors: [] }, _mkFilterCat = 'ALL', _mkFilterType
 function setMkType(t) { _mkFilterType = t; ['ALL', 'Sale', 'Rent'].forEach(function (k) { var el = document.getElementById('mkType_' + k); if (el) el.classList.toggle('active', k === t); }); filterMarket(); }
 function loadMarketplace() {
   var grid = document.getElementById('mkProductGrid'); if (grid && !_market.products.length) grid.innerHTML = '<div class="mk-empty">Loading products…</div>';
-  mk('market').then(function (d) { _market = d || { products: [], vendors: [] }; renderMarket(); if (S.screen === 'landing') startHintTimer(d.hints || [], d.timings); })
+  mk('market').then(function (d) {
+    _market = d || { products: [], vendors: [] };
+    renderMarket();
+    showAppSection(_market.release);          // the download button and the two printable codes
+    checkAppUpdate(_market.release);          // and a nag, only for a phone running an older APK
+    if (S.screen === 'landing') startHintTimer(d.hints || [], d.timings);
+  })
     .catch(function () { var g = document.getElementById('mkProductGrid'); if (g) g.innerHTML = '<div class="mk-empty">Could not load marketplace. Tap ↻ to retry.</div>'; });
 }
 function renderMarket() {

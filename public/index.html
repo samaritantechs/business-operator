@@ -155,6 +155,7 @@ html.bo-desktop .tb-vendor-badge{display:inline-block;}
       <button class="mk-navlink hidden" id="mkBackToApp" onclick="backToApp()">↩︎ Back to my workspace</button>
       <button class="mk-navlink" onclick="mkScrollTo('mkMarketSection')">🛍️ Marketplace</button>
       <button class="mk-navlink" onclick="mkScrollTo('mkAboutSection')">ℹ️ About Us</button>
+      <button class="mk-navlink hidden" id="mkAppLink" onclick="mkScrollTo('mkAppSection')">📱 Get the app</button>
       <a href="#" class="icon-btn" onclick="showSuggestionBox();return false;" title="Feedback via WhatsApp">💬</a>
       <button class="icon-btn" id="mkLangBtn" onclick="toggleLang()" title="Lugha ya vidokezo / Tips language (EN/SW)" style="font-weight:800;font-size:.72rem;">EN</button><button class="icon-btn" id="mkThemeBtn" onclick="toggleTheme()" title="Toggle theme">🌙</button>
       <button class="icon-btn" onclick="globalRefresh()" title="Refresh data">↻</button>
@@ -207,6 +208,28 @@ html.bo-desktop .tb-vendor-badge{display:inline-block;}
     </div>
   </section>
 
+  <section id="mkAppSection" class="mk-section hidden">
+    <h2>Get the app</h2>
+    <p class="lead">Install Samaritan Industrial on an Android phone, or scan to open it in a browser. The app is this same system — everything we improve appears on your phone with no new download.</p>
+    <div class="qr-row">
+      <div class="qr-card">
+        <div class="qr-title">📱 Install the app</div>
+        <div class="qr-box" id="qrApk"></div>
+        <div class="qr-url mono" id="qrApkUrl"></div>
+        <a class="btn-primary w-100" id="mkApkBtn" href="/download" style="justify-content:center;margin-top:8px;">⬇️ Download for Android</a>
+        <div class="small muted" id="mkApkMeta" style="margin-top:6px;"></div>
+        <button class="btn-secondary w-100" style="justify-content:center;margin-top:6px;" onclick="downloadQr('qrApk','samaritan-industrial-app-qr.png')">Save this code as a picture</button>
+      </div>
+      <div class="qr-card">
+        <div class="qr-title">🌐 Open the system</div>
+        <div class="qr-box" id="qrSite"></div>
+        <div class="qr-url mono" id="qrSiteUrl"></div>
+        <a class="btn-secondary w-100" id="mkSiteBtn" href="/" style="justify-content:center;margin-top:8px;">Open in this browser</a>
+        <div class="small muted" style="margin-top:6px;">Works on any phone or computer.</div>
+        <button class="btn-secondary w-100" style="justify-content:center;margin-top:6px;" onclick="downloadQr('qrSite','samaritan-industrial-site-qr.png')">Save this code as a picture</button>
+      </div>
+    </div>
+  </section>
   <footer class="mk-foot">&copy; <span id="mkFootYear"></span> Samaritan Techs · Samaritan Industrial — Smart business management & marketplace</footer>
 </div>
 
@@ -296,6 +319,12 @@ html.bo-desktop .tb-vendor-badge{display:inline-block;}
 .modal.bo-fb .btn-close{border:0;background:transparent;color:var(--text2);font-size:1.2rem;cursor:pointer;line-height:1;}
 .modal.bo-fb .btn-close::before{content:'\2715';}
 body.bo-fb-open{overflow:hidden;}
+.qr-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;max-width:640px;margin:0 auto;}
+.qr-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center;box-shadow:var(--shadow);}
+.qr-title{font-weight:700;margin-bottom:10px;}
+.qr-box{background:#fff;border-radius:8px;padding:10px;display:flex;align-items:center;justify-content:center;min-height:180px;}
+.qr-box canvas,.qr-box img{max-width:100%;height:auto;}
+.qr-url{font-size:.68rem;color:var(--muted);word-break:break-all;margin-top:8px;}
 .prod-img-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
 .prod-img-row .prod-img-slot{position:relative;min-height:96px;padding:6px;}
 .prod-img-row .prod-img-slot img{max-height:72px;}
@@ -386,9 +415,13 @@ body.bo-restricted .topbar{position:relative;z-index:260;}
 <div class="modal fade" id="logoModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Upload Business Logo</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="photo-upload-area" onclick="document.getElementById('logoFileInput').click()"><img id="logoPreview" style="max-height:80px;max-width:200px;object-fit:contain;border-radius:8px;display:none;margin:0 auto 8px;" src="" alt=""><div id="logoPlaceholder" style="color:var(--muted);font-size:.82rem;">🖼️ Click to upload logo (JPG / PNG)</div></div><input type="file" id="logoFileInput" accept="image/*" style="display:none;"><div id="logoUploadResult" style="margin-top:10px;"></div></div><div class="modal-footer"><button class="btn-secondary" data-bs-dismiss="modal">Cancel</button><button class="btn-primary" id="logoUploadBtn">Upload Logo</button></div></div></div></div>
 <div class="modal fade" id="termsModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Terms &amp; Conditions</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body" style="font-size:.85rem;line-height:1.7;color:var(--text2);"><p><strong style="color:var(--text);">Your Data Belongs to You</strong><br>Everything you enter is your property. Samaritan Techs never sells or shares your data.</p><p><strong style="color:var(--text);">No Data Loss, Ever</strong><br>Your information is continuously saved. Download a copy anytime via Reports.</p><p><strong style="color:var(--text);">Marketplace Visibility</strong><br>Your active products and business contact may be shown publicly in the marketplace to help customers find you. You control what is active.</p><p><strong style="color:var(--text);">You Are in Control</strong><br>You decide who can sell, manage, or view reports. Revoke access at any time.</p><p><strong style="color:var(--text);">Responsibility</strong><br>Keep your password safe. You are responsible for all actions under your credentials.</p><p style="text-align:center;margin-top:16px;font-size:.75rem;">&copy; <span id="currentYear"></span> Samaritan Techs.</p></div><div class="modal-footer"><button class="btn-secondary" data-bs-dismiss="modal">Close</button></div></div></div></div>
 <div class="modal fade" id="boModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" id="boModalDialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="boModalTitle"></h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body" id="boModalBody"></div><div class="modal-footer" id="boModalFooter"></div></div></div></div>
+<div id="appUpdateBar" class="hidden" style="position:fixed;left:0;right:0;bottom:0;z-index:1090;background:var(--accent);color:#fff;padding:10px 14px;display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap;font-size:.86rem;"><span id="appUpdateText"></span><a class="btn-secondary" id="appUpdateBtn" href="/download" style="padding:4px 12px;">Update now</a><button class="btn-secondary" style="padding:4px 10px;" onclick="dismissUpdate()">Later</button></div>
 <div id="hintToast"><span class="hint-icon">💡</span><span class="hint-text" id="hintText"></span></div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+<!-- QR codes for the printed stickers. If this CDN is away the cards fall back to showing the
+     web address as text, which is still scannable by a human typing it. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
 <script src="/bo/shell.js"></script>
 <script src="/bo/dashboard.js"></script>
 <script src="/bo/sell.js"></script>
