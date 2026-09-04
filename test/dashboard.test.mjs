@@ -2,6 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { richBook, bookDb, userOf, NOW } from './_book.mjs';
+import { vendorSalesSummary } from '../api/_lib/bo/_shared.js';
 
 const { FN } = await import('../api/_lib/bo/dashboard.js');
 
@@ -132,4 +133,20 @@ test('dashboard: the per-shop rows offer no year, because this read cannot hones
   }
   // The vendor's own year is a real year and stays.
   assert.equal(typeof d.year_total, 'number');
+});
+
+/* The fallback summary compared timestamps as TEXT against the day's start. PostgREST spells a
+   timestamptz in offset form, so a sale at 23:00+03:00 -- 20:00 UTC, an hour before the EAT day
+   began -- sorted after the bound '...T21:00:00.000Z' and was counted in today's takings. */
+test('vendorSalesSummary: the fallback bounds days by instant, not by spelling', async () => {
+  const book = richBook();
+  book.sales.push({ id: 'SX', vendor_id: 'V1', status: 'completed', total: 99999, sold_at: '2026-09-01T23:00:00+03:00' });
+  const m = await vendorSalesSummary(bookDb(book), NOW);
+  const v1 = m.get('V1');
+  assert.equal(v1.today, 355000, 'a sale before the EAT day began is not today\'s');
+  assert.equal(v1.year, 477999, 'but it is still this year\'s');
+  // And one written the other way round, inside the day, is counted.
+  const book2 = richBook();
+  book2.sales.push({ id: 'SY', vendor_id: 'V1', status: 'completed', total: 500, sold_at: '2026-09-02T06:00:00+03:00' });
+  assert.equal((await vendorSalesSummary(bookDb(book2), NOW)).get('V1').today, 355500);
 });

@@ -279,13 +279,22 @@ export function stockStatus(p) {
 export async function vendorSalesSummary(db, nowMs = Date.now(), vendorId = null) {
   const b = periodBounds(nowMs);
   const out = new Map();
+  /* INSTANTS, NOT STRINGS. These used to be compared as text against eatStart()'s output, which
+     only works while both are spelled the same way -- and they are not: PostgREST returns a
+     timestamptz in offset form, '2026-09-01T23:00:00+03:00', while the bound is
+     '2026-09-01T21:00:00.000Z'. Compared as text that sale sorts AFTER the bound and lands in
+     today's takings; it is 20:00 UTC, an hour BEFORE the EAT day began, and belongs to
+     yesterday. dashboard.js's sumPeriods has always parsed first; this is the same rule. */
+  const tToday = Date.parse(b.today), tWeek = Date.parse(b.week), tMonth = Date.parse(b.month);
   const add = (vid, t, soldAt) => {
     let r = out.get(vid);
     if (!r) { r = { today: 0, week: 0, month: 0, year: 0 }; out.set(vid, r); }
     const v = num(t);
-    if (soldAt >= b.today) r.today += v;
-    if (soldAt >= b.week) r.week += v;
-    if (soldAt >= b.month) r.month += v;
+    const at = Date.parse(soldAt);
+    if (!Number.isFinite(at)) { r.year += v; return; }
+    if (at >= tToday) r.today += v;
+    if (at >= tWeek) r.week += v;
+    if (at >= tMonth) r.month += v;
     r.year += v;
   };
   const rowsOut = await rpcOr(db, 'bo_vendor_sales_summary',
