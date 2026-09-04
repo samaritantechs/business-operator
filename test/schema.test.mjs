@@ -212,3 +212,61 @@ test('the schema scan actually found the tables the system is built on', () => {
   assert.ok(cols.stock_movements.has('reference_sale_id'), 'a movement points at the sale that caused it');
   assert.ok(cols.marketplace_products.has('vendor_phone') && cols.marketplace_products.has('currency'), 'the view carries the vendor columns the market page shows');
 });
+
+/* AND THE MIGRATION FILE MUST SAY THE SAME THING AS THE SCHEMA.
+ *
+ * db/schema.sql is what a FRESH database is built from; db/RUN-ME-*.sql is what an EXISTING one
+ * is brought forward with. They describe the same tables, which makes them exactly the "two
+ * implementations of one rule" CLAUDE.md warns about -- and a drift here is the worst kind,
+ * because it shows up as a screen that works on a new deployment and fails on a live one.
+ *
+ * So: every table and column the migration creates must also be in schema.sql, and every column
+ * the CODE needs on those tables must be in BOTH. */
+test('the RUN-ME migration and schema.sql agree about the new tables', () => {
+  const migFiles = fs.readdirSync(path.join(ROOT, 'db')).filter(f => /^RUN-ME-.*\.sql$/.test(f));
+  assert.ok(migFiles.length, 'there should be a RUN-ME migration to check');
+  const mig = migFiles.map(f => fs.readFileSync(path.join(ROOT, 'db', f), 'utf8')).join('\n');
+  const schema = fs.readFileSync(path.join(ROOT, 'db/schema.sql'), 'utf8');
+
+  const tablesIn = sql => {
+    const out = {};
+    for (const m of sql.matchAll(/create table if not exists (\w+) \(([\s\S]*?)\n\);/g)) {
+      out[m[1]] = new Set([...m[2].matchAll(/^\s{2}(\w+)\s+/gm)].map(x => x[1]));
+    }
+    for (const m of sql.matchAll(/alter table if exists (\w+) add column if not exists (\w+)/g)) {
+      (out[m[1]] = out[m[1]] || new Set()).add(m[2]);
+    }
+    return out;
+  };
+  const inMig = tablesIn(mig), inSchema = tablesIn(schema);
+  assert.ok(Object.keys(inMig).length >= 4, 'the table scanner stopped seeing the migration');
+
+  for (const [table, cols] of Object.entries(inMig)) {
+    assert.ok(inSchema[table], 'db/schema.sql has no "' + table + '", but the migration creates it — a fresh database would not get it');
+    for (const c of cols) {
+      assert.ok(inSchema[table].has(c), table + '.' + c + ' is in the migration but not in db/schema.sql');
+    }
+  }
+
+  /* And the enum values the code writes have to be added by the migration, not only declared in
+     schema.sql -- an existing database gets its types ALTERed, never re-created. */
+  for (const v of ['reserved', 'unreserved']) {
+    assert.match(mig, new RegExp("alter type movement_type add value if not exists '" + v + "'"),
+      "the migration must add the '" + v + "' movement type to a live database");
+  }
+  assert.match(mig, /alter type unit_status\s+add value if not exists 'reserved'/);
+  for (const t of ['po_status', 'pending_status']) {
+    assert.match(mig, new RegExp('create type ' + t + ' as enum'), t + ' must be created by the migration too');
+  }
+
+  /* Postgres refuses to USE an enum value in the transaction that adds it, and the Supabase SQL
+     editor sends a whole paste as one transaction. If the parts were ever merged into one, the
+     tables that reference po_status and pending_status would fail on every live database and
+     succeed on every fresh one -- which is the drift this whole test exists to catch. */
+  const parts = [...mig.matchAll(/^-- PART (\d) of 3/gm)].map(m => Number(m[1]));
+  assert.deepEqual(parts, [1, 2, 3], 'the migration must stay split into three separately-run parts');
+  assert.ok(mig.indexOf("add value if not exists 'reserved'") < mig.indexOf('-- PART 2 of 3'),
+    'the enum changes must be in part 1, run and committed before anything uses them');
+  assert.ok(mig.indexOf('create table if not exists pending_sales') > mig.indexOf('-- PART 3 of 3'),
+    'a table using a new enum type belongs after that type is committed');
+});
