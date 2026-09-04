@@ -7,9 +7,8 @@ IMEI units, credit sales via financing partners, discounts, soft-cancel, stock m
 yearly reports).
 
 The product name lives in one place, `api/_lib/brand.js`, and can be overridden per deployment
-with an `APP_NAME` environment variable. The folder, the package and the database stay named
-`business-operator`: those are internal, and renaming them would break the deployment's Root
-Directory setting for nothing.
+with an `APP_NAME` environment variable. The repository, the package and the database keep the
+name `business-operator`: those are internal, and renaming them buys nothing.
 
 - **The whole story:** [`docs/CLAUDE_CODE_HANDOFF.md`](docs/CLAUDE_CODE_HANDOFF.md) (what it is, every feature, the data dictionary).
 - **What the code agrees on:** [`docs/API-CONTRACT.md`](docs/API-CONTRACT.md).
@@ -42,7 +41,8 @@ npm test                       # the gate
 npm run dev                    # local: serves public/ + the API against an in-memory fake, seeded
 ```
 
-Deploy: Vercel project with **Root Directory = `business-operator`**, env vars from `.env.example`.
+Deploy: a Vercel project on this repository with the **Root Directory left empty** (the app *is*
+the repository root), env vars from `.env.example`.
 Database: a **separate Supabase project** (`business-operator`, same org as hope-pmo / hoop-pmo,
 eu-west-1) — run `db/schema.sql` in its SQL editor once.
 

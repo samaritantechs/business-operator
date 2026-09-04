@@ -78,16 +78,20 @@ New project from this repository, and the one setting that matters:
 
 | Setting | Value |
 |---|---|
-| **Root Directory** | `business-operator` |
+| **Root Directory** | ***leave empty*** |
 | Framework preset | Other |
 | Build command | *(none)* |
 | Output directory | *(none)* |
 | Install command | `npm install` |
 
-**Root Directory is the whole trick.** The repository root is HOPE PMO, with its own
-`vercel.json` and its own `api/`. Pointing this project at the subfolder gives Business
-Operator its own routes, its own functions and its own deployments, with no chance of one
-app's API answering the other's request.
+**Root Directory must be EMPTY.** This app is the whole repository -- `api/`, `public/` and
+`vercel.json` sit at its root -- so there is no subfolder to point at. A value there makes
+Vercel look for a directory that does not exist and the build fails outright with *"The
+specified Root Directory ... does not exist"*.
+
+> It was not always so. The app was first built as a `business-operator/` folder inside the
+> hope-pmo-v2 repository, and every instruction then said to set Root Directory to that
+> folder. It has its own repository now. If you find that older advice anywhere, it is stale.
 
 There is **no build step** by design: `public/` is served exactly as written, so what you read
 in the repository is what runs in the browser.

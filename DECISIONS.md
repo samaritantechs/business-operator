@@ -2,11 +2,13 @@
 
 Routine calls made while building, so nobody has to re-derive them. Newest at the bottom.
 
-1. **Where it lives.** A self-contained `business-operator/` folder inside `hope-pmo-v2`, mirroring
-   HOPE PMO's layout file-for-file (`public/` no-build pages, `api/` Vercel functions, `api/_lib/`
-   logic, `db/`, `test/` with the same fake PostgREST, `migrate/`). Deploy it as its **own Vercel
-   project** with *Root Directory = `business-operator`*. When a separate GitHub repo is wanted,
-   `git subtree split -P business-operator` lifts it out unchanged.
+1. **Where it lives.** Its own repository, `samaritantechs/business-operator`, with the app at
+   the root and Vercel's Root Directory left empty. It began as a `business-operator/` folder
+   inside `hope-pmo-v2` because that is where the work started, and moved out once it was clear
+   it shares no code, no database and no deployment with HOPE PMO -- keeping a second copy
+   would have meant two places to fix every bug, one of them going quietly stale.
+
+
 2. **Its own database.** A **third Supabase project, `business-operator`**, in the same org as
    `hope-pmo` and `hoop-pmo`, same region (eu-west-1), start on micro. Nothing here reads or writes
    the HOPE or HOOP databases; the only credentials it knows are its own `SUPABASE_URL` and
