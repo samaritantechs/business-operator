@@ -1,5 +1,6 @@
 import { rows, rowsAll, num, money, text, badRequest, isAdminLevel, isManagerLevel, vendorScope, scopedVendor,
-  periodBounds, addDaysKey, eatStart, keyOf, currencyOf, stockStatus, vendorSalesSummary, stockValueByVendor, vendorsList } from './_shared.js';
+  periodBounds, addDaysKey, eatStart, keyOf, currencyOf, stockStatus, vendorSalesSummary, stockValueByVendor, vendorsList,
+  forbidden, permissionsOf } from './_shared.js';
 import { requireManager } from '../auth.js';
 
 /* =====================================================================================
@@ -83,6 +84,14 @@ async function dashboard(db, user, args, nowMs) {
   const vendor = await scopedVendor(db, user, args);
   const b = periodBounds(nowMs);
   const own = !isAdminLevel(user.role) && !isManagerLevel(user.role);     // a seller sees only their own sales
+  /* A business that turns the dashboard off for its sellers means it: this used to hide the nav
+     button and nothing else, so the figures the owner had chosen to keep from the counter --
+     the day's takings for the whole shop, and the value of everything on the shelves -- were
+     still one request away. reports.js has always enforced its own seller permission here;
+     this is the same rule for the same reason. */
+  if (own && permissionsOf(vendor || user.vendor).dashboardVisible === false) {
+    throw forbidden('Dashibodi haijaruhusiwa kwa wauzaji wa biashara hii. / The dashboard is not enabled for sellers of this business.');
+  }
   const branchId = text(args.branch_id);
 
   /* ONE read of completed sales gives today, week, month and the 7-day chart: the window

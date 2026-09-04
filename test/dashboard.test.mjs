@@ -97,3 +97,25 @@ test('the RPC path answers the same as the paged fallback', async () => {
   const b = await FN.managerDashboard(bookDb(), MGR(), {}, NOW);
   assert.deepEqual(a, b);
 });
+
+/* Turning the dashboard off for sellers used to hide the nav button and nothing else, so the
+   day's takings for the whole shop and the value of the shelves were still one request away
+   from any seller who asked. reports.js enforces its seller permission; this one now does too. */
+test('dashboard: a business that hides it from sellers actually hides it', async () => {
+  const book = richBook();
+  book.vendors.find(v => v.id === 'V1').permissions = { dashboardVisible: false };
+  const db = bookDb(book);
+  await assert.rejects(FN.dashboard(db, userOf(book, 'SEL1'), {}, NOW), e => {
+    assert.equal(e.status, 403);
+    assert.match(e.message, /not enabled for sellers/);
+    return true;
+  });
+  // The people who run the business still see it.
+  assert.ok((await FN.dashboard(db, userOf(book, 'ADM1'), {}, NOW)).today_total > 0);
+  // And a business that leaves it on is untouched -- including by the default, which is on.
+  const open = bookDb();
+  assert.ok((await FN.dashboard(open, userOf(richBook(), 'SEL1'), {}, NOW)).self);
+  const dflt = richBook();
+  dflt.vendors.find(v => v.id === 'V1').permissions = {};
+  assert.ok((await FN.dashboard(bookDb(dflt), userOf(dflt, 'SEL1'), {}, NOW)).self, 'the default is visible');
+});
