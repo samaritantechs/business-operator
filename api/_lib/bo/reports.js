@@ -221,14 +221,24 @@ async function cashDueReport(db, s) {
      no sale behind it yet) and what was applied today (part of a sale total that was paid
      earlier). Bounded to today, and the read is skipped entirely when the table is not there --
      a database that has not run the migration has no holds to account for. */
-  let deposits = [];
+  let deposits = [], depositsFailed = '';
   try {
-    deposits = await rowsAll(db, 'pending_sales', q => {
+    /* `rows`, not `rowsAll`: fetchAll appends .range() per page, which overwrites the very
+       'limit' key .limit() sets, so a cap written inside a paged read does not exist. This one
+       has to be a real cap, so it is a single bounded read. */
+    deposits = await rows(db, 'pending_sales', q => {
       let x = q.select('id, vendor_id, deposit, status, created_by, created_at, closed_at, sale_group_id').gt('deposit', 0);
       if (s.vendor_id) x = x.eq('vendor_id', s.vendor_id);
-      return x.gte('created_at', addDaysKey(s.today, -365)).limit(2000);
+      return x.gte('created_at', addDaysKey(s.today, -365)).order('created_at', { ascending: false }).limit(2000);
     });
-  } catch (e) { deposits = []; }                      // no holds table yet: nothing to account for
+  } catch (e) {
+    /* A bare catch put "the table is not there yet" and "the database just timed out" in the same
+       branch, and both produced silently wrong balances -- the exact silent shortfall the deposit
+       columns were added to remove. Only the missing table is normal; anything else is said. */
+    const msg = String((e && e.message) || e);
+    if (/does not exist|schema cache|PGRST205|42P01/i.test(msg)) deposits = [];
+    else { deposits = []; depositsFailed = msg.slice(0, 140); }
+  }
   const receipts = await rowsAll(db, 'cash_receipts', q => {
     let x = q.select('seller_id, vendor_id, cash_amount, lipa_amount').gte('received_at', b.today).lt('received_at', b.tomorrow);
     if (s.vendor_id) x = x.eq('vendor_id', s.vendor_id);
@@ -241,10 +251,15 @@ async function cashDueReport(db, s) {
   for (const r of sales) if (r.group_id) sellerOfGroup.set(String(r.group_id), r.seller_id);
   for (const r of sales) { const a = rowFor(r.seller_id); const k = bucketOf(r.payment_method); if (k === 'lipa') a.lipa_sales += num(r.total); else if (k === 'credit') a.credit_sales += num(r.total); else a.cash_sales += num(r.total); }
   for (const r of receipts) { const a = rowFor(r.seller_id); a.cash_received += num(r.cash_amount); a.lipa_received += num(r.lipa_amount); }
+  /* THE DAY IS THE EAT DAY. Slicing a UTC timestamp gave the wrong date for the three hours
+     after midnight East Africa time, so a deposit taken or a hold collected at 01:30 fell on the
+     day before -- while the SALE it belongs to was counted for today by periodBounds, which does
+     use the EAT clock. The two halves of one balance disagreed and a seller was billed for money
+     they never took. Every day comparison in this report goes through the same clock. */
+  const dayOf = ts => (ts ? todayKey(Date.parse(ts)) : '');
   for (const d of deposits) {
-    const taken = String(d.created_at || '').slice(0, 10) === s.today;
-    if (taken && d.created_by) rowFor(d.created_by).dep_taken += num(d.deposit);
-    const applied = d.status === 'completed' && String(d.closed_at || '').slice(0, 10) === s.today;
+    if (dayOf(d.created_at) === s.today && d.created_by) rowFor(d.created_by).dep_taken += num(d.deposit);
+    const applied = d.status === 'completed' && dayOf(d.closed_at) === s.today;
     const who = applied && d.sale_group_id ? sellerOfGroup.get(String(d.sale_group_id)) : null;
     if (who) rowFor(who).dep_applied += num(d.deposit);
   }
@@ -265,6 +280,10 @@ async function cashDueReport(db, s) {
     col('cash_received', 'Cash Received', R), col('lipa_received', 'Lipa Received', R),
     col('dep_taken', 'Deposits Taken', R), col('dep_applied', 'Deposits Applied', R), col('balance', 'Balance', R)]);
   const meta = [];
+  if (depositsFailed) {
+    meta.push('WARNING: the hold deposits could not be read (' + depositsFailed + '), so the Deposits columns '
+      + 'are blank and every Balance below may be wrong by the deposits taken or applied today. Try again in a moment.');
+  }
   if (out.some(r => r.dep_taken || r.dep_applied)) {
     meta.push('Deposits Taken is cash held today against a hold that has not been collected. '
       + 'Deposits Applied is the part of today\u2019s sales that was paid on an earlier day. '

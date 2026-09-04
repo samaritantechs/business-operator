@@ -295,3 +295,19 @@ test('and a write that exists to set an expired-absent column stops refusing onc
   const ok = await PRODUCTS.updateProduct(migrated, ADM(), { id: 'P3', cost_price: 3200 }, NOW);
   assert.equal(ok.product.cost_price, 3200);
 });
+
+test('receiving a delivery SAYS when it could not record the cost', async () => {
+  /* The admin hint promises "receiving it updates the cost price for you". On a database without
+     the column that quietly did nothing -- the same lie requireColumn was added to stop on the
+     products form. The stock is in by now and must stay in, so this reports rather than refuses. */
+  const { FN: PO } = await import('../api/_lib/bo/purchasing.js');
+  const db = oldDb();
+  const po = await PO.createPurchaseOrder(db, ADM(), { items: [{ product_id: 'P3', qty: 40, unit_cost: 2800 }] }, NOW);
+  const before = db._dump('products').find(p => p.id === 'P3').stock;
+
+  const r = await PO.receivePurchaseOrder(db, ADM(), { id: po.id }, NOW);
+  assert.equal(db._dump('products').find(p => p.id === 'P3').stock, before + 40, 'the delivery still lands');
+  assert.deepEqual(r.cost_unrecorded, ['Phone Cover']);
+  assert.match(r.message, /cost price could NOT be saved/);
+  assert.match(r.message, /RUN-ME-002/);
+});

@@ -1,5 +1,6 @@
 import { rows, rowsAll, one, insertOne, insertMany, update, remove, num, int, money, fmtMoney, text, mustText, iso,
-  badRequest, notFound, vendorScope, requireVendorUser, currencyOf, sel, PRODUCT_COLS } from './_shared.js';
+  badRequest, notFound, vendorScope, requireVendorUser, currencyOf, sel, todayKey,
+  isAdminLevel, isManagerLevel, PRODUCT_COLS } from './_shared.js';
 import { requireAdmin } from '../auth.js';
 import { changeStock, claimUnits } from './stock.js';
 import { mustBranch, writeVendor } from './stockops.js';
@@ -67,7 +68,10 @@ async function loadHolds(db, { vendorId, status, id, nowMs, limit = 200 }) {
     list.push({ ...it, qty: num(it.qty), list_price: num(it.list_price), discount: num(it.discount), total: num(it.total) });
     byHold.set(String(it.pending_id), list);
   }
-  const today = nowMs ? iso(nowMs).slice(0, 10) : null;
+  // The EAT day, not the UTC one: iso().slice(0,10) called a hold due yesterday "not overdue"
+  // for the three hours after midnight East Africa time, and filed a genuinely lapsed one as
+  // cancelled rather than expired.
+  const today = nowMs ? todayKey(nowMs) : null;
   return heads.map(h => {
     const list = byHold.get(String(h.id)) || [];
     const total = money(list.reduce((a, i) => a + i.total, 0));
@@ -150,7 +154,26 @@ export const FN = {
     if (!vendorId) throw badRequest('Chagua biashara kuona zilizowekwa. / Pick a business to see its holds.');
     const status = text(args.status);
     if (status && !['held', 'completed', 'cancelled', 'expired'].includes(status)) throw badRequest('Hali iwe held, completed, cancelled au expired. / Status must be held, completed, cancelled or expired.');
-    return { rows: await loadHolds(db, { vendorId, status, nowMs }), currency: currencyOf(user.vendor) };
+    const list = await loadHolds(db, { vendorId, status, nowMs });
+
+    /* A SELLER SEES WHAT IS HELD, NOT WHO IT IS HELD FOR. The reason this screen is open to
+       sellers at all is so nobody promises a handset that is already spoken for -- that needs the
+       ITEMS. It does not need a colleague's customer's name, phone and notes, and saleReceipt,
+       200 lines away in sales.js, refuses exactly those two fields on exactly this reasoning:
+       "let me just look up that sale" is not a reason to hand one member of staff another's
+       customer list. This screen handed it over for every hold in the business.
+
+       Their own holds are untouched -- they took those details and need them to hand the goods
+       over -- and an admin or a manager sees everything, as everywhere else. */
+    const own = !isAdminLevel(user.role) && !isManagerLevel(user.role);
+    if (!own) return { rows: list, currency: currencyOf(user.vendor) };
+    const mine = h => String(h.created_by) === String(user.id);
+    return {
+      rows: list.map(h => (mine(h) ? h : {
+        ...h, customer_name: 'Held for a customer', customer_phone: '', notes: '', cancel_reason: '',
+      })),
+      currency: currencyOf(user.vendor),
+    };
   },
 
   /** Hold it. The stock leaves the available count now, which is the entire point.
@@ -161,8 +184,17 @@ export const FN = {
     if (!items.length) throw badRequest('Ongeza angalau bidhaa moja ya kuweka. / Add at least one item to hold.');
     /* A hold with nobody's name on it is missing stock, so unlike a sale the name is required. */
     const customerName = mustText(args.customer_name, 'Jina la mteja / The customer\u2019s name');
-    const branch = await mustBranch(db, vendorId, args.branch_id) || (user.branch_id ? { id: user.branch_id } : null);
-    const branchId = branch ? branch.id : null;
+    /* recordSale checks the shop is real AND OPEN; this checked neither for the fallback branch.
+       A hold taken at a shop that has since closed could never be collected -- recordSale refuses
+       it, the rollback puts it straight back on hold, and the stock sits off the shelf for a sale
+       nobody can ever ring up, with "Put it back" the only way out. */
+    const named = await mustBranch(db, vendorId, args.branch_id);
+    const branchId = named ? named.id : (user.branch_id || null);
+    if (branchId) {
+      const br = await one(db, 'branches', q => q.select('id, active').eq('id', branchId).eq('vendor_id', vendorId));
+      if (!br) throw badRequest('Duka hilo si la biashara yako. / That shop does not belong to your business.');
+      if (!br.active) throw badRequest('Duka hilo limefungwa. / That shop is closed.');
+    }
 
     const wanted = [...new Set(items.map(i => String((i && i.product_id) || '')))].filter(Boolean);
     const products = wanted.length ? await rows(db, 'products', q => q.select(sel('products', PRODUCT_COLS)).in('id', wanted).eq('vendor_id', vendorId).limit(500)) : [];

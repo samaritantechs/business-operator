@@ -96,6 +96,11 @@ await step('holding a phone takes it off the till, and collecting sells that exa
       return (p.units || []).map(u => u.id);
     };
     const before = await free();
+    /* The dev server's book is in memory and lives as long as the process, so a smoke run against
+       a server that has already been smoked has fewer handsets than it started with. Say that,
+       rather than failing later with "Unit null does not belong to ..." and sending the next
+       person hunting a bug in the hold path. */
+    if (!before.length) throw new Error('no free handsets left in the dev book — restart `npm run dev` and re-run');
     const h = await BO.srv('createPendingSale', { items: [{ product_id: 'P1', qty: 1, unit_ids: [before[0]] }], customer_name: 'Smoke Customer', deposit: 50000 });
     const during = await free();
     const done = await BO.srv('completePendingSale', { id: h.id, payment_method: 'Cash' });
@@ -130,7 +135,14 @@ await step('raise a purchase order and receive it short', async () => {
   if (out.cost !== 2800) throw new Error('the cost did not follow the delivery: ' + out.cost);
   if (out.closed !== false || out.outstanding !== 12) throw new Error('a short delivery must leave the order open, 12 owed; got ' + JSON.stringify(out));
   await page.evaluate(() => { switchTab('po'); BO.tabs.po.load(); });
-  await page.waitForSelector('.po-card', { timeout: 10000 });
+  await page.waitForSelector('.po-card', { timeout: 10000 }).catch(async e => {
+    const dump = await page.evaluate(() => {
+      const el = document.getElementById('poContent');
+      return { tab: (typeof S !== 'undefined' ? S.tab : '?'), html: el ? el.innerHTML.slice(0, 400) : 'NO ELEMENT',
+               paneHidden: (document.getElementById('tab-po') || {}).className };
+    });
+    throw new Error('no .po-card — ' + JSON.stringify(dump));
+  });
   await page.screenshot({ path: OUT + '08-purchase-orders.png' });
   console.log('       stock ' + out.before + ' -> ' + out.stock + ', cost now ' + out.cost + ', ' + out.outstanding + ' still owed');
 });

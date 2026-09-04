@@ -226,3 +226,48 @@ test('a hold deposit is cash on a different day, and the Cash Due report now say
   const rep = await report(db, ADM(), { type: 'cashdue' });
   assert.ok(rep.meta.some(m => /Deposits Taken/.test(m)), 'and the report explains the two columns');
 });
+
+test('the Cash Due deposit columns use the East Africa day, like every other figure on it', async () => {
+  /* Slicing a UTC timestamp put a deposit taken at 01:30 EAT on the day before, while the SALE it
+     belongs to was counted for today by periodBounds, which does use the EAT clock. The two
+     halves of one balance disagreed and a seller was billed for money they never took. */
+  const { FN: HOLDS } = await import('../api/_lib/bo/pending.js');
+  const at0130EAT = Date.parse('2026-09-04T22:30:00Z');       // 01:30 on 5 Sep, East Africa
+  const db = bookDb();
+  const h = await HOLDS.createPendingSale(db, SEL(), {
+    items: [{ product_id: 'P3', qty: 20, list_price: 5000 }], customer_name: 'Neema', deposit: 40000,
+  }, at0130EAT);
+  await HOLDS.completePendingSale(db, SEL(), { id: h.id, payment_method: 'Cash' }, at0130EAT);
+
+  const rep = await REPORTS.reportData(db, ADM(), { type: 'cashdue' }, at0130EAT);
+  const juma = rep.rows.find(r => /Juma/.test(r.seller));
+  assert.equal(juma.dep_taken, 40000, 'taken in the small hours still counts for that shop-day');
+  assert.equal(juma.dep_applied, 40000, 'and so does applied');
+});
+
+test('a Cash Due report that could not read the deposits SAYS so', async () => {
+  /* A bare catch put "the table is not there yet" and "the database just timed out" in the same
+     branch, and both produced silently wrong balances -- the exact silent shortfall the deposit
+     columns exist to remove. */
+  const db = bookDb();
+  const broken = new Proxy(db, {
+    get(t, k) {
+      if (k !== 'from') return t[k];
+      return name => {
+        if (name !== 'pending_sales') return t.from(name);
+        const q = t.from(name);
+        q.then = (res) => res({ data: null, error: { code: '57014', message: 'canceling statement due to statement timeout' } });
+        return q;
+      };
+    },
+  });
+  const rep = await REPORTS.reportData(broken, ADM(), { type: 'cashdue' }, NOW);
+  assert.ok(rep.rows.length, 'the report still opens');
+  const warn = rep.meta.find(m => /WARNING/.test(m));
+  assert.ok(warn, 'and it does not pretend the deposits were zero');
+  assert.match(warn, /Balance below may be wrong/, 'it says which figures to distrust');
+  /* The reason reaches the reader through friendlyDbError, so a shop is told "the database is
+     briefly unreachable", not "canceling statement due to statement timeout". That is right --
+     what matters is that SOMETHING is said, not that Postgres is quoted. */
+  assert.match(warn, /briefly unreachable|haupatikani/);
+});

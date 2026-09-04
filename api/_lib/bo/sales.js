@@ -362,6 +362,12 @@ async function saleReceipt(db, user, args) {
     throw forbidden('That is not your sale. Ask the business admin for a copy.');
   }
 
+  /* The rows come back ordered by legacy_id, which is TEXT. Re-ordered here by the number inside
+     the label so both the range above and the lines below run the way they were rung up. */
+  const labelOf = r => String((r && r.legacy_id) || '');
+  const seq = r => { const m = /(\d+)\s*$/.exec(labelOf(r)); return m ? parseInt(m[1], 10) : Number.MAX_SAFE_INTEGER; };
+  const ordered = [...list].sort((a, b) => seq(a) - seq(b));
+
   const vendor = await vendorById(db, list[0].vendor_id);
   if (!vendor) throw notFound('That business no longer exists.');
   const names = await nameLookups(db, list);
@@ -375,7 +381,7 @@ async function saleReceipt(db, user, args) {
 
      The cancelled lines stay ON the receipt, marked, because somebody holding the old slip needs
      to see what happened to them. They just stop counting. */
-  const items = list.map(r => ({
+  const items = ordered.map(r => ({
     product_name: r.product_name, brand: r.brand || '', model: r.model || '', imei: r.imei || '',
     qty: num(r.qty), list_price: num(r.list_price), discount: num(r.discount), price: num(r.price), total: num(r.total),
     cancelled: r.status === 'cancelled',
@@ -394,7 +400,10 @@ async function saleReceipt(db, user, args) {
     group_id: gid,
     /* The label people read out over the phone. A checkout of three lines wrote SALE-0007,
        SALE-0008 and SALE-0009, so the receipt names the range rather than picking one. */
-    receipt_no: list.length > 1 ? (first.legacy_id || '') + ' – ' + (list[list.length - 1].legacy_id || '') : (first.legacy_id || shortId(first.id)),
+    /* SALE-9999 sorts after SALE-10000 as text, so a checkout that crossed the ten-thousandth
+       sale printed a range running backwards with a line missing from the middle -- and that
+       number is what gets read out over the phone. Ordered by the digits. */
+    receipt_no: list.length > 1 ? labelOf(ordered[0]) + ' – ' + labelOf(ordered[ordered.length - 1]) : (first.legacy_id || shortId(first.id)),
     sold_at: first.sold_at, currency: currencyOf(vendor),
     vendor: { name: vendor.name, phone: vendor.phone || '', address: vendor.address || '', logo_url: vendor.logo_url || '', business_type: vendor.business_type || '' },
     branch_name: extra.branch_name || '', seller_name: first.seller_name || '',

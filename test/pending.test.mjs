@@ -19,6 +19,7 @@ const ADM = () => userOf(richBook(), 'ADM1');
 const SEL = () => userOf(richBook(), 'SEL1');
 const ADM2 = () => userOf(richBook(), 'ADM2');
 const MGR = () => userOf(richBook(), 'MGR');
+const SEL2 = () => userOf(richBook(), 'SEL2');
 const product = (db, id) => db._dump('products').find(p => p.id === id);
 const unit = (db, id) => db._dump('product_units').find(u => u.id === id);
 const bs = (db, p, b) => (db._dump('branch_stock').find(x => x.product_id === p && x.branch_id === b) || { qty: 0 }).qty;
@@ -320,4 +321,50 @@ test('every handset on a hold is charged the price IT was held at', async () => 
   assert.equal(r.grand_total, 650000, 'and the customer is charged 650,000, not 700,000');
   const sold = db._dump('sales').filter(s => s.group_id === r.group_id);
   assert.deepEqual(sold.map(s => s.discount).sort((a, b) => a - b), [0, 50000], 'each handset keeps its own discount');
+});
+
+/* ------------------------------------------------------------------ the second review round */
+
+test('a seller sees WHAT is held, not WHO it is held for', async () => {
+  /* The reason this screen is open to sellers is so nobody promises a handset already spoken
+     for -- that needs the items. It does not need a colleague's customer's name, phone and
+     notes, and saleReceipt refuses exactly those two fields on exactly that reasoning. */
+  const db = bookDb();
+  await hold(db, SEL2(), { items: [{ product_id: 'P3', qty: 1 }], customer_name: 'Neema Mushi',
+    customer_phone: '0712000111', notes: 'Her brother is paying' });
+
+  const asAsha = (await FN.pendingSales(db, SEL2(), {}, NOW)).rows[0];
+  assert.equal(asAsha.customer_name, 'Neema Mushi', 'her own hold is hers to see');
+  assert.equal(asAsha.customer_phone, '0712000111');
+
+  const asJuma = (await FN.pendingSales(db, SEL(), {}, NOW)).rows[0];
+  assert.equal(asJuma.customer_phone, '', 'another seller gets no phone');
+  assert.equal(asJuma.notes, '', 'and no notes');
+  assert.notEqual(asJuma.customer_name, 'Neema Mushi', 'and no name');
+  assert.equal(asJuma.items.length, 1, 'but does see what is held, which is the point of the screen');
+  assert.equal(asJuma.total, asAsha.total);
+
+  const asAdmin = (await FN.pendingSales(db, ADM(), {}, NOW)).rows[0];
+  assert.equal(asAdmin.customer_phone, '0712000111', 'the owner sees everything, as everywhere else');
+});
+
+test('a hold cannot be taken at a shop that is closed', async () => {
+  /* recordSale refuses to sell from a closed shop. A hold that ignored that reserved stock for a
+     sale the system would never let anybody ring up: the rollback puts it back on hold for ever,
+     and "Put it back" is the only escape. */
+  const db = bookDb();
+  db._dump('branches').find(b => b.id === 'B1').active = false;
+  const before = product(db, 'P3').stock;
+  await rejects(FN.createPendingSale(db, SEL(), { items: [{ product_id: 'P3', qty: 3 }], customer_name: 'X' }, NOW), 400, /closed/);
+  assert.equal(product(db, 'P3').stock, before, 'and nothing left the shelf');
+});
+
+test('overdue is decided on the East Africa clock, not on UTC', async () => {
+  /* At 01:00 EAT the UTC date is still yesterday, so a hold due yesterday read as not overdue --
+     and releasing it filed a genuinely lapsed hold as cancelled rather than expired. */
+  const db = bookDb();
+  await hold(db, null, { items: [{ product_id: 'P3', qty: 1 }], customer_name: 'Late', hold_until: '2026-09-04' });
+  const at0100EAT = Date.parse('2026-09-04T22:00:00Z');      // 01:00 on 5 Sep, East Africa
+  const list = (await FN.pendingSales(db, ADM(), {}, at0100EAT)).rows;
+  assert.equal(list[0].overdue, true, 'it is the 5th in the shop, and the hold was due on the 4th');
 });

@@ -1,5 +1,5 @@
 import { rows, rowsAll, one, insertOne, insertMany, update, remove, num, int, money, fmtMoney, text, mustText, iso,
-  badRequest, notFound, vendorScope, requireVendorUser, currencyOf, sel, PRODUCT_COLS } from './_shared.js';
+  badRequest, notFound, vendorScope, requireVendorUser, currencyOf, sel, requireColumn, PRODUCT_COLS } from './_shared.js';
 import { requireAdmin } from '../auth.js';
 import { changeStock } from './stock.js';
 import { mustBranch, writeVendor } from './stockops.js';
@@ -172,6 +172,7 @@ export const FN = {
     }
 
     let taken = 0;
+    const costUnrecorded = [];
     for (const p of plan) {
       const product = products.find(x => String(x.id) === String(p.item.product_id));
       /* CLAIM THE LINE BEFORE THE STOCK MOVES. The header of this file promised that receiving
@@ -203,7 +204,14 @@ export const FN = {
          months ago, and every profit figure quietly drifts away from what the shop is really
          paying. A zero on the order means "no cost recorded", not "free", so it is left alone. */
       if (p.item.unit_cost > 0 && num(product.cost_price) !== p.item.unit_cost) {
-        await update(db, 'products', { cost_price: p.item.unit_cost, updated_at: iso(nowMs) }, q => q.eq('id', product.id));
+        /* The admin hint says "receiving it updates the cost price for you", so a receipt that
+           quietly does not is the same lie requireColumn was added to stop on the products form.
+           The stock IS in by now and must stay in, so this reports rather than refuses: the
+           delivery landed, the cost did not, and the message says which. */
+        try {
+          requireColumn('products', 'cost_price', 'cost prices');
+          await update(db, 'products', { cost_price: p.item.unit_cost, updated_at: iso(nowMs) }, q => q.eq('id', product.id));
+        } catch (e) { costUnrecorded.push(product.name); }
       }
       taken += p.take;
     }
@@ -217,8 +225,12 @@ export const FN = {
     }
     return {
       message: taken + ' item' + (taken === 1 ? '' : 's') + ' received into stock'
-        + (stillOwed ? '. ' + stillOwed + ' still owed on ' + po.legacy_id + '.' : '. ' + po.legacy_id + ' is complete.'),
-      closed: !stillOwed, outstanding: stillOwed,
+        + (stillOwed ? '. ' + stillOwed + ' still owed on ' + po.legacy_id + '.' : '. ' + po.legacy_id + ' is complete.')
+        + (costUnrecorded.length
+          ? ' Bei ya kununulia HAIKUHIFADHIWA (' + costUnrecorded.join(', ') + ') -- endesha db/RUN-ME-002. / '
+            + 'The cost price could NOT be saved for ' + costUnrecorded.join(', ') + ' — this database has not run db/RUN-ME-002 yet.'
+          : ''),
+      closed: !stillOwed, outstanding: stillOwed, cost_unrecorded: costUnrecorded,
     };
   },
 
