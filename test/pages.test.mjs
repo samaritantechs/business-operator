@@ -81,3 +81,21 @@ test('vercel.json routes every page the app links to, and never caches the scrip
   const headers = JSON.stringify(v.headers || []);
   assert.ok(/\/bo\/.*\.js|\/bo\/\(\.\*\)|\/bo\//.test(headers), 'the tab scripts carry a no-cache header (a phone must never run last week\'s tab against this week\'s API)');
 });
+
+/* AND THE SUITE ITSELF MUST OPEN ON A FRESH CLONE.
+ *
+ * api/_lib/supabase.js builds its client at import time. The test env that keeps that from
+ * throwing therefore has to be set before the first api/ import is EVALUATED -- which, in ESM,
+ * means it cannot live in the body of a module that imports api/ itself. It did, once, and the
+ * suite passed only on a machine that happened to have a real .env exported into the shell.
+ * A checkout with no .env got seventeen red files blaming Supabase for a fault in test/. */
+test('the shared fixture sets the test env before it imports anything from api/', () => {
+  const book = readFileSync(new URL('./_book.mjs', import.meta.url).pathname, 'utf8');
+  const imports = [...book.matchAll(/^import\s.*?from\s*'([^']+)'|^import\s*'([^']+)'/gm)].map(m => m[1] || m[2]);
+  assert.equal(imports[0], './_env.mjs', 'the FIRST import of test/_book.mjs must be ./_env.mjs');
+  const env = readFileSync(new URL('./_env.mjs', import.meta.url).pathname, 'utf8');
+  for (const key of ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY']) {
+    assert.match(env, new RegExp('process\\.env\\.' + key + '\\s*='), key + ' must have a test default');
+  }
+  assert.doesNotMatch(book, /process\.env\.SUPABASE_/, 'the defaults belong in _env.mjs, where they run in time');
+});

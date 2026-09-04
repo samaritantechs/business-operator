@@ -22,8 +22,6 @@ import assert from 'node:assert/strict';
 import { fakeDb, setPageCap } from './fake-db.mjs';
 import { emptyBook, PASSWORD } from './_book.mjs';
 
-process.env.SUPABASE_URL = process.env.SUPABASE_URL || 'https://test.invalid';
-process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'test-key';
 delete process.env.RESEND_API_KEY;
 const { boApi } = await import('../api/_lib/bo-core.js');
 const { marketApi, clearMarketCache } = await import('../api/_lib/bo/market.js');

@@ -5,11 +5,9 @@
    partners, a day of sales, lendings, a cash receipt, settings and hints. Every id is a readable
    string so a failing assertion names what it is looking at. Deliberately small: tests are about
    the SHAPE of reads and rules, not volume (test/speed.test.mjs builds its own big book). */
+import './_env.mjs';                       // MUST be first: sets the env api/_lib/supabase.js reads at import
 import { fakeDb } from './fake-db.mjs';
 import { hashPassword } from '../api/_lib/auth.js';
-
-process.env.SUPABASE_URL = process.env.SUPABASE_URL || 'https://test.invalid';
-process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'test-key';
 
 export const NOW = Date.parse('2026-09-02T09:00:00Z');   // Wednesday 12:00 EAT
 export const TODAY = '2026-09-02';
