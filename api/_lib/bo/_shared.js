@@ -101,6 +101,13 @@ export function requireColumn(table, col, what) {
     + 'Ask the manager to run db/RUN-ME-002 in Supabase, then try again.');
 }
 
+/* AND A WRITE THAT LANDED CANNOT ASK ANY MORE. requireColumn only knows what this process has
+   already been refused, so on a cold instance -- nothing touched, nothing learned -- it passes,
+   the insert IS the discovery, and the retry succeeds one column short. Undoing a row that is
+   already correct in every other respect is worse than saying so, so the caller asks afterwards
+   and reports. */
+export function columnAbsent(table, col) { return isAbsent(table, col); }
+
 /* PostgREST says it two ways: 42703 on a read ("column products.cost_price does not exist") and
    PGRST204 on a write ("Could not find the 'unit_cost' column of 'sales' in the schema cache").
    Only a column this file already calls optional is ever dropped -- a typo in a column name must

@@ -292,3 +292,47 @@ test('a deposit nets off a CASH collection only — never into a negative balanc
     assert.ok(juma.balance >= 0, method + ': a balance must never go negative — got ' + juma.balance);
   }
 });
+
+test("a manager's all-vendor customer report keeps each business's customers apart", async () => {
+  /* The report carries a Vendor column, which is a claim that every row belongs to one business.
+     It did not. The key was the phone, or the name, or -- for anybody who left neither -- the
+     constant '\0walk-in', which is the same string for every vendor in the country. So on EVERY
+     all-vendor run the counter trade of every business on the platform arrived as one row,
+     attributed to whichever vendor happened to be seen first, and the grand total was right
+     while not one line of it was. profitReport and employeeReport prefix their key with the
+     vendor for exactly this reason. */
+  const db = bookDb();
+
+  // A second business serves the same regular. Nothing links the two shops but her number.
+  await SALES.recordSale(db, userOf(richBook(), 'SEL3'), {
+    items: [{ product_id: 'P5', qty: 1 }], payment_method: 'Cash',
+    customer_name: 'Neema Mushi', customer_phone: '0712000111',
+  }, NOW);
+
+  const rep = await report(db, MGR(), { type: 'customer', start: '2026-09-02', end: '2026-09-02' }, NOW);
+
+  const walkIns = rep.rows.filter(r => /Walk-in/.test(r.customer_name));
+  assert.equal(walkIns.length, 2, 'two businesses served walk-ins, so two rows');
+  assert.deepEqual(walkIns.map(r => r.vendor_name).sort(), ['Fromville Phones', 'Mama Ntilie Grocery']);
+  assert.equal(walkIns.find(r => r.vendor_name === 'Fromville Phones').total, 5000);
+  assert.equal(walkIns.find(r => r.vendor_name === 'Mama Ntilie Grocery').total, 6400);
+
+  const neema = rep.rows.filter(r => r.customer_phone === '0712000111');
+  assert.equal(neema.length, 2, 'one Neema per shop -- neither owner is shown the other\'s takings');
+  assert.equal(neema.find(r => r.vendor_name === 'Fromville Phones').total, 350000);
+  assert.equal(neema.find(r => r.vendor_name === 'Mama Ntilie Grocery').total, 3200);
+});
+
+test('and one vendor on its own still merges the same person across visits', async () => {
+  /* The prefix must be empty when the report is about one business, or the fix would undo the
+     one it was built on: a regular recorded with her number on some visits and not others is
+     still ONE row. */
+  const db = bookDb();
+  await SALES.recordSale(db, SEL(), { items: [{ product_id: 'P3', qty: 1 }], payment_method: 'Cash', customer_name: 'Neema Mushi' }, NOW);
+
+  const rep = await report(db, ADM(), { type: 'customer', start: '2026-09-02', end: '2026-09-02' }, NOW);
+  const neema = rep.rows.filter(r => /Neema/.test(r.customer_name));
+  assert.equal(neema.length, 1, 'the name with no phone still finds the group the phone opened');
+  assert.equal(neema[0].visits, 3);
+  assert.equal(neema[0].total, 355000);
+});

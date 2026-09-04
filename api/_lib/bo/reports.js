@@ -426,16 +426,26 @@ async function customerReport(db, s) {
      range belongs to that phone everywhere in it, and a name learned later fills in a group that
      started anonymous. Two people who share a name and neither leaves a number still merge -- but
      that was already true, and a report that under-counts a regular is the worse of the two. */
+
+  /* ONE PERSON PER BUSINESS, THOUGH. A manager's all-vendor run puts every shop's sales in one
+     list, and this report carries a Vendor column -- a claim that each row belongs to one of
+     them. Keyed on the phone alone it did not: two shops that both serve 0712 345 678 printed as
+     a single row under whichever was seen first. The walk-in bucket was worse, because its key is
+     a CONSTANT: every business's counter trade merged into one row on every all-vendor run, no
+     collision required. profitReport and employeeReport prefix their key with the vendor for
+     exactly this reason; so does this. On one vendor the prefix is empty and nothing changes. */
+  const vkey = r => (s.all ? String(r.vendor_id) + '|' : '');
+
   const phoneOfName = new Map();
   for (const r of list) {
     const phone = label(r.customer_phone), name = label(r.customer_name).toLowerCase();
-    if (phone && name && !phoneOfName.has(name)) phoneOfName.set(name, phone);
+    if (phone && name && !phoneOfName.has(vkey(r) + name)) phoneOfName.set(vkey(r) + name, phone);
   }
   const byCustomer = new Map();
   for (const r of list) {
     const phone = label(r.customer_phone), name = label(r.customer_name);
     const walkIn = !phone && !name;
-    const key = walkIn ? '\u0000walk-in' : (phone || phoneOfName.get(name.toLowerCase()) || name.toLowerCase());
+    const key = vkey(r) + (walkIn ? '\u0000walk-in' : (phone || phoneOfName.get(vkey(r) + name.toLowerCase()) || name.toLowerCase()));
     const a = bump(byCustomer, key, () => ({
       customer_name: walkIn ? 'Walk-in (not recorded)' : (name || '(no name)'), customer_phone: phone,
       visits: new Set(), units: 0, total: 0, last: '', vendor_name: vendorName(s, maps, r),

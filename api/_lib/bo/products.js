@@ -1,4 +1,4 @@
-import { rows, rowsAll, insertOne, update, badRequest, num, int, money, text, mustText, iso, vendorScope, mustProduct, stripCost, canSeeCost, sel, requireColumn, PRODUCT_COLS } from './_shared.js';
+import { rows, rowsAll, insertOne, update, badRequest, num, int, money, text, mustText, iso, vendorScope, mustProduct, stripCost, canSeeCost, sel, requireColumn, columnAbsent, PRODUCT_COLS } from './_shared.js';
 import { requireAdmin } from '../auth.js';
 import { changeStock } from './stock.js';
 import { decodeDataUrl, uploadImage, BUCKETS } from '../storage.js';
@@ -114,7 +114,20 @@ export const FN = {
       const r = await changeStock(db, { product, delta: opening, branchId: branch ? branch.id : null, type: 'received', user, note: 'Opening stock' }, nowMs);
       product.stock = r.stock;
     }
-    return { product };
+    /* THE INSERT WAS THE DISCOVERY. requireColumn above can only refuse what this process has
+       already been told is missing, and on the first request a cold instance serves it has been
+       told nothing -- so the insert is refused, the fallback learns, retries without cost_price
+       and the product lands with the cost gone. Refusing here would be the opposite lie: an
+       error on screen and a product in the list, and a duplicate typed in to fix it. So the
+       product stands and the answer says which part of it did not. */
+    const costUnrecorded = cost > 0 && columnAbsent('products', 'cost_price');
+    if (!costUnrecorded) return { product };
+    return {
+      product, cost_unrecorded: true,
+      message: 'Bidhaa imehifadhiwa, LAKINI bei ya kununulia (' + cost + ') HAIKUHIFADHIWA -- endesha db/RUN-ME-002 kwenye Supabase, kisha iandike tena kwa Edit. / '
+        + 'The product was saved, but its cost price (' + cost + ') was NOT — this database has not run db/RUN-ME-002 yet. '
+        + 'Run it in Supabase, then set the cost with Edit.',
+    };
   },
 
   /** The edit form. Fields are applied as given; a changed `stock` on a counted product is

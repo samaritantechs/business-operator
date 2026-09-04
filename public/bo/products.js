@@ -77,7 +77,15 @@ window.BOProd = (function () {
     if (!BO.confirm('Add "' + n + '"' + (serial ? ' (IMEI-tracked)' : ' with ' + (s || 0) + ' units') + '?')) return;
     var args = { name: n, category: c, brand: g('newProdBrand').trim(), model: g('newProdModel').trim(), price: Number(p), cost_price: Number(g('newProdCost') || 0), stock: serial ? 0 : Number(s || 0), reorder_point: Number(g('newProdReorder') || 20), listing_type: g('newProdType'), price_unit: g('newProdUnit'), location: g('newProdLoc').trim(), is_serialized: serial };
     var br = g('newProdBranch'); if (br) args.branch_id = br;
-    srv('addProduct', args).then(function (r) { showToast('Product ' + (r.product.legacy_id || '') + ' added! Tap Edit to add a photo.'); load(); }).catch(BO.fail);
+    srv('addProduct', args).then(function (r) {
+      showToast('Product ' + (r.product.legacy_id || '') + ' added! Tap Edit to add a photo.');
+      /* The product saved and the cost price did not, because the database has not been migrated.
+         A toast that clears itself in under three seconds while somebody is typing the next
+         product is not telling them -- and the number they typed is gone. This one is dismissed
+         by hand, once, until the manager runs the migration. */
+      if (r.cost_unrecorded) alert(r.message);
+      load();
+    }).catch(BO.fail);
   }
   function toggle(id, active) { srv('toggleProduct', { id: id, active: active }).then(function (r) { showToast(r.message); load(); }).catch(BO.fail); }
   function restock() {

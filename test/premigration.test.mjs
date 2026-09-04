@@ -328,3 +328,56 @@ test('a product can still be edited before the migration — only a CHANGED cost
     return true;
   });
 });
+
+test('a COLD instance cannot refuse a cost price it has not learned about yet — so it says so afterwards', async () => {
+  /* The hole in the test above. requireColumn only fires once something has already been
+     refused for that column, and on a lambda's FIRST request nothing has: the insert itself is
+     the discovery. It is refused, the fallback learns, retries without cost_price, and the
+     product lands — correct in every other respect and with the cost silently gone. The owner
+     typed 1,500 and the screen said "added".
+
+     Refusing at that point would be a lie in the other direction: an error on screen and a
+     product in the list, and a second one typed in to fix it. So it reports. CLAUDE.md: "Say
+     what was not done. Silence reads as success." */
+  const db = oldDb();
+  assert.equal(absentColumns.list().length, 0, 'nothing has touched the products table yet');
+
+  const r = await PRODUCTS.addProduct(db, ADM(), {
+    name: 'Screen Protector', category: 'Accessories', price: 4000, cost_price: 1500, stock: 10,
+  }, NOW);
+
+  assert.ok(r.product && r.product.id, 'the product IS created — the insert retried and landed');
+  assert.equal(db._dump('products').find(p => p.id === r.product.id).name, 'Screen Protector');
+  assert.equal(r.cost_unrecorded, true, 'and the answer says the 1,500 did not go in');
+  assert.match(String(r.message || ''), /RUN-ME-002/, 'with what to do about it');
+  assert.equal(r.product.stock, 10, 'everything the old schema CAN hold still happened');
+});
+
+test('the same product added with no cost price says nothing, and neither does a migrated database', async () => {
+  const db = oldDb();
+  const quiet = await PRODUCTS.addProduct(db, ADM(), { name: 'Free Sticker', category: 'Accessories', price: 0, stock: 1 }, NOW);
+  assert.ok(!quiet.cost_unrecorded, 'a zero is "not recorded", not a loss');
+  assert.equal(quiet.message, undefined, 'and nothing to warn about');
+
+  absentColumns.clear();                     // a different process, on a database that HAS the column
+  const migrated = fakeDb(richBook());
+  const ok = await PRODUCTS.addProduct(migrated, ADM(), { name: 'Screen Protector', category: 'Accessories', price: 4000, cost_price: 1500 }, NOW);
+  assert.ok(!ok.cost_unrecorded, 'a database that HAS the column says nothing at all');
+  assert.equal(migrated._dump('products').find(p => p.id === ok.product.id).cost_price, 1500);
+});
+
+test('a WARM instance still refuses outright — the cheaper answer is still the better one', async () => {
+  /* Once the column is known missing, addProduct must not create a product it cannot record the
+     cost of and then apologise: it can say so before anything is written. */
+  const db = oldDb();
+  await SALES.recordSale(db, SEL(), { items: [{ product_id: 'P3', qty: 1 }], payment_method: 'Cash' }, NOW);
+  assert.ok(absentColumns.has('products', 'cost_price'));
+  const before = db._dump('products').length;
+
+  await assert.rejects(PRODUCTS.addProduct(db, ADM(), { name: 'Screen Protector', category: 'Accessories', price: 4000, cost_price: 1500 }, NOW), e => {
+    assert.equal(e.status, 400);
+    assert.match(e.message, /RUN-ME-002/);
+    return true;
+  });
+  assert.equal(db._dump('products').length, before, 'and nothing was written');
+});
