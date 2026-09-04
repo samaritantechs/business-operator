@@ -1,4 +1,4 @@
-import { rows, rowsAll, insertOne, update, badRequest, num, int, money, text, mustText, iso, vendorScope, mustProduct, stripCost, canSeeCost, sel, PRODUCT_COLS } from './_shared.js';
+import { rows, rowsAll, insertOne, update, badRequest, num, int, money, text, mustText, iso, vendorScope, mustProduct, stripCost, canSeeCost, sel, requireColumn, PRODUCT_COLS } from './_shared.js';
 import { requireAdmin } from '../auth.js';
 import { changeStock } from './stock.js';
 import { decodeDataUrl, uploadImage, BUCKETS } from '../storage.js';
@@ -94,7 +94,8 @@ export const FN = {
     const price = money(args.price);
     if (price < 0) throw badRequest('Price cannot be negative.');
     const cost = money(args.cost_price);
-    if (cost < 0) throw badRequest('Cost price cannot be negative.');
+    if (cost < 0) throw badRequest('Bei ya kununulia haiwezi kuwa hasi. / Cost price cannot be negative.');
+    if (cost > 0) requireColumn('products', 'cost_price', 'cost prices');   // a zero is "not recorded", and costs nothing to drop
     const opening = int(args.stock);
     if (opening < 0) throw badRequest('Opening stock cannot be negative.');
     const serialized = boolArg(args.is_serialized);
@@ -131,8 +132,11 @@ export const FN = {
        form -- or anyone replaying its request -- could write the field they are not allowed to read,
        and the profit figures would quietly become fiction. */
     if (args.cost_price !== undefined && canSeeCost(user)) {
+      /* Setting a cost price is the whole point of the request, so it must not be quietly
+         dropped on a database that has not run the migration -- see requireColumn. */
+      requireColumn('products', 'cost_price', 'cost prices');
       patch.cost_price = money(args.cost_price);
-      if (patch.cost_price < 0) throw badRequest('Cost price cannot be negative.');
+      if (patch.cost_price < 0) throw badRequest('Bei ya kununulia haiwezi kuwa hasi. / Cost price cannot be negative.');
     }
     if (args.reorder_point !== undefined) patch.reorder_point = int(args.reorder_point);
     if (args.listing_type !== undefined) patch.listing_type = listingType(args.listing_type);

@@ -367,14 +367,28 @@ async function saleReceipt(db, user, args) {
   const names = await nameLookups(db, list);
   const first = list[0], extra = names(first);
 
+  /* A CANCELLED LINE IS NOT PART OF THE TOTAL. This summed every row in the group, so a customer
+     who bought two handsets and brought one back was handed a receipt reading the full 700,000 --
+     the amount they had NOT paid -- with a single note underneath saying one line was cancelled
+     and no way to tell which of two identical Samsungs it was. That figure is what Print and the
+     WhatsApp message carry, so it is the number that gets argued about at the counter.
+
+     The cancelled lines stay ON the receipt, marked, because somebody holding the old slip needs
+     to see what happened to them. They just stop counting. */
   const items = list.map(r => ({
     product_name: r.product_name, brand: r.brand || '', model: r.model || '', imei: r.imei || '',
     qty: num(r.qty), list_price: num(r.list_price), discount: num(r.discount), price: num(r.price), total: num(r.total),
+    cancelled: r.status === 'cancelled',
+    cancelled_note: r.status === 'cancelled'
+      ? [r.cancelled_by_name ? 'cancelled by ' + r.cancelled_by_name : 'cancelled', r.cancel_reason || ''].filter(Boolean).join(': ')
+      : '',
   }));
-  const subtotal = money(items.reduce((a, i) => a + i.qty * i.list_price, 0));
-  const discount = money(items.reduce((a, i) => a + i.qty * i.discount, 0));
-  const total = money(items.reduce((a, i) => a + i.total, 0));
+  const live = items.filter(i => !i.cancelled);
+  const subtotal = money(live.reduce((a, i) => a + i.qty * i.list_price, 0));
+  const discount = money(live.reduce((a, i) => a + i.qty * i.discount, 0));
+  const total = money(live.reduce((a, i) => a + i.total, 0));
   const cancelled = list.filter(r => r.status === 'cancelled');
+  const cancelled_total = money(items.filter(i => i.cancelled).reduce((a, i) => a + i.total, 0));
 
   return {
     group_id: gid,
@@ -386,7 +400,7 @@ async function saleReceipt(db, user, args) {
     branch_name: extra.branch_name || '', seller_name: first.seller_name || '',
     customer_name: first.customer_name || '', customer_phone: first.customer_phone || '',
     payment_method: first.payment_method, partner_name: extra.partner_name || '',
-    items, subtotal, discount, total,
+    items, subtotal, discount, total, cancelled_total,
     /* A cancelled line still gets a receipt -- somebody is holding the old one and needs to be
        shown what happened to it -- but it says so at the top, in as many words. */
     status: cancelled.length === list.length ? 'cancelled' : (cancelled.length ? 'part-cancelled' : 'completed'),

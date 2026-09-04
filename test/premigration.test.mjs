@@ -210,3 +210,35 @@ test('the optional list is exactly what the migration adds — no more, no less'
     assert.match(shared, new RegExp("'" + col + "'"), col + ' must be in OPTIONAL_COLUMNS');
   }
 });
+
+test('setting a cost price on the old schema is REFUSED, not silently swallowed', async () => {
+  /* The flaw in the fallback above. Dropping a column is right for a write that merely carries
+     one -- recordSale must still record the sale. It is wrong for a write that EXISTS to set it:
+     the owner reads the profit report telling him to set a cost price, types one, is told it
+     saved, and nothing changes. He can do that all afternoon. */
+  const db = oldDb();
+  await SALES.recordSale(db, SEL(), { items: [{ product_id: 'P3', qty: 1 }], payment_method: 'Cash' }, NOW);
+  assert.ok(absentColumns.has('products', 'cost_price'), 'the process now knows the column is missing');
+
+  await assert.rejects(PRODUCTS.updateProduct(db, ADM(), { id: 'P3', cost_price: 3000 }, NOW), e => {
+    assert.equal(e.status, 400);
+    assert.match(e.message, /RUN-ME-002/, 'and it says exactly what to do about it');
+    return true;
+  });
+
+  /* Everything else on the same form still saves -- being unable to record a cost must not stop
+     somebody fixing a price or a name. */
+  const ok = await PRODUCTS.updateProduct(db, ADM(), { id: 'P3', name: 'Phone Cover XL', price: 5500 }, NOW);
+  assert.equal(ok.product.name, 'Phone Cover XL');
+  assert.equal(db._dump('products').find(p => p.id === 'P3').price, 5500);
+});
+
+test('the Cash Due report still draws when there is no holds table at all', async () => {
+  /* It reads pending_sales for the deposit columns. On a database that has not run the migration
+     that table does not exist, and a report that cannot be opened is worse than one without a
+     column somebody has never seen. */
+  const db = fakeDb(oldBook(), { missingColumns: { ...NOT_YET, pending_sales: ['id', 'deposit'] } });
+  const rep = await REPORTS.reportData(db, ADM(), { type: 'cashdue' }, NOW);
+  assert.ok(rep.rows.length, 'it still lists the sellers');
+  assert.ok(rep.rows.every(r => r.dep_taken === 0 && r.dep_applied === 0), 'with nothing to account for');
+});

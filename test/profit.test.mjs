@@ -199,3 +199,30 @@ test('the whole thing goes through the API surface a browser actually calls', as
   assert.ok(r.rows.length);
   assert.ok(r.totals.some(t => t[0] === 'GROSS PROFIT'));
 });
+
+test('a hold deposit is cash on a different day, and the Cash Due report now says so', async () => {
+  /* Juma takes a deposit on Monday against a hold; nothing recorded it, so Monday was light.
+     Neema collects on Friday and recordSale books the WHOLE amount as Friday's cash sale, so
+     Friday billed Juma for money that never crossed the counter that day. The owner counts the
+     drawer against that figure and finds it short with nothing explaining the gap. */
+  const { FN: HOLDS } = await import('../api/_lib/bo/pending.js');
+  const db = bookDb();
+  const before = (await report(db, ADM(), { type: 'cashdue' })).rows.find(r => /Juma/.test(r.seller));
+
+  const h = await HOLDS.createPendingSale(db, SEL(), {
+    items: [{ product_id: 'P3', qty: 20, list_price: 5000 }], customer_name: 'Neema Mushi', deposit: 40000,
+  }, NOW);
+
+  const held = (await report(db, ADM(), { type: 'cashdue' })).rows.find(r => /Juma/.test(r.seller));
+  assert.equal(held.dep_taken, 40000, 'the 40,000 he is holding is on his row the day he takes it');
+  assert.equal(held.balance, before.balance + 40000, 'and it is in what he owes the till');
+
+  await HOLDS.completePendingSale(db, SEL(), { id: h.id, payment_method: 'Cash' }, NOW);
+  const done = (await report(db, ADM(), { type: 'cashdue' })).rows.find(r => /Juma/.test(r.seller));
+  assert.equal(done.dep_applied, 40000, 'on collection the deposit is named as already paid');
+  assert.equal(done.cash_sales, before.cash_sales + 100000, 'the sale is still the full 100,000');
+  assert.equal(done.balance, before.balance + 100000, 'but he is billed 100,000 once, not 140,000');
+
+  const rep = await report(db, ADM(), { type: 'cashdue' });
+  assert.ok(rep.meta.some(m => /Deposits Taken/.test(m)), 'and the report explains the two columns');
+});

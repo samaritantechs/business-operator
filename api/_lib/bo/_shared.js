@@ -62,6 +62,22 @@ export function writable(table, row) {
   return out;
 }
 
+/* DROPPING A COLUMN IS RIGHT FOR A WRITE THAT MERELY CARRIES IT, AND WRONG FOR ONE THAT IS ABOUT
+   IT. recordSale writes unit_cost alongside the sale; the sale must land even if the margin has
+   nowhere to go, so silently dropping it is correct. But an owner editing a product to type in a
+   cost price is doing that ONE thing -- and the profit report is at that moment telling him to.
+   Dropped silently, updateProduct reported success, wrote nothing, the Cost column still read
+   "-", and the report repeated the same instruction. He could have done that all afternoon.
+
+   So a caller whose write EXISTS to set an optional column asks first, and is told plainly to run
+   the migration rather than being congratulated for a no-op. */
+export function requireColumn(table, col, what) {
+  if (!ABSENT.has(absentKey(table, col))) return;
+  throw badRequest('Hifadhidata bado haijasasishwa kwa ' + what + '. Mwambie meneja aendeshe db/RUN-ME-002 kwenye Supabase. / '
+    + 'This database has not been updated for ' + what + ' yet, so it cannot be saved. '
+    + 'Ask the manager to run db/RUN-ME-002 in Supabase, then try again.');
+}
+
 /* PostgREST says it two ways: 42703 on a read ("column products.cost_price does not exist") and
    PGRST204 on a write ("Could not find the 'unit_cost' column of 'sales' in the schema cache").
    Only a column this file already calls optional is ever dropped -- a typo in a column name must
