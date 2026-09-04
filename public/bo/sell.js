@@ -4,7 +4,7 @@
 window.BOSell = (function () {
   var opts = { products: [], partners: [], branches: [] }, branchId = '', rowSeq = 0;
 
-  function load() {
+  function load(afterMsg) {
     var el = document.getElementById('saleContent'); if (!el) return;
     if (isManager()) { el.innerHTML = '<div class="empty">Managers do not sell — sign in as a seller or admin of a business.</div>'; return; }
     if (!branchId && S.user && S.user.branch_id) branchId = S.user.branch_id;
@@ -12,6 +12,7 @@ window.BOSell = (function () {
     srv('productOptions', branchId ? { branch_id: branchId } : {}).then(function (o) {
       opts = o || opts; if (!opts.products) opts.products = []; if (!opts.partners) opts.partners = []; if (!opts.branches) opts.branches = [];
       render(el);
+      if (afterMsg) { var sm = document.getElementById('saleMsg'); if (sm) sm.innerHTML = afterMsg; }
     }).catch(function (e) { el.innerHTML = BO.errorBox(e); });
   }
 
@@ -96,12 +97,16 @@ window.BOSell = (function () {
     if (partner) args.financing_partner_id = partner;
     if (branchId) args.branch_id = branchId;
     srv('recordSale', args).then(function (r) {
-      document.getElementById('saleMsg').innerHTML = '<div class="alert-success" style="font-size:.9rem;">✅ ' + esc(r.message) + '<br><strong>Grand Total: ' + fmtFull(r.grand_total) + ' ' + cur() + '</strong></div>';
+      /* The confirmation has to survive the rebuild. load() replaces the whole tab, including
+         #saleMsg, and it does that only when its own request comes back -- so the old code,
+         which restored the message on a 50ms timer, was racing a network call it could not
+         win on a slow connection. The seller was then left with a blank form and no word of
+         whether the sale had gone through, which is how the same phone gets sold twice.
+         So the message is HANDED to load(), which draws it after the rebuild. */
       showToast('Sale recorded.');
       btn.disabled = false;
       BO.reload('dashboard');
-      load();
-      setTimeout(function () { var m = document.getElementById('saleMsg'); if (m) m.innerHTML = '<div class="alert-success" style="font-size:.9rem;">✅ ' + esc(r.message) + ' — ' + fmtFull(r.grand_total) + ' ' + cur() + '</div>'; }, 50);
+      load('<div class="alert-success" style="font-size:.9rem;">✅ ' + esc(r.message) + ' — <strong>' + fmtFull(r.grand_total) + ' ' + cur() + '</strong></div>');
     }).catch(function (e) { btn.disabled = false; document.getElementById('saleMsg').innerHTML = '<div class="alert-danger">' + esc(e.message) + '</div>'; });
   }
   function branchName() { for (var i = 0; i < opts.branches.length; i++) if (opts.branches[i].id === branchId) return opts.branches[i].name; return ''; }
