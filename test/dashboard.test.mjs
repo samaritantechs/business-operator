@@ -119,3 +119,17 @@ test('dashboard: a business that hides it from sellers actually hides it', async
   dflt.vendors.find(v => v.id === 'V1').permissions = {};
   assert.ok((await FN.dashboard(bookDb(dflt), userOf(dflt, 'SEL1'), {}, NOW)).self, 'the default is visible');
 });
+
+/* The per-shop table used to carry a "Year" column filled with the sum of the admin's read
+   window -- which starts at the month, not the year. A shop's month was being read as its
+   year, in a column headed Year, next to a vendor total whose year was real. */
+test('dashboard: the per-shop rows offer no year, because this read cannot honestly give one', async () => {
+  const d = await FN.dashboard(bookDb(), userOf(richBook(), 'ADM1'), {}, NOW);
+  assert.ok(d.branch_rows && d.branch_rows.length, 'the vendor has shops');
+  for (const r of d.branch_rows) {
+    assert.deepEqual(Object.keys(r).sort(), ['branch_id', 'month', 'name', 'today', 'units', 'week']);
+    assert.equal(r.year, undefined);
+  }
+  // The vendor's own year is a real year and stays.
+  assert.equal(typeof d.year_total, 'number');
+});

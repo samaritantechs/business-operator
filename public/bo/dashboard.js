@@ -39,8 +39,8 @@ window.BODash = (function () {
       + '</div>';
     if (d.chart && d.chart.length) html += section('📈', 'Sales Trend – Last 7 Days', '<div class="section-body"><div class="chart-wrap"><canvas id="salesChartCanvas"></canvas></div></div>');
     if (d.branch_rows && d.branch_rows.length) {
-      var br = '<div class="table-wrap"><table class="bo-table"><thead><tr><th>Shop</th><th>Today</th><th>Week</th><th>Month</th><th>Year</th><th>Units today</th></tr></thead><tbody>';
-      d.branch_rows.forEach(function (b) { br += '<tr><td><strong>' + esc(b.name) + '</strong></td><td class="mono">' + fmtFull(b.today) + '</td><td class="mono">' + fmtFull(b.week) + '</td><td class="mono">' + fmtFull(b.month) + '</td><td class="mono">' + fmtFull(b.year) + '</td><td>' + (b.units || 0) + '</td></tr>'; });
+      var br = '<div class="table-wrap"><table class="bo-table"><thead><tr><th>Shop</th><th>Today</th><th>Week</th><th>Month</th><th>Units today</th></tr></thead><tbody>';
+      d.branch_rows.forEach(function (b) { br += '<tr><td><strong>' + esc(b.name) + '</strong></td><td class="mono">' + fmtFull(b.today) + '</td><td class="mono">' + fmtFull(b.week) + '</td><td class="mono">' + fmtFull(b.month) + '</td><td>' + (b.units || 0) + '</td></tr>'; });
       html += section('🏬', 'Sales per shop', br + '</tbody></table></div>');
     }
     if (isAdmin()) {

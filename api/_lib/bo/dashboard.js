@@ -142,7 +142,12 @@ async function dashboard(db, user, args, nowMs) {
     if (branches.length) {
       out.branch_rows = branches.map(br => {
         const bt = sumPeriods(sales.filter(s => String(s.branch_id) === String(br.id)), b);
-        return { branch_id: br.id, name: br.name, today: money(bt.today), week: money(bt.week), month: money(bt.month), year: money(bt.all), units: bt.units_today };
+        /* No year here on purpose. An admin's sales read starts at the month (or six days ago,
+           whichever is earlier), so the only "year" this row could offer is the sum of that
+           window -- which was being sent, and shown, under a column headed Year. A shop's
+           month read as its year. The vendor's real year comes from the aggregate; a per-shop
+           year would cost a year-wide read, and nobody asked for one. */
+        return { branch_id: br.id, name: br.name, today: money(bt.today), week: money(bt.week), month: money(bt.month), units: bt.units_today };
       });
     }
   }
