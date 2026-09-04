@@ -222,13 +222,15 @@ html.bo-desktop .tb-vendor-badge{display:inline-block;}
       </div>
       <div style="text-align:center;margin-top:28px;">
         <button class="btn-primary" onclick="showLogin(true)" style="padding:13px 30px;font-size:.95rem;">🚀 Register your business — free</button>
-        <!-- The app, offered where somebody has just decided to sign up. Hidden until the
-             marketplace payload says a release exists: a download button with nothing behind it
-             is worse than no button, and the "Get the app" section below already explains the
-             browser route when there is nothing published. -->
-        <div id="mkCtaApp" class="hidden" style="margin-top:14px;">
-          <a class="btn-secondary" id="mkCtaApkBtn" href="/download" style="padding:11px 24px;font-size:.9rem;display:inline-flex;">⬇️ Download the Android app</a>
-          <div class="small muted" id="mkCtaApkMeta" style="margin-top:7px;"></div>
+        <!-- The app, offered where somebody has just decided to sign up. It is ALWAYS here:
+             hiding it until an APK exists meant that on a system with no release published yet
+             there was simply nothing under the sign-up button, which reads as a missing feature
+             rather than as a deliberate absence. So it starts as "use it on your phone" -- which
+             is true of every phone, needs no APK, and scrolls to the QR codes -- and becomes the
+             download the moment a release is published. Never a dead link either way. -->
+        <div id="mkCtaApp" style="margin-top:14px;">
+          <a class="btn-secondary" id="mkCtaApkBtn" href="#mkAppSection" onclick="mkScrollTo('mkAppSection');return false;" style="padding:11px 24px;font-size:.9rem;display:inline-flex;">📲 Use it on your phone</a>
+          <div class="small muted" id="mkCtaApkMeta" style="margin-top:7px;">Scan a code to open it, or install the Android app.</div>
         </div>
       </div>
     </div>

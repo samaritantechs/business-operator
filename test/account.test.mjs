@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { bookDb, richBook, emptyBook, NOW, PASSWORD } from './_book.mjs';
 import { accountApi, ACCOUNT_FUNCTIONS, FN } from '../api/_lib/bo/account.js';
 import { SESSION_DAYS, verifyPassword } from '../api/_lib/auth.js';
+import { DEFAULT_HINTS } from '../api/_lib/bo/hints.js';
 import { APP_NAME } from '../api/_lib/brand.js';
 
 /* The doors before a session: who gets in, who is refused with the one generic sentence, and
@@ -236,7 +237,8 @@ test('an empty database can still register its first business and sign in', asyn
   assert.equal(out.user.handle, 'neema');
   assert.deepEqual(out.branches, []);
   assert.deepEqual(out.partners, []);
-  assert.equal(out.hints.length, 9, 'the admin default hints');
+  assert.equal(out.hints.length, DEFAULT_HINTS.admin.length, 'the admin default hints');
+  assert.ok(out.hints.every(h => h.en && h.sw), 'and every one of them in both languages');
 });
 
 /* ------------------------------------------------------------------ the first run

@@ -77,7 +77,7 @@ async function loadOrders(db, { vendorId, status, id, limit = 200 }) {
 /** The order, or a clear "not yours". */
 async function mustOrder(db, vendorId, id) {
   const [po] = await loadOrders(db, { vendorId, id: mustText(id, 'Purchase order') });
-  if (!po) throw notFound('That purchase order is not one of yours.');
+  if (!po) throw notFound('Oda hiyo si ya biashara yako. / That purchase order is not one of yours.');
   return po;
 }
 
@@ -86,9 +86,9 @@ export const FN = {
   purchaseOrders: async (db, user, args) => {
     requireAdmin(user);
     const vendorId = vendorScope(user, args);
-    if (!vendorId) throw badRequest('Pick a business to see its purchase orders.');
+    if (!vendorId) throw badRequest('Chagua biashara kuona oda zake. / Pick a business to see its purchase orders.');
     const status = text(args.status);
-    if (status && !['ordered', 'received', 'cancelled'].includes(status)) throw badRequest('Status must be ordered, received or cancelled.');
+    if (status && !['ordered', 'received', 'cancelled'].includes(status)) throw badRequest('Hali iwe ordered, received au cancelled. / Status must be ordered, received or cancelled.');
     return { rows: await loadOrders(db, { vendorId, status }), currency: currencyOf(user.vendor) };
   },
 
@@ -98,7 +98,7 @@ export const FN = {
     requireAdmin(user);
     const vendor = await writeVendor(db, user, args);
     const items = Array.isArray(args.items) ? args.items : [];
-    if (!items.length) throw badRequest('Add at least one product to the order.');
+    if (!items.length) throw badRequest('Ongeza angalau bidhaa moja kwenye oda. / Add at least one product to the order.');
     const branch = await mustBranch(db, vendor.id, args.branch_id);
 
     /* Every line is checked before anything is written, the same discipline recordSale keeps:
@@ -108,11 +108,11 @@ export const FN = {
     const lines = [];
     for (const it of items) {
       const p = products.find(x => String(x.id) === String(it && it.product_id));
-      if (!p) throw notFound('One of those products is not in your catalogue.');
+      if (!p) throw notFound('Mojawapo ya bidhaa hizo haiko kwenye orodha yako. / One of those products is not in your catalogue.');
       const qty = int(it.qty);
-      if (qty < 1) throw badRequest('Order at least 1 of "' + p.name + '".');
+      if (qty < 1) throw badRequest('Agiza angalau 1 ya "' + p.name + '". / Order at least 1 of "' + p.name + '".');
       const unitCost = money(it.unit_cost === undefined || it.unit_cost === null || it.unit_cost === '' ? p.cost_price : it.unit_cost);
-      if (unitCost < 0) throw badRequest('Cost for "' + p.name + '" cannot be negative.');
+      if (unitCost < 0) throw badRequest('Gharama ya "' + p.name + '" haiwezi kuwa hasi. / Cost for "' + p.name + '" cannot be negative.');
       lines.push({ product: p, qty, unitCost });
     }
 
@@ -139,7 +139,7 @@ export const FN = {
     requireAdmin(user);
     const vendorId = requireVendorUser(user);
     const po = await mustOrder(db, vendorId, args.id);
-    if (po.status !== 'ordered') throw badRequest('That order is already ' + po.status + '.');
+    if (po.status !== 'ordered') throw badRequest('Oda hiyo tayari ni ' + po.status + '. / That order is already ' + po.status + '.');
 
     const asked = Array.isArray(args.receipts) ? args.receipts : null;
     /* No list at all means "everything that is still owed arrived", which is the common case and
@@ -152,11 +152,11 @@ export const FN = {
         const named = asked.find(r => String(r && r.item_id) === String(it.id));
         take = named ? int(named.qty) : 0;
       }
-      if (take < 0) throw badRequest('A delivery cannot be negative ("' + it.product_name + '").');
+      if (take < 0) throw badRequest('Bidhaa zilizofika haziwezi kuwa hasi ("' + it.product_name + '"). / A delivery cannot be negative ("' + it.product_name + '").');
       if (take > owed) throw badRequest('"' + it.product_name + '": only ' + owed + ' still owed, but ' + take + ' entered. To take in more than was ordered, raise another order — otherwise the movements stop matching the paperwork.');
       if (take > 0) plan.push({ item: it, take });
     }
-    if (!plan.length) throw badRequest('Nothing to receive. Enter what actually arrived.');
+    if (!plan.length) throw badRequest('Hakuna cha kupokea. Andika zilizofika kweli. / Nothing to receive. Enter what actually arrived.');
 
     const ids = [...new Set(plan.map(p => String(p.item.product_id)))];
     const products = await rows(db, 'products', q => q.select(sel('products', PRODUCT_COLS)).in('id', ids).eq('vendor_id', vendorId).limit(500));
@@ -208,7 +208,7 @@ export const FN = {
     requireAdmin(user);
     const vendorId = requireVendorUser(user);
     const po = await mustOrder(db, vendorId, args.id);
-    if (po.status !== 'ordered') throw badRequest('That order is already ' + po.status + '.');
+    if (po.status !== 'ordered') throw badRequest('Oda hiyo tayari ni ' + po.status + '. / That order is already ' + po.status + '.');
     const got = po.items.reduce((a, i) => a + i.received_qty, 0);
     if (got) throw badRequest(got + ' item' + (got === 1 ? ' has' : 's have') + ' already been received on ' + po.legacy_id
       + '. Receive the rest, or adjust the stock down under Stock & Shops — cancelling now would leave stock on the shelf that nothing accounts for.');

@@ -81,7 +81,7 @@ async function loadHolds(db, { vendorId, status, id, nowMs, limit = 200 }) {
 
 async function mustHold(db, vendorId, id, nowMs) {
   const [h] = await loadHolds(db, { vendorId, id: mustText(id, 'Hold'), nowMs });
-  if (!h) throw notFound('That hold is not one of yours.');
+  if (!h) throw notFound('Hifadhi hiyo si ya biashara yako. / That hold is not one of yours.');
   return h;
 }
 
@@ -129,9 +129,9 @@ export const FN = {
       before promising the same handset to somebody else. */
   pendingSales: async (db, user, args, nowMs) => {
     const vendorId = vendorScope(user, args);
-    if (!vendorId) throw badRequest('Pick a business to see its holds.');
+    if (!vendorId) throw badRequest('Chagua biashara kuona zilizowekwa. / Pick a business to see its holds.');
     const status = text(args.status);
-    if (status && !['held', 'completed', 'cancelled', 'expired'].includes(status)) throw badRequest('Status must be held, completed, cancelled or expired.');
+    if (status && !['held', 'completed', 'cancelled', 'expired'].includes(status)) throw badRequest('Hali iwe held, completed, cancelled au expired. / Status must be held, completed, cancelled or expired.');
     return { rows: await loadHolds(db, { vendorId, status, nowMs }), currency: currencyOf(user.vendor) };
   },
 
@@ -140,9 +140,9 @@ export const FN = {
   createPendingSale: async (db, user, args, nowMs) => {
     const vendorId = requireVendorUser(user);
     const items = Array.isArray(args.items) ? args.items : [];
-    if (!items.length) throw badRequest('Add at least one item to hold.');
+    if (!items.length) throw badRequest('Ongeza angalau bidhaa moja ya kuweka. / Add at least one item to hold.');
     /* A hold with nobody's name on it is missing stock, so unlike a sale the name is required. */
-    const customerName = mustText(args.customer_name, "The customer's name");
+    const customerName = mustText(args.customer_name, 'Jina la mteja / The customer\u2019s name');
     const branch = await mustBranch(db, vendorId, args.branch_id) || (user.branch_id ? { id: user.branch_id } : null);
     const branchId = branch ? branch.id : null;
 
@@ -154,10 +154,10 @@ export const FN = {
     const lines = [], asked = new Map(), seenUnits = new Set();
     for (const it of items) {
       const p = products.find(x => String(x.id) === String(it && it.product_id));
-      if (!p) throw notFound('One of those products is not in your catalogue.');
-      if (!p.active) throw badRequest('"' + p.name + '" is not active.');
+      if (!p) throw notFound('Mojawapo ya bidhaa hizo haiko kwenye orodha yako. / One of those products is not in your catalogue.');
+      if (!p.active) throw badRequest('"' + p.name + '" haiko hai. / "' + p.name + '" is not active.');
       const qty = int(it.qty);
-      if (qty < 1) throw badRequest('Hold at least 1 of "' + p.name + '".');
+      if (qty < 1) throw badRequest('Weka angalau 1 ya "' + p.name + '". / Hold at least 1 of "' + p.name + '".');
       const list = money(it.list_price === undefined || it.list_price === null || it.list_price === '' ? p.price : it.list_price);
       const discount = money(it.discount);
       if (discount < 0 || discount > list) throw badRequest('Discount for "' + p.name + '" must be between 0 and ' + fmtMoney(list) + '.');
@@ -176,8 +176,8 @@ export const FN = {
 
     const total = money(lines.reduce((a, l) => a + l.qty * (l.list - l.discount), 0));
     const deposit = money(args.deposit);
-    if (deposit < 0) throw badRequest('A deposit cannot be negative.');
-    if (deposit > total) throw badRequest('The deposit is more than the goods are worth. Take the rest as a sale instead.');
+    if (deposit < 0) throw badRequest('Amana haiwezi kuwa hasi. / A deposit cannot be negative.');
+    if (deposit > total) throw badRequest('Amana inazidi thamani ya bidhaa. Kamilisha kama mauzo badala yake. / The deposit is more than the goods are worth. Take the rest as a sale instead.');
 
     const hold = await insertOne(db, 'pending_sales', {
       legacy_id: await nextLegacyId(db, vendorId), vendor_id: vendorId, branch_id: branchId,
@@ -215,9 +215,9 @@ export const FN = {
   completePendingSale: async (db, user, args, nowMs) => {
     const vendorId = requireVendorUser(user);
     const hold = await mustHold(db, vendorId, args.id, nowMs);
-    if (hold.status !== 'held') throw badRequest('That hold is already ' + hold.status + '.');
+    if (hold.status !== 'held') throw badRequest('Hifadhi hiyo tayari ni ' + hold.status + '. / That hold is already ' + hold.status + '.');
     const method = text(args.payment_method) || hold.payment_method;
-    if (!method) throw badRequest('How are they paying? Cash, Lipa Number or Credit.');
+    if (!method) throw badRequest('Analipaje? Cash, Lipa Number au Credit. / How are they paying? Cash, Lipa Number or Credit.');
 
     const ids = [...new Set(hold.items.map(i => String(i.product_id)))];
     const products = await rows(db, 'products', q => q.select(sel('products', PRODUCT_COLS)).in('id', ids).eq('vendor_id', vendorId).limit(500));
@@ -272,7 +272,7 @@ export const FN = {
   cancelPendingSale: async (db, user, args, nowMs) => {
     const vendorId = requireVendorUser(user);
     const hold = await mustHold(db, vendorId, args.id, nowMs);
-    if (hold.status !== 'held') throw badRequest('That hold is already ' + hold.status + '.');
+    if (hold.status !== 'held') throw badRequest('Hifadhi hiyo tayari ni ' + hold.status + '. / That hold is already ' + hold.status + '.');
     const expired = args.expired === true || String(args.expired) === 'true';
     const ids = [...new Set(hold.items.map(i => String(i.product_id)))];
     const products = await rows(db, 'products', q => q.select(sel('products', PRODUCT_COLS)).in('id', ids).eq('vendor_id', vendorId).limit(500));

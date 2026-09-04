@@ -13,45 +13,103 @@ export const HINT_ROLES = ['seller', 'admin', 'assistant-admin', 'manager', 'ass
 
 /* Copied verbatim from legacy/Code.gs getHintSettingsForUser. `manager` had no list of its own
    there either -- an unknown role reads the seller's, which is what the old app showed. */
+/* Every hint is a PAIR now. The tips were English-only and the Swahili side was the empty
+   string, so the EN/SW toggle in the top bar changed the flag on the button and nothing else --
+   in a country where Kiswahili is the working language of most shop counters. A hint a seller
+   cannot read is not a hint.
+
+   And six screens arrived without any: Holds, Purchase Orders, Credit & Voids, the receipt
+   button, the Profit report and the cost price it needs. A feature nobody is told about is a
+   feature nobody uses, which is the same as not having shipped it.
+
+   A manager can still replace the whole list from Settings; these are what a database with no
+   hints of its own shows. */
 export const DEFAULT_HINTS = {
   seller: [
-    '💡 Your User ID is your login – use it every time you sell.',
-    '🛒 Always select product and quantity before submitting.',
-    "💰 Cash='Cash', mobile='Lipa Number'.",
-    '📦 Check Stock for low products.',
-    '🔒 Keep your password safe – never share it.',
-    '📥 Download your sales reports from the Reports tab.',
-    '🔄 Use Refresh to see the latest numbers.',
-    '📋 Use Lendings tab to record and track borrowed items.',
+    ['\ud83d\udca1 Your User ID is your login \u2013 use it every time you sell.',
+     '\ud83d\udca1 Namba yako ya mtumiaji ndiyo unayoingia nayo \u2013 itumie kila unapouza.'],
+    ['\ud83d\uded2 Always select product and quantity before submitting.',
+     '\ud83d\uded2 Chagua bidhaa na idadi kabla ya kutuma.'],
+    ["\ud83d\udcb0 Cash='Cash', mobile='Lipa Number'.",
+     "\ud83d\udcb0 Fedha taslimu='Cash', simu='Lipa Number'."],
+    ['\ud83d\udce6 Check Stock for low products.',
+     '\ud83d\udce6 Angalia Stoo kuona bidhaa zinazokaribia kuisha.'],
+    ['\ud83d\udd12 Keep your password safe \u2013 never share it.',
+     '\ud83d\udd12 Tunza neno lako la siri \u2013 usimpe mtu yeyote.'],
+    ['\ud83d\udce5 Download your sales reports from the Reports tab.',
+     '\ud83d\udce5 Pakua ripoti za mauzo yako kwenye kichupo cha Ripoti.'],
+    ['\ud83d\udd04 Use Refresh to see the latest numbers.',
+     '\ud83d\udd04 Bonyeza Onyesha upya kuona namba za sasa.'],
+    ['\ud83d\udccb Use Lendings tab to record and track borrowed items.',
+     '\ud83d\udccb Tumia kichupo cha Mikopo ya bidhaa kurekodi na kufuatilia vilivyoazimwa.'],
+    ['\ud83e\uddfe After a sale, tap the receipt button to print it or send it on WhatsApp.',
+     '\ud83e\uddfe Baada ya mauzo, bonyeza risiti kuichapisha au kuituma kwa WhatsApp.'],
+    ['\ud83d\udd16 Customer coming back on Friday? Put it on Holds so nobody sells it.',
+     '\ud83d\udd16 Mteja atarudi Ijumaa? Weka kwenye Zilizowekwa ili asiuziwe mtu mwingine.'],
+    ['\ud83e\udd1d Goods leaving unsold? Choose Lending at the till instead of a sale.',
+     '\ud83e\udd1d Bidhaa zinatoka bila kuuzwa? Chagua Mkopo wa bidhaa badala ya mauzo.'],
+    ['\ud83d\udc64 Add the customer\u2019s name and phone \u2013 it puts them on the receipt.',
+     '\ud83d\udc64 Andika jina na simu ya mteja \u2013 huonekana kwenye risiti.'],
   ],
   admin: [
-    '👥 Add or edit users in the Users tab.',
-    '📦 Add products, photos or increase stock in the Products tab.',
-    '🛍️ Add 1–2 photos per product so it shines in the marketplace.',
-    '💰 Record cash payments from sellers in Cash tab.',
-    '📊 Seller balances show who owes what today.',
-    '📥 Download sales, stock, or cash due reports anytime.',
-    '🏷️ Set your Business Type & contact in the Users tab profile.',
-    '📋 Use Lendings to record and track borrowed items.',
-    '🗑️ Delete sale or lending records directly from the dashboard.',
+    ['\ud83d\udc65 Add or edit users in the Users tab.',
+     '\ud83d\udc65 Ongeza au hariri watumiaji kwenye kichupo cha Watumiaji.'],
+    ['\ud83d\udce6 Add products, photos or increase stock in the Products tab.',
+     '\ud83d\udce6 Ongeza bidhaa, picha au stoo kwenye kichupo cha Bidhaa.'],
+    ['\ud83d\udecd\ufe0f Add 1\u20132 photos per product so it shines in the marketplace.',
+     '\ud83d\udecd\ufe0f Weka picha 1\u20132 kwa kila bidhaa ionekane vizuri sokoni.'],
+    ['\ud83d\udcb0 Record cash payments from sellers in Cash tab.',
+     '\ud83d\udcb0 Rekodi fedha unazopokea kwa wauzaji kwenye kichupo cha Fedha.'],
+    ['\ud83d\udcca Seller balances show who owes what today.',
+     '\ud83d\udcca Salio la muuzaji linaonyesha nani anadaiwa nini leo.'],
+    ['\ud83c\udff7\ufe0f Set a Cost Price on each product \u2013 without it the Profit report is only a guess.',
+     '\ud83c\udff7\ufe0f Weka Bei ya kununulia kwa kila bidhaa \u2013 bila hiyo ripoti ya Faida ni kubahatisha.'],
+    ['\ud83d\udcc8 The Profit report shows what you EARNED, not just what you took.',
+     '\ud83d\udcc8 Ripoti ya Faida inaonyesha ulichopata, si tu ulichokusanya.'],
+    ['\ud83d\ude9a Order stock on Purchase Orders \u2013 receiving it updates the cost price for you.',
+     '\ud83d\ude9a Agiza bidhaa kwenye Oda za manunuzi \u2013 zikipokelewa bei ya kununulia inajisasisha.'],
+    ['\ud83d\udcb3 Credit & Voids shows what financing partners still owe you.',
+     '\ud83d\udcb3 Mikopo na Zilizofutwa inaonyesha wanaokukopesha wanachokudai.'],
+    ['\ud83d\uddd1\ufe0f Cancel a sale from the dashboard \u2013 the stock goes back on the shelf.',
+     '\ud83d\uddd1\ufe0f Futa mauzo kwenye dashibodi \u2013 bidhaa zinarudi stoo.'],
+    ['\ud83d\udccb Use Lendings to record and track borrowed items.',
+     '\ud83d\udccb Tumia Mikopo ya bidhaa kurekodi na kufuatilia vilivyoazimwa.'],
+    ['\ud83d\udce5 Download sales, stock, profit or cash due reports anytime.',
+     '\ud83d\udce5 Pakua ripoti za mauzo, stoo, faida au madeni wakati wowote.'],
   ],
   'assistant-admin': [
-    '👥 You can manage sellers under your admin.',
-    '📦 Check stock levels regularly.',
-    '💰 Record cash from sellers in Cash tab.',
-    '📊 Dashboard shows business overview.',
+    ['\ud83d\udc65 You can manage sellers under your admin.',
+     '\ud83d\udc65 Unaweza kusimamia wauzaji walio chini ya msimamizi wako.'],
+    ['\ud83d\udce6 Check stock levels regularly.',
+     '\ud83d\udce6 Kagua kiwango cha stoo mara kwa mara.'],
+    ['\ud83d\udcb0 Record cash from sellers in Cash tab.',
+     '\ud83d\udcb0 Rekodi fedha kutoka kwa wauzaji kwenye kichupo cha Fedha.'],
+    ['\ud83d\udcca Dashboard shows business overview.',
+     '\ud83d\udcca Dashibodi inaonyesha muhtasari wa biashara.'],
+    ['\ud83d\ude9a Receive a delivery on Purchase Orders \u2013 enter what actually arrived, not what was ordered.',
+     '\ud83d\ude9a Pokea bidhaa kwenye Oda za manunuzi \u2013 andika zilizofika kweli, si zilizoagizwa.'],
+    ['\ud83d\udd16 Holds keep stock off the shelf for a customer who is coming back.',
+     '\ud83d\udd16 Zilizowekwa huhifadhi bidhaa kwa mteja atakayerudi.'],
   ],
   'assistant-manager': [
-    '🏢 View all vendor performance.',
-    '📊 Download comprehensive reports in the Reports tab.',
-    '💼 Set commission rates in Management tab.',
+    ['\ud83c\udfe2 View all vendor performance.',
+     '\ud83c\udfe2 Angalia utendaji wa biashara zote.'],
+    ['\ud83d\udcca Download comprehensive reports in the Reports tab.',
+     '\ud83d\udcca Pakua ripoti kamili kwenye kichupo cha Ripoti.'],
+    ['\ud83d\udcbc Set commission rates in Management tab.',
+     '\ud83d\udcbc Weka viwango vya kamisheni kwenye kichupo cha Usimamizi.'],
   ],
   marketplace: [
-    '🛍️ Tap any product to view details and contact the seller.',
-    '🔍 Search by product name, category or business.',
-    '🔥 A flame badge marks the most-viewed products.',
-    '📲 Contact a seller directly on WhatsApp.',
-    '🆕 New businesses join the marketplace often — check back!',
+    ['\ud83d\udecd\ufe0f Tap any product to view details and contact the seller.',
+     '\ud83d\udecd\ufe0f Bonyeza bidhaa yoyote kuona maelezo na kuwasiliana na muuzaji.'],
+    ['\ud83d\udd0d Search by product name, category or business.',
+     '\ud83d\udd0d Tafuta kwa jina la bidhaa, aina au biashara.'],
+    ['\ud83d\udd25 A flame badge marks the most-viewed products.',
+     '\ud83d\udd25 Alama ya moto inaonyesha bidhaa zinazotazamwa zaidi.'],
+    ['\ud83d\udcf2 Contact a seller directly on WhatsApp.',
+     '\ud83d\udcf2 Wasiliana na muuzaji moja kwa moja kwa WhatsApp.'],
+    ['\ud83c\udd95 New businesses join the marketplace often \u2014 check back!',
+     '\ud83c\udd95 Biashara mpya zinajiunga mara kwa mara \u2014 rudi tena!'],
   ],
 };
 
@@ -66,7 +124,7 @@ export async function hintsForRole(db, role) {
   const list = await rows(db, 'hints', q => q.select('message_en, message_sw').in('role', [r, 'all']).eq('active', true)
     .order('sort', { ascending: true }).order('id', { ascending: true }).limit(MAX_HINTS));
   if (list.length) return list.map(h => ({ en: String(h.message_en || '').trim(), sw: String(h.message_sw || '').trim() }));
-  return (DEFAULT_HINTS[r] || DEFAULT_HINTS.seller).map(m => ({ en: m, sw: '' }));
+  return (DEFAULT_HINTS[r] || DEFAULT_HINTS.seller).map(m => ({ en: m[0], sw: m[1] || '' }));
 }
 
 function roleArg(v) {

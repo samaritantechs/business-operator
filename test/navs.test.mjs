@@ -233,13 +233,19 @@ test('every account and marketplace function answers an anonymous caller cleanly
  * sign up rather than only in a section further down the page than most people scroll. That
  * makes it the easy one to leave visible by accident -- and a download button with nothing
  * behind it sends a would-be customer to a dead link on their very first tap. */
-test('the marketplace download button starts hidden and only the release reveals it', () => {
+test('the marketplace app button is always present and never a dead link', () => {
+  /* It used to hide itself until an APK was published. On a system with no release yet that left
+     NOTHING under the sign-up button, which reads as a broken feature rather than as a deliberate
+     absence -- and that is exactly how it was reported. The unpublished state is now a real offer
+     of its own (open it in a browser, scan a code), so the button is always there and the href is
+     only ever /download when there is something behind it. */
   const shell = readFileSync(join(PUBLIC, 'bo', 'shell.js'), 'utf8');
-  assert.match(html, /<div id="mkCtaApp" class="hidden"/,
-    'it must start hidden: the page is drawn long before the marketplace payload lands');
-  assert.match(html, /id="mkCtaApkBtn" href="\/download"/, 'and point at /download, never at a version');
-  assert.match(shell, /cta\.classList\.toggle\('hidden', !published\)/,
-    'showAppSection must reveal it only when a release is actually published');
+  assert.match(html, /<div id="mkCtaApp" style=/, 'it must NOT start hidden');
+  assert.doesNotMatch(html, /id="mkCtaApp" class="hidden"/, 'hiding it is what made it "missing"');
+  assert.match(html, /id="mkCtaApkBtn" href="#mkAppSection"/,
+    'the default href is the on-page section, not a download that may not exist');
+  assert.match(shell, /ctaBtn\.setAttribute\('href', published \? '\/download' : '#mkAppSection'\)/,
+    'it points at /download only once a release is published -- and at /download, never at a version');
   /* Both offers of the same file read from ONE decision about whether there is one. Two
      conditions here would eventually disagree, and one of them would be the dead link. */
   assert.match(shell, /var published = !!\(release && release\.version_name\);/);

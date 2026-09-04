@@ -37,17 +37,38 @@ test('hintsForRole: the table rows for the role plus "all", in sort order', asyn
 test('hintsForRole: the legacy defaults when the table has nothing for the role', async () => {
   const db = bookDb(emptyBook());
   const seller = await hintsForRole(db, 'seller');
-  assert.equal(seller.length, 8);
-  assert.deepEqual(seller[0], { en: '💡 Your User ID is your login – use it every time you sell.', sw: '' });
-  assert.equal((await hintsForRole(db, 'admin')).length, 9);
-  assert.equal((await hintsForRole(db, 'assistant-admin')).length, 4);
-  assert.equal((await hintsForRole(db, 'assistant-manager')).length, 3);
+  assert.deepEqual(seller[0], { en: '💡 Your User ID is your login – use it every time you sell.',
+    sw: '💡 Namba yako ya mtumiaji ndiyo unayoingia nayo – itumie kila unapouza.' });
   const market = await hintsForRole(db, 'marketplace');
-  assert.equal(market.length, 5);
   assert.equal(market[0].en, '🛍️ Tap any product to view details and contact the seller.');
-  assert.deepEqual(await hintsForRole(db, 'manager'), DEFAULT_HINTS.seller.map(en => ({ en, sw: '' })), 'no list of its own in legacy either');
-  assert.deepEqual(await hintsForRole(db, 'whatever'), DEFAULT_HINTS.seller.map(en => ({ en, sw: '' })));
-  assert.deepEqual(await hintsForRole(db, ''), DEFAULT_HINTS.seller.map(en => ({ en, sw: '' })));
+
+  /* EVERY built-in tip carries BOTH languages. The Swahili side used to be the empty string for
+     all of them, so the EN/SW toggle changed the flag on the button and nothing else -- in a
+     country where Kiswahili is the working language of most shop counters. Counting the hints
+     proves nothing; this is the property that matters. */
+  for (const role of ['seller', 'admin', 'assistant-admin', 'assistant-manager', 'marketplace']) {
+    const list = await hintsForRole(db, role);
+    assert.ok(list.length >= 3, role + ' must have tips of its own');
+    for (const h of list) {
+      assert.ok(h.en && h.en.trim(), role + ': every tip needs English');
+      assert.ok(h.sw && h.sw.trim(), role + ': "' + h.en + '" has no Swahili');
+      assert.notEqual(h.sw, h.en, role + ': the Swahili must not just be the English again');
+    }
+  }
+
+  /* And a screen nobody is told about is a screen nobody uses. Each of these arrived with the
+     features and had no tip at all until they were written. */
+  const sellerText = (await hintsForRole(db, 'seller')).map(h => h.en + ' ' + h.sw).join(' | ');
+  const adminText = (await hintsForRole(db, 'admin')).map(h => h.en + ' ' + h.sw).join(' | ');
+  for (const [who, text, must] of [
+    ['seller', sellerText, [/receipt|risiti/i, /Holds|Zilizowekwa/i, /Lending at the till|Mkopo wa bidhaa/i, /customer|mteja/i]],
+    ['admin', adminText, [/Cost Price|Bei ya kununulia/i, /Profit|Faida/i, /Purchase Orders|Oda za manunuzi/i, /Credit & Voids|Mikopo na/i]],
+  ]) {
+    for (const re of must) assert.match(text, re, who + ' has no tip mentioning ' + re);
+  }
+  assert.deepEqual(await hintsForRole(db, 'manager'), DEFAULT_HINTS.seller.map(([en, sw]) => ({ en, sw })), 'no list of its own in legacy either');
+  assert.deepEqual(await hintsForRole(db, 'whatever'), DEFAULT_HINTS.seller.map(([en, sw]) => ({ en, sw })));
+  assert.deepEqual(await hintsForRole(db, ''), DEFAULT_HINTS.seller.map(([en, sw]) => ({ en, sw })));
 });
 
 test('hints: the manager sees every row grouped by role; a seller only the live rows for their role', async () => {
