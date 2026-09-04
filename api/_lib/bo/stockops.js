@@ -1,5 +1,5 @@
 import { rows, rowsAll, one, insertOne, insertMany, update, badRequest, forbidden, notFound, num, int, text, mustText, iso,
-  isManagerLevel, vendorScope, scopedVendor, mustProduct, productById, rangeBounds, PRODUCT_COLS } from './_shared.js';
+  isManagerLevel, vendorScope, scopedVendor, mustProduct, productById, rangeBounds, sel, PRODUCT_COLS } from './_shared.js';
 import { requireAdmin } from '../auth.js';
 import { changeStock, claimUnits, recountSerialized, adjustBranchStock, branchStockRows, writeMovement, MOVEMENT_TYPES } from './stock.js';
 
@@ -267,7 +267,7 @@ export const FN = {
     const branches = await branchesOf(db, unit.vendor_id);
     const movements = await rowsAll(db, 'stock_movements', q => q.select(MOVEMENT_COLS).eq('unit_id', unit.id).order('created_at'));
     // A unit sold, cancelled and sold again has two sales rows: the completed one is its story.
-    const sales = await rows(db, 'sales', q => q.select(SALE_COLS).eq('unit_id', unit.id).order('sold_at', { ascending: false }).limit(5));
+    const sales = await rows(db, 'sales', q => q.select(sel('sales', SALE_COLS)).eq('unit_id', unit.id).order('sold_at', { ascending: false }).limit(5));
     const s = sales.find(x => x.status === 'completed') || sales[0] || null;
     const partner = s && s.financing_partner_id ? await one(db, 'financing_partners', q => q.select('id, name').eq('id', s.financing_partner_id)) : null;
     return {

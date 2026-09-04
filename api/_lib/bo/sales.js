@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { rows, rowsAll, one, insertMany, update, count, iso, num, money, text, mustText, fmtMoney, badRequest, forbidden, notFound,
   isAdminLevel, isManagerLevel, vendorScope, scopedVendor, requireVendorUser, requireSameVendor, mustProduct, productById, vendorById, stripCost,
-  currencyOf, periodBounds, localNow } from './_shared.js';
+  currencyOf, periodBounds, localNow, sel } from './_shared.js';
 import { requireAdmin } from '../auth.js';
 import { changeStock, claimUnits } from './stock.js';
 import { sendEmail, signature } from '../email.js';
@@ -163,7 +163,7 @@ async function cancelSale(db, user, args, nowMs) {
   requireAdmin(user);
   const id = mustText(args.sale_id, 'The sale');
   const reason = mustText(args.reason, 'A reason');
-  const sale = await one(db, 'sales', q => q.select(SALE_COLS).eq('id', id));
+  const sale = await one(db, 'sales', q => q.select(sel('sales', SALE_COLS)).eq('id', id));
   if (!sale) throw notFound('Sale not found.');
   requireSameVendor(user, sale);
   if (sale.status !== 'completed') throw badRequest('This sale is already cancelled.');
@@ -272,7 +272,7 @@ async function recentSales(db, user, args) {
   const limit = Math.min(Math.max(parseInt(args.limit, 10) || 30, 1), 200);
   const branchId = text(args.branch_id);
   const list = await rows(db, 'sales', q => {
-    let s = q.select(SALE_COLS).eq('vendor_id', vid);
+    let s = q.select(sel('sales', SALE_COLS)).eq('vendor_id', vid);
     if (!args.include_cancelled) s = s.eq('status', 'completed');
     if (branchId) s = s.eq('branch_id', branchId);
     return s.order('sold_at', { ascending: false }).order('legacy_id', { ascending: false }).limit(limit);
@@ -295,7 +295,7 @@ async function salesDetail(db, user, args, nowMs) {
   const own = !isAdminLevel(user.role) && !isManagerLevel(user.role);   // a seller sees only their own lines
   const branchId = text(args.branch_id);
   const list = await rowsAll(db, 'sales', q => {
-    let s = q.select(SALE_COLS).eq('status', 'completed').gte('sold_at', b[period]).lte('sold_at', iso(nowMs));
+    let s = q.select(sel('sales', SALE_COLS)).eq('status', 'completed').gte('sold_at', b[period]).lte('sold_at', iso(nowMs));
     if (vid) s = s.eq('vendor_id', vid);
     if (branchId) s = s.eq('branch_id', branchId);
     if (own) s = s.eq('seller_id', user.id);
@@ -351,7 +351,7 @@ async function saleReceipt(db, user, args) {
     gid = seed.group_id;
   }
   const list = await rows(db, 'sales', q => {
-    let x = q.select(SALE_COLS).eq('group_id', gid);
+    let x = q.select(sel('sales', SALE_COLS)).eq('group_id', gid);
     if (vid) x = x.eq('vendor_id', vid);
     return x.order('legacy_id').limit(500);
   });
@@ -421,13 +421,13 @@ async function creditAndVoids(db, user, args, nowMs) {
   const since = iso(nowMs - days * 86400000);
 
   const credit = await rowsAll(db, 'sales', q => {
-    let x = q.select(SALE_COLS).eq('vendor_id', vid).eq('payment_method', 'Credit')
+    let x = q.select(sel('sales', SALE_COLS)).eq('vendor_id', vid).eq('payment_method', 'Credit')
       .eq('status', 'completed').eq('partner_paid', false);
     if (branchId) x = x.eq('branch_id', branchId);
     return x.order('sold_at', { ascending: true });        // oldest debt first: that is the one to chase
   });
   const voids = await rowsAll(db, 'sales', q => {
-    let x = q.select(SALE_COLS).eq('vendor_id', vid).eq('status', 'cancelled').gte('cancelled_at', since);
+    let x = q.select(sel('sales', SALE_COLS)).eq('vendor_id', vid).eq('status', 'cancelled').gte('cancelled_at', since);
     if (branchId) x = x.eq('branch_id', branchId);
     return x.order('cancelled_at', { ascending: false });  // newest void first: that is the one being asked about
   });

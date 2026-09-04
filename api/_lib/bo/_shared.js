@@ -14,37 +14,122 @@ export { todayKey, weekMondayKey, addDaysKey, localNow };
    three different functions. A module that needs one of these imports it from here; nothing
    below reaches for the database client directly. */
 
+/* =====================================================================================
+   A DATABASE THAT HAS NOT RUN THE MIGRATION YET.
+   =====================================================================================
+   CLAUDE.md: "Every code path that depends on a migration must work without it -- fall back,
+   never fail." And PostgREST does not skip an unknown column and return the rest: it fails the
+   WHOLE read (test/schema.test.mjs exists for precisely that reason).
+
+   Put those two facts together and the moment cost_price joined PRODUCT_COLS and unit_cost
+   joined SALE_COLS, every screen that reads a product or a sale stopped working on any
+   deployment where db/RUN-ME-002 had not been run yet -- the catalogue, the dashboard, the
+   reports, the receipts, and recordSale itself, which reads the product before it sells it.
+   The till going down because a migration is pending is the exact failure rule 1 forbids, and
+   it would have happened on the deploy, not on the migration.
+
+   So the columns that migration adds are OPTIONAL. A read that names one and is told it does
+   not exist drops it, asks again once, and REMEMBERS -- the same shape rpcOr already uses for a
+   function that is not in the database yet. It costs nothing once the migration is run, one
+   failed round trip per cold instance until then, and it heals itself the moment somebody runs
+   it: no redeploy, no flag, nothing to remember to switch on.
+
+   A write does the same, minus the guessing: a column known to be absent is dropped from the
+   row before it is sent, so a sale still records when unit_cost has nowhere to go. */
+const OPTIONAL_COLUMNS = {
+  products: ['cost_price'],
+  sales: ['unit_cost', 'customer_name', 'customer_phone'],
+};
+const ABSENT = new Set();
+const absentKey = (table, col) => table + '.' + col;
+
+/** For tests: what this process has learned, and a way to forget it again. */
+export const absentColumns = { list: () => [...ABSENT], clear: () => ABSENT.clear(), has: (t, c) => ABSENT.has(absentKey(t, c)) };
+
+/** A select list with the columns this database turned out not to have taken out of it.
+    Call it INSIDE the build function, so a retry rebuilds with what was just learned. */
+export function sel(table, list) {
+  const optional = OPTIONAL_COLUMNS[table];
+  if (!optional || !ABSENT.size) return list;
+  return list.split(',').map(c => c.trim()).filter(c => !ABSENT.has(absentKey(table, c))).join(', ');
+}
+/** The same, for a row about to be written. */
+export function writable(table, row) {
+  const optional = OPTIONAL_COLUMNS[table];
+  if (!optional || !ABSENT.size || !row || typeof row !== 'object') return row;
+  const out = {};
+  for (const k of Object.keys(row)) if (!ABSENT.has(absentKey(table, k))) out[k] = row[k];
+  return out;
+}
+
+/* PostgREST says it two ways: 42703 on a read ("column products.cost_price does not exist") and
+   PGRST204 on a write ("Could not find the 'unit_cost' column of 'sales' in the schema cache").
+   Only a column this file already calls optional is ever dropped -- a typo in a column name must
+   still fail loudly, or a real bug becomes a silently narrower read. */
+function missingOptionalColumn(table, error) {
+  const optional = OPTIONAL_COLUMNS[table];
+  if (!optional || !error) return null;
+  const msg = String(error.message || error);
+  const m = /column\s+"?(?:[\w]+\.)?([\w]+)"?\s+does not exist/i.exec(msg)
+         || /Could not find the '([\w]+)' column/i.exec(msg);
+  const col = m && m[1];
+  return col && optional.includes(col) && !ABSENT.has(absentKey(table, col)) ? col : null;
+}
+
+/** Run a query; if it failed only because an optional column is not there, drop it and retry. */
+async function withoutAbsent(table, attempt) {
+  for (let i = 0; i <= (OPTIONAL_COLUMNS[table] || []).length; i++) {
+    const res = await attempt();
+    const col = res && res.error ? missingOptionalColumn(table, res.error) : null;
+    if (!col) return res;
+    ABSENT.add(absentKey(table, col));
+  }
+  return attempt();
+}
+/** The same, for the paging reader, which throws rather than returning an error. */
+async function withoutAbsentThrowing(table, attempt) {
+  for (let i = 0; i <= (OPTIONAL_COLUMNS[table] || []).length; i++) {
+    try { return await attempt(); }
+    catch (e) {
+      const col = missingOptionalColumn(table, e);
+      if (!col) throw e;
+      ABSENT.add(absentKey(table, col));
+    }
+  }
+  return attempt();
+}
+
 export function dbErr(error) { return new AppError(friendlyDbError(error), 500); }
 
 /** One bounded read. `build` receives the table builder and returns a query. */
 export async function rows(db, table, build) {
-  const { data, error } = await runQuery(() => build(db.from(table)));
+  const { data, error } = await withoutAbsent(table, () => runQuery(() => build(db.from(table))));
   if (error) throw dbErr(error);
   return data || [];
 }
 /** A read that may exceed a page: paginates past PostgREST's silent cap. */
 export async function rowsAll(db, table, build) {
-  return fetchAll(() => build(db.from(table)));
+  return withoutAbsentThrowing(table, () => fetchAll(() => build(db.from(table))));
 }
 export async function one(db, table, build) {
-  const { data, error } = await runQuery(() => build(db.from(table)).maybeSingle());
+  const { data, error } = await withoutAbsent(table, () => runQuery(() => build(db.from(table)).maybeSingle()));
   if (error) throw dbErr(error);
   return data || null;
 }
 export async function insertOne(db, table, row) {
-  const { data, error } = await runQuery(() => db.from(table).insert(row).select().maybeSingle());
+  const { data, error } = await withoutAbsent(table, () => runQuery(() => db.from(table).insert(writable(table, row)).select().maybeSingle()));
   if (error) throw dbErr(error);
   return data;
 }
 export async function insertMany(db, table, list) {
   if (!list || !list.length) return [];
-  const { data, error } = await runQuery(() => db.from(table).insert(list).select());
+  const { data, error } = await withoutAbsent(table, () => runQuery(() => db.from(table).insert(list.map(r => writable(table, r))).select()));
   if (error) throw dbErr(error);
   return data || [];
 }
 /** update(db, 'products', { stock: 4 }, q => q.eq('id', id)) -> the updated rows. */
 export async function update(db, table, patch, build) {
-  const { data, error } = await runQuery(() => build(db.from(table).update(patch)).select());
+  const { data, error } = await withoutAbsent(table, () => runQuery(() => build(db.from(table).update(writable(table, patch))).select()));
   if (error) throw dbErr(error);
   return data || [];
 }
@@ -271,7 +356,7 @@ export function stripCost(user, value) {
 }
 export async function productById(db, id) {
   if (!id) return null;
-  return one(db, 'products', q => q.select(PRODUCT_COLS).eq('id', id));
+  return one(db, 'products', q => q.select(sel('products', PRODUCT_COLS)).eq('id', id));
 }
 export async function mustProduct(db, id, vendorId) {
   const p = await productById(db, id);

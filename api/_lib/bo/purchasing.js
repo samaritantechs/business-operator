@@ -1,5 +1,5 @@
 import { rows, rowsAll, one, insertOne, insertMany, update, remove, num, int, money, fmtMoney, text, mustText, iso,
-  badRequest, notFound, vendorScope, requireVendorUser, currencyOf, PRODUCT_COLS } from './_shared.js';
+  badRequest, notFound, vendorScope, requireVendorUser, currencyOf, sel, PRODUCT_COLS } from './_shared.js';
 import { requireAdmin } from '../auth.js';
 import { changeStock } from './stock.js';
 import { mustBranch, writeVendor } from './stockops.js';
@@ -104,7 +104,7 @@ export const FN = {
     /* Every line is checked before anything is written, the same discipline recordSale keeps:
        a half-written order is worse than none, because somebody will receive it. */
     const wanted = [...new Set(items.map(i => String((i && i.product_id) || '')))].filter(Boolean);
-    const products = wanted.length ? await rows(db, 'products', q => q.select(PRODUCT_COLS).in('id', wanted).eq('vendor_id', vendor.id).limit(500)) : [];
+    const products = wanted.length ? await rows(db, 'products', q => q.select(sel('products', PRODUCT_COLS)).in('id', wanted).eq('vendor_id', vendor.id).limit(500)) : [];
     const lines = [];
     for (const it of items) {
       const p = products.find(x => String(x.id) === String(it && it.product_id));
@@ -159,7 +159,7 @@ export const FN = {
     if (!plan.length) throw badRequest('Nothing to receive. Enter what actually arrived.');
 
     const ids = [...new Set(plan.map(p => String(p.item.product_id)))];
-    const products = await rows(db, 'products', q => q.select(PRODUCT_COLS).in('id', ids).eq('vendor_id', vendorId).limit(500));
+    const products = await rows(db, 'products', q => q.select(sel('products', PRODUCT_COLS)).in('id', ids).eq('vendor_id', vendorId).limit(500));
     for (const p of plan) {
       const product = products.find(x => String(x.id) === String(p.item.product_id));
       if (!product) throw notFound('"' + p.item.product_name + '" is no longer in your catalogue. Remove the line or restore the product.');

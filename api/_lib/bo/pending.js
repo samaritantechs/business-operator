@@ -1,5 +1,5 @@
 import { rows, rowsAll, one, insertOne, insertMany, update, remove, num, int, money, fmtMoney, text, mustText, iso,
-  badRequest, notFound, vendorScope, requireVendorUser, currencyOf, PRODUCT_COLS } from './_shared.js';
+  badRequest, notFound, vendorScope, requireVendorUser, currencyOf, sel, PRODUCT_COLS } from './_shared.js';
 import { requireAdmin } from '../auth.js';
 import { changeStock, claimUnits } from './stock.js';
 import { mustBranch, writeVendor } from './stockops.js';
@@ -147,7 +147,7 @@ export const FN = {
     const branchId = branch ? branch.id : null;
 
     const wanted = [...new Set(items.map(i => String((i && i.product_id) || '')))].filter(Boolean);
-    const products = wanted.length ? await rows(db, 'products', q => q.select(PRODUCT_COLS).in('id', wanted).eq('vendor_id', vendorId).limit(500)) : [];
+    const products = wanted.length ? await rows(db, 'products', q => q.select(sel('products', PRODUCT_COLS)).in('id', wanted).eq('vendor_id', vendorId).limit(500)) : [];
 
     /* Everything is checked before anything is written or moved, the same discipline recordSale
        keeps. A half-made hold is stock nobody can find. */
@@ -220,7 +220,7 @@ export const FN = {
     if (!method) throw badRequest('How are they paying? Cash, Lipa Number or Credit.');
 
     const ids = [...new Set(hold.items.map(i => String(i.product_id)))];
-    const products = await rows(db, 'products', q => q.select(PRODUCT_COLS).in('id', ids).eq('vendor_id', vendorId).limit(500));
+    const products = await rows(db, 'products', q => q.select(sel('products', PRODUCT_COLS)).in('id', ids).eq('vendor_id', vendorId).limit(500));
     const missing = hold.items.find(i => !products.some(p => String(p.id) === String(i.product_id)));
     if (missing) throw badRequest('"' + missing.product_name + '" is no longer in your catalogue, so this hold cannot be sold. Cancel it and the stock comes back.');
     const units = await heldUnits(db, hold);
@@ -275,7 +275,7 @@ export const FN = {
     if (hold.status !== 'held') throw badRequest('That hold is already ' + hold.status + '.');
     const expired = args.expired === true || String(args.expired) === 'true';
     const ids = [...new Set(hold.items.map(i => String(i.product_id)))];
-    const products = await rows(db, 'products', q => q.select(PRODUCT_COLS).in('id', ids).eq('vendor_id', vendorId).limit(500));
+    const products = await rows(db, 'products', q => q.select(sel('products', PRODUCT_COLS)).in('id', ids).eq('vendor_id', vendorId).limit(500));
     await release(db, hold, products, await heldUnits(db, hold), user, nowMs, 'Released from hold ' + hold.legacy_id);
     await update(db, 'pending_sales', {
       status: expired ? 'expired' : 'cancelled', closed_at: iso(nowMs), closed_by_name: user.name, cancel_reason: text(args.reason),

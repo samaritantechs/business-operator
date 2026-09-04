@@ -1,6 +1,6 @@
 import { rows, rowsAll, num, money, text, badRequest, isAdminLevel, isManagerLevel, vendorScope, scopedVendor,
   periodBounds, addDaysKey, eatStart, keyOf, currencyOf, stockStatus, vendorSalesSummary, stockValueByVendor, vendorsList,
-  forbidden, permissionsOf } from './_shared.js';
+  forbidden, permissionsOf, sel } from './_shared.js';
 import { requireManager } from '../auth.js';
 
 /* =====================================================================================
@@ -101,7 +101,7 @@ async function dashboard(db, user, args, nowMs) {
   const chartStart = eatStart(addDaysKey(b.todayKey, -6));
   const windowStart = own ? b.year : (chartStart < b.month ? chartStart : b.month);
   const sales = await rowsAll(db, 'sales', q => {
-    let s = q.select(SALE_COLS).eq('vendor_id', vid).eq('status', 'completed').gte('sold_at', windowStart);
+    let s = q.select(sel('sales', SALE_COLS)).eq('vendor_id', vid).eq('status', 'completed').gte('sold_at', windowStart);
     if (own) s = s.eq('seller_id', user.id);
     if (branchId) s = s.eq('branch_id', branchId);
     return s;

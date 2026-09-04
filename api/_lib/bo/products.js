@@ -1,4 +1,4 @@
-import { rows, rowsAll, insertOne, update, badRequest, num, int, money, text, mustText, iso, vendorScope, mustProduct, stripCost, canSeeCost, PRODUCT_COLS } from './_shared.js';
+import { rows, rowsAll, insertOne, update, badRequest, num, int, money, text, mustText, iso, vendorScope, mustProduct, stripCost, canSeeCost, sel, PRODUCT_COLS } from './_shared.js';
 import { requireAdmin } from '../auth.js';
 import { changeStock } from './stock.js';
 import { decodeDataUrl, uploadImage, BUCKETS } from '../storage.js';
@@ -48,7 +48,7 @@ export const FN = {
   products: async (db, user, args) => {
     const vendorId = vendorScope(user, args);
     const list = await rowsAll(db, 'products', q => {
-      let s = q.select(PRODUCT_COLS);
+      let s = q.select(sel('products', PRODUCT_COLS));
       if (vendorId) s = s.eq('vendor_id', vendorId);
       if (!boolArg(args.include_inactive)) s = s.eq('active', true);
       return s.order('legacy_id').order('name');

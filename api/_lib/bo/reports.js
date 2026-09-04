@@ -1,7 +1,7 @@
 import {
   rows, rowsAll, one, badRequest, forbidden, isManagerLevel, isAdminLevel, scopedVendor, vendorsList,
   rangeBounds, periodBounds, todayKey, localNow, iso, num, money, fmtMoney, text, stockStatus,
-  permissionsOf, currencyOf, getSettings, PROFILE_COLS,
+  permissionsOf, currencyOf, getSettings, sel, PROFILE_COLS,
 } from './_shared.js';
 import { signTicket } from '../auth.js';
 import { buildPdf } from '../pdf.js';
@@ -115,7 +115,7 @@ async function scopeFor(db, user, args, nowMs) {
 /** Sales in the range for this scope -- the one paged read most reports stand on. */
 function salesIn(db, s, status = 'completed', extra) {
   return rowsAll(db, 'sales', q => {
-    let x = q.select(SALE_COLS).eq('status', status).gte('sold_at', s.range.from).lt('sold_at', s.range.to);
+    let x = q.select(sel('sales', SALE_COLS)).eq('status', status).gte('sold_at', s.range.from).lt('sold_at', s.range.to);
     if (s.vendor_id) x = x.eq('vendor_id', s.vendor_id);
     if (s.seller_id) x = x.eq('seller_id', s.seller_id);
     if (s.branch_id) x = x.eq('branch_id', s.branch_id);
