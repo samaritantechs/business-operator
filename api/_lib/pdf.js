@@ -1,4 +1,5 @@
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import { APP_NAME, COMPANY, APP_TAGLINE } from './brand.js';
 
 /* =====================================================================================
    BRANDED PDF REPORTS -- pdf-lib, standard fonts, no file system, so it runs on Vercel as is.
@@ -63,7 +64,7 @@ export async function buildPdf(opts) {
   const M = 36;
   const doc = await PDFDocument.create();
   doc.setTitle(pdfSafe(opts.title || 'Report'));
-  doc.setAuthor('Business Operator - Samaritan Techs');
+  doc.setAuthor(APP_NAME + ' - ' + COMPANY);
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
   const fs = columns.length > 8 ? 7.5 : 8.5;
@@ -105,7 +106,7 @@ export async function buildPdf(opts) {
     page.drawRectangle({ x: 0, y: PH - 65, width: PW, height: 3, color: GOLD });
     page.drawText(pdfSafe(opts.title || 'Report'), { x: M, y: PH - 30, size: 15, font: bold, color: rgb(1, 1, 1) });
     if (opts.subtitle) page.drawText(pdfSafe(opts.subtitle), { x: M, y: PH - 48, size: 9.5, font, color: rgb(0.85, 0.9, 1) });
-    const brand = 'Business Operator  |  Samaritan Techs';
+    const brand = APP_NAME + '  |  ' + COMPANY;
     page.drawText(brand, { x: PW - M - bold.widthOfTextAtSize(brand, 9), y: PH - 30, size: 9, font: bold, color: rgb(1, 1, 1) });
     y = PH - 80;
     if (pages.length === 1) {
@@ -121,7 +122,7 @@ export async function buildPdf(opts) {
     const now = opts.generatedAt || new Date();
     const yr = now.getFullYear();
     pages.forEach((p, i) => {
-      const left = '© ' + yr + ' Samaritan Techs  ·  Business Operator — Smart business management & marketplace';
+      const left = '© ' + yr + ' ' + COMPANY + '  ·  ' + APP_NAME + ' — ' + APP_TAGLINE;
       p.drawText(pdfSafe(left), { x: M, y: 20, size: 7.5, font, color: MUTED });
       const right = 'Page ' + (i + 1) + ' of ' + pages.length + '   ·   ' + pdfSafe(opts.footer || ('Generated ' + now.toISOString().slice(0, 16).replace('T', ' ') + ' UTC'));
       p.drawText(right, { x: PW - M - font.widthOfTextAtSize(right, 7.5), y: 20, size: 7.5, font, color: MUTED });

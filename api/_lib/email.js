@@ -5,7 +5,9 @@
    one function so the "email is not configured" case is one honest sentence rather than a
    silent no-op, and so tests can hand in a stub sender and see exactly what would have gone out. */
 
-export const FROM_DEFAULT = 'Business Operator <onboarding@resend.dev>';
+import { APP_NAME, APP_BY } from './brand.js';
+
+export const FROM_DEFAULT = APP_NAME + ' <onboarding@resend.dev>';
 
 export function emailConfigured() { return !!process.env.RESEND_API_KEY; }
 
@@ -41,7 +43,7 @@ export async function sendEmail({ to, subject, html, bcc, replyTo, attachments }
 
 /** The footer every system email carries. */
 export function signature() {
-  return '<p style="color:#64748B;font-size:12px;margin-top:18px;"><em>Business Operator – Samaritan Techs</em></p>';
+  return '<p style="color:#64748B;font-size:12px;margin-top:18px;"><em>' + APP_BY + '</em></p>';
 }
 
 /** {name}-style placeholders, exactly as the Apps Script _fillTemplate did. */

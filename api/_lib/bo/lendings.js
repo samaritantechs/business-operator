@@ -5,6 +5,7 @@ import { rows, one, insertOne, insertMany, update, remove, num, int, money, fmtM
 import { requireAdmin } from '../auth.js';
 import { changeStock, claimUnits } from './stock.js';
 import { sendEmail, signature } from '../email.js';
+import { APP_NAME } from '../brand.js';
 
 /* =====================================================================================
    LENDINGS -- goods that left the shop without being sold, and who has them.
@@ -239,7 +240,7 @@ export const FN = {
       try {
         await sendEmail({
           to: borrowerEmail, subject: '📋 Lending Confirmation – ' + user.vendor.name,
-          html: '<h3>Business Operator – Lending Confirmation</h3><p>Dear <strong>' + esc(borrowerName) + '</strong>,</p>'
+          html: '<h3>' + APP_NAME + ' – Lending Confirmation</h3><p>Dear <strong>' + esc(borrowerName) + '</strong>,</p>'
             + '<p>You have borrowed the following from <strong>' + esc(user.vendor.name) + '</strong>:</p>'
             + '<p style="padding:10px;background:#eef4ff;border-radius:8px;"><strong>' + names.map(esc).join('<br>') + '</strong></p>'
             + (grandTotal > 0 ? '<p>Total value: <strong>' + fmtMoney(grandTotal) + ' ' + currency + '</strong></p>' : '')
@@ -259,8 +260,13 @@ export const FN = {
     const l = await loadLending(db, user, args.lending_id);
     if (l.status !== 'Active') throw badRequest('This lending is already returned.');
     const items = await rows(db, 'lending_items', q => q.select(ITEM_COLS).eq('lending_id', l.id));
-    // The header flips first so a retry after a half-done restore cannot put the stock back twice.
-    await update(db, 'lendings', { status: 'Returned', return_date: iso(nowMs) }, q => q.eq('id', l.id).eq('status', 'Active'));
+    /* The status flip is also the LOCK, and only if its result is checked. Two admins -- or one
+       admin double-tapping the tick on a slow connection -- both read 'Active' above; only the
+       one whose update still finds it Active gets a row back, and the other must stop here.
+       Without this test both went on to restoreItems and a borrowed item came back TWICE, so
+       the shop's stock grew by a gown it never had. cancelSale has always done it this way. */
+    const flipped = await update(db, 'lendings', { status: 'Returned', return_date: iso(nowMs) }, q => q.eq('id', l.id).eq('status', 'Active'));
+    if (!flipped.length) throw badRequest('This lending is already returned.');
     await restoreItems(db, user, l, items, null, nowMs);
     if (emailOf(l.borrower_email)) {
       try {
@@ -278,15 +284,16 @@ export const FN = {
   deleteLending: async (db, user, args, nowMs) => {
     requireAdmin(user);
     const l = await loadLending(db, user, args.lending_id);
-    const wasActive = l.status === 'Active';
-    if (wasActive) {
+    let restored = false;
+    if (l.status === 'Active') {
       const items = await rows(db, 'lending_items', q => q.select(ITEM_COLS).eq('lending_id', l.id));
-      await update(db, 'lendings', { status: 'Returned', return_date: iso(nowMs) }, q => q.eq('id', l.id).eq('status', 'Active'));
-      await restoreItems(db, user, l, items, 'Lending deleted', nowMs);
+      // Same lock as markLendingReturned: whoever loses the race deletes, but does not restore.
+      const flipped = await update(db, 'lendings', { status: 'Returned', return_date: iso(nowMs) }, q => q.eq('id', l.id).eq('status', 'Active'));
+      if (flipped.length) { await restoreItems(db, user, l, items, 'Lending deleted', nowMs); restored = true; }
     }
     await remove(db, 'lending_items', q => q.eq('lending_id', l.id));
     await remove(db, 'lendings', q => q.eq('id', l.id));
-    return { message: 'Lending deleted.' + (wasActive ? ' Stock restored.' : ' (Was already returned.)') };
+    return { message: 'Lending deleted.' + (restored ? ' Stock restored.' : ' (Was already returned.)') };
   },
 
   /** Cost: the listing reads for one id (2-4) + 1 settings read + 1 send. A refused send is the error. */

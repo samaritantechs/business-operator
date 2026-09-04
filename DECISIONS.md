@@ -1,4 +1,4 @@
-# DECISIONS — Business Operator v2
+# DECISIONS — Samaritan Industrial
 
 Routine calls made while building, so nobody has to re-derive them. Newest at the bottom.
 

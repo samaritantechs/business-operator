@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { bookDb, richBook, emptyBook, NOW, PASSWORD } from './_book.mjs';
 import { accountApi, ACCOUNT_FUNCTIONS, FN } from '../api/_lib/bo/account.js';
-import { SESSION_DAYS } from '../api/_lib/auth.js';
+import { SESSION_DAYS, verifyPassword } from '../api/_lib/auth.js';
+import { APP_NAME } from '../api/_lib/brand.js';
 
 /* The doors before a session: who gets in, who is refused with the one generic sentence, and
    the register / reset flows end to end against the fake PostgREST. */
@@ -11,9 +12,9 @@ const BAD = 'Invalid credentials or inactive account.';
 const login = (db, id, password, deps) => accountApi(db, 'login', { id, password }, NOW, deps || {});
 const rejects = (p, status, re) => assert.rejects(p, e => { assert.equal(e.status, status, 'status of: ' + e.message); if (re) assert.match(e.message, re); return true; });
 
-test('the contract names exactly six account functions', () => {
-  assert.deepEqual(ACCOUNT_FUNCTIONS.slice().sort(), ['login', 'logout', 'me', 'register', 'requestReset', 'resetPassword']);
-  assert.equal(Object.keys(FN).length, 6);
+test('the contract names exactly eight account functions', () => {
+  assert.deepEqual(ACCOUNT_FUNCTIONS.slice().sort(), ['login', 'logout', 'me', 'register', 'requestReset', 'resetPassword', 'setupManager', 'setupState']);
+  assert.equal(Object.keys(FN).length, 8);
 });
 
 test('login by handle mints a session and answers with the boot payload', async () => {
@@ -173,7 +174,7 @@ test('reset flow end to end: request -> email with the link -> new password -> o
     assert.equal(calls[0].url, 'https://api.resend.com/emails');
     assert.equal(calls[0].headers.Authorization, 'Bearer x');
     assert.deepEqual(calls[0].body.to, ['frank@fromville.tz']);
-    assert.equal(calls[0].body.subject, '🔑 Password Reset – Business Operator');
+    assert.equal(calls[0].body.subject, '🔑 Password Reset – ' + APP_NAME);
     const m = calls[0].body.html.match(/https:\/\/bo\.test\/\?reset=([0-9a-f]+)/);
     assert.ok(m, 'the link is in the email');
     const token = m[1];
@@ -236,4 +237,73 @@ test('an empty database can still register its first business and sign in', asyn
   assert.deepEqual(out.branches, []);
   assert.deepEqual(out.partners, []);
   assert.equal(out.hints.length, 9, 'the admin default hints');
+});
+
+/* ------------------------------------------------------------------ the first run
+   A brand-new database has nobody in it. This is the one door that can make a manager, and
+   it has to be shut the moment one exists -- otherwise the first stranger to find the URL
+   owns the system. Both conditions are tested here, together and separately. */
+
+test('setupState: a fresh system asks to be set up; one with a manager never does', async () => {
+  process.env.BO_SETUP_KEY = 'the-deployment-key';
+  assert.deepEqual(await FN.setupState(bookDb(emptyBook())), { needed: true, keyless: false });
+  assert.deepEqual(await FN.setupState(bookDb()), { needed: false, keyless: false });
+  // A vendor admin is not a manager: a system with businesses but no manager still needs one.
+  const noMgr = richBook();
+  noMgr.profiles = noMgr.profiles.filter(p => p.role !== 'manager' && p.role !== 'assistant-manager');
+  assert.deepEqual(await FN.setupState(bookDb(noMgr)), { needed: true, keyless: false });
+  // And it says plainly when the deployment has no key to check against.
+  delete process.env.BO_SETUP_KEY; delete process.env.BO_SECRET;
+  assert.deepEqual(await FN.setupState(bookDb(emptyBook())), { needed: true, keyless: true });
+  assert.deepEqual(await FN.setupState(bookDb()), { needed: false, keyless: false });
+});
+
+test('setupManager: the key AND an empty system, or nothing happens', async () => {
+  const good = { setup_key: 'the-deployment-key', email: 'boss@samaritan.tz', name: 'Markii', handle: 'markii', password: 'a-long-one' };
+
+  // No key configured on the deployment at all -> refused, and it says what to set.
+  delete process.env.BO_SETUP_KEY; delete process.env.BO_SECRET;
+  await rejects(FN.setupManager(bookDb(emptyBook()), good, NOW), 400, /BO_SETUP_KEY/);
+
+  process.env.BO_SETUP_KEY = 'the-deployment-key';
+  // Wrong key -> 401, and nothing is written.
+  const db1 = bookDb(emptyBook());
+  await rejects(FN.setupManager(db1, { ...good, setup_key: 'guess' }, NOW), 401, /setup key/);
+  await rejects(FN.setupManager(db1, { ...good, setup_key: '' }, NOW), 401);
+  assert.equal(db1._dump('profiles').length, 0, 'a wrong key writes nothing');
+
+  // A system that already has a manager -> 403 even WITH the right key.
+  await rejects(FN.setupManager(bookDb(), good, NOW), 403, /already has a manager/);
+
+  // The real thing: creates the manager and signs them in.
+  const db = bookDb(emptyBook());
+  const out = await FN.setupManager(db, good, NOW, { userAgent: 'test' });
+  assert.ok(out.token, 'signed straight in');
+  assert.equal(out.user.role, 'manager');
+  assert.equal(out.user.handle, 'markii');
+  assert.equal(out.user.vendor_id, null, 'a manager belongs to no business');
+  const row = db._dump('profiles')[0];
+  assert.equal(row.active, true);
+  assert.ok(row.password_hash && row.password_salt, 'hashed, never stored readable');
+  assert.equal(row.password, undefined);
+  assert.ok(verifyPassword('a-long-one', row.password_hash, row.password_salt));
+  assert.equal(db._dump('sessions').length, 1);
+
+  // And now the door is shut, with the same key that just worked.
+  await rejects(FN.setupManager(db, { ...good, email: 'other@x.tz', handle: 'other' }, NOW), 403);
+  assert.deepEqual(await FN.setupState(db), { needed: false, keyless: false });
+});
+
+test('setupManager: BO_SECRET stands in when BO_SETUP_KEY is not set, and the fields are checked', async () => {
+  delete process.env.BO_SETUP_KEY;
+  process.env.BO_SECRET = 'the-signing-secret';
+  const good = { setup_key: 'the-signing-secret', email: 'boss@samaritan.tz', name: 'Markii', handle: 'markii', password: 'a-long-one' };
+  const db = bookDb(emptyBook());
+  await rejects(FN.setupManager(db, { ...good, email: 'not-an-email' }, NOW), 400, /valid email/);
+  await rejects(FN.setupManager(db, { ...good, handle: 'has space' }, NOW), 400, /spaces/);
+  await rejects(FN.setupManager(db, { ...good, password: 'ab' }, NOW), 400, /at least/);
+  await rejects(FN.setupManager(db, { ...good, name: '' }, NOW), 400);
+  assert.equal(db._dump('profiles').length, 0);
+  assert.ok((await FN.setupManager(db, good, NOW)).token, 'BO_SECRET is accepted as the key');
+  delete process.env.BO_SECRET;
 });

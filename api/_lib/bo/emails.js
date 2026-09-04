@@ -5,6 +5,7 @@ import { requireManager } from '../auth.js';
 import { sendEmail, signature } from '../email.js';
 import { reportFile } from './reports.js';
 import { sendRemindersFor } from './lendings.js';
+import { APP_NAME } from '../brand.js';
 
 /* =====================================================================================
    THE EMAIL CENTER -- every outbound message the manager can fire, on demand.
@@ -85,7 +86,7 @@ async function periodReports(db, user, nowMs, kind) {
           try {
             await sendEmail({
               to: s.email, subject: '📋 Your daily Sales Summary – ' + today,
-              html: '<p>Dear ' + esc(s.name) + ',</p><p>Your <strong>daily</strong> sales: <strong>' + fmtMoney(total) + ' ' + currencyOf(v) + '</strong></p><p>' + esc(v.name) + ' via Business Operator</p>' + signature(),
+              html: '<p>Dear ' + esc(s.name) + ',</p><p>Your <strong>daily</strong> sales: <strong>' + fmtMoney(total) + ' ' + currencyOf(v) + '</strong></p><p>' + esc(v.name) + ' via ' + APP_NAME + '</p>' + signature(),
             }, mailer());
             sellers++;
           } catch (e) { if (notConfigured(e)) throw e; skipped++; }
@@ -193,7 +194,7 @@ async function emailManagerSummary(db, user, args, nowMs) {
   }
   await sendEmail({
     to: managerEmail(), subject: '📊 Daily Vendor Summary – ' + today,
-    html: '<h2>Business Operator – Daily Summary</h2><p>' + today + '</p>'
+    html: '<h2>' + APP_NAME + ' – Daily Summary</h2><p>' + today + '</p>'
       + '<table border="1" cellpadding="4" style="border-collapse:collapse;"><thead><tr><th>Vendor</th><th>Admin</th><th>Today</th><th>Weekly</th><th>Monthly</th><th>Year</th><th>Products</th><th>Sellers</th><th>Stock Value</th></tr></thead><tbody>'
       + (rowsHtml || '<tr><td colspan="9">No vendors</td></tr>') + '</tbody></table>' + signature(),
   }, mailer());

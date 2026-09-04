@@ -1,9 +1,15 @@
-# Business Operator v2 — Supabase + Vercel
+# Samaritan Industrial — Supabase + Vercel
 
-The Apps Script **Business Operator** (multi-vendor retail management + public marketplace by
-Samaritan Techs) rebuilt on the same stack and conventions as HOPE PMO, plus the phone-retail
-additions for multi-shop dealers (branches, IMEI units, credit sales via financing partners,
-discounts, soft-cancel, stock movements, yearly reports).
+**Samaritan Industrial** — multi-vendor retail management and a public marketplace, by
+Samaritan Techs. It is the Apps Script *Business Operator* rebuilt on the same stack and
+conventions as HOPE PMO, plus the phone-retail additions for multi-shop dealers (branches,
+IMEI units, credit sales via financing partners, discounts, soft-cancel, stock movements,
+yearly reports).
+
+The product name lives in one place, `api/_lib/brand.js`, and can be overridden per deployment
+with an `APP_NAME` environment variable. The folder, the package and the database stay named
+`business-operator`: those are internal, and renaming them would break the deployment's Root
+Directory setting for nothing.
 
 - **The whole story:** [`docs/CLAUDE_CODE_HANDOFF.md`](docs/CLAUDE_CODE_HANDOFF.md) (what it is, every feature, the data dictionary).
 - **What the code agrees on:** [`docs/API-CONTRACT.md`](docs/API-CONTRACT.md).

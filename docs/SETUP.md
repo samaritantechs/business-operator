@@ -1,4 +1,4 @@
-# Setting up Business Operator
+# Setting up Samaritan Industrial
 
 From an empty Supabase organisation to a working deployment, in the order the steps depend on
 each other. Nothing here touches HOPE PMO or HOOP: this app has its **own database project**,
@@ -56,31 +56,21 @@ the browser holds a session token, never a database key.
 
 ---
 
-## 2. The first manager account
+## 2. The setup key
 
-A fresh database has **no people in it**, and the sign-up form on the marketplace only ever
+A brand-new system has **nobody in it**, and the sign-up form on the marketplace only ever
 creates a *business* and its admin. That is deliberate: a manager can activate and restrict
 businesses, change system settings and send email, so it must never be self-service.
 
-Make the first one from a terminal, once:
+Instead the system offers a **one-time setup screen** the first time anybody opens it, and it
+asks for a key that only you have. Decide that key now and keep it with the database password:
 
-```bash
-cd business-operator
-npm install
+> A long random line. Anything you like, as long as it is not guessable, for example
+> `sam-ind-2026-9f3b-quiet-river-4471`.
 
-export SUPABASE_URL=https://xxxxxxxx.supabase.co
-export SUPABASE_SERVICE_ROLE_KEY=eyJ...
-
-# The password is read from stdin so it stays out of your shell history.
-printf '%s' 'a-long-password' | node migrate/create-manager.js \
-  --email you@example.com --name "Your Name" --handle you --password -
-```
-
-It refuses to run twice: once a manager exists it prints who, and points you at
-**Users → Add User** inside the app for any further accounts. Sign in with the **User ID**
-(`--handle`), not the email, then change the password from **My Account**.
-
----
+You will paste it into the deployment's settings in step 3 as **`BO_SETUP_KEY`**, and type it
+once on the setup screen in step 4. After that it does nothing: the setup screen never appears
+again, because the system now has a manager.
 
 ## 3. The deployment (Vercel)
 
@@ -111,6 +101,7 @@ in the repository is what runs in the browser.
 |---|---|---|
 | `SUPABASE_URL` | **yes** | nothing works |
 | `SUPABASE_SERVICE_ROLE_KEY` | **yes** | nothing works |
+| `BO_SETUP_KEY` | **yes, at first** | the setup screen refuses to create anything and says so |
 | `BO_SECRET` | recommended | report-download tickets are signed with a secret derived from the service-role key instead; works, but rotating one then rotates both |
 | `RESEND_API_KEY` | no | the app runs; every email action says plainly that email is not configured |
 | `EMAIL_FROM` | with Resend | falls back to the built-in address |
@@ -122,22 +113,28 @@ Redeploy after changing any of them — Vercel does not apply new variables to a
 
 ---
 
-## 4. Check it works
+## 4. Open it and make yourself the manager
 
 In this order, because each step proves the one under it:
 
-1. Open the deployment. The **marketplace** loads. On an empty database it is an empty grid,
-   not an error — that is the correct empty state.
-2. **Sign in** as the manager from step 2.
-3. **Manager** tab: it lists no businesses yet, and the Email Centre buttons are present.
+1. Open the deployment. Because the system is empty, it shows **Set up this system** instead of
+   a sign-in box.
+2. Enter the **setup key** from step 2, your name, the **User ID** you want to sign in with
+   (short, no spaces — `markii`), your email and a password. Press **Create manager account**.
+   - A wrong key is refused and says so. Nothing is created.
+   - If it says the deployment has no setup key, `BO_SETUP_KEY` did not reach it: check step 3
+     and redeploy.
+3. You are signed straight in as the manager. Reload the page — the setup screen is gone for
+   good, and you get the normal sign-in box.
 4. Register a business from the marketplace's **Register New Business** link, then approve it
-   from the Manager tab. Sign in as that admin.
+   from the **Manager** tab. Sign in as that admin.
 5. Add a product, sell it, and check the sale appears on the **Dashboard** and the stock
-   dropped by one. That path exercises the database, the session, the role check and the
-   stock ledger in one go.
+   dropped by one. That path exercises the database, the session, the role check and the stock
+   ledger in one go.
 6. **Reports → Sales → PDF.** A signed download proves `BO_SECRET` and the PDF writer.
 
----
+> Prefer a terminal? `node migrate/create-manager.js --email you@example.com --name "Your Name"
+> --handle you --password -` does the same job. You do not need it.
 
 ## 5. Local development
 

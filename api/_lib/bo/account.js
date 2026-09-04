@@ -1,7 +1,9 @@
 import { rows, one, insertOne, update, remove, getSetting, text, mustText, iso, badRequest, PROFILE_COLS, isManagerLevel } from './_shared.js';
 import { AppError, unauthorized, hashPassword, verifyPassword, createSession, resolveSession, destroySession, bustSessions, newToken, loadUser } from '../auth.js';
 import { sendEmail, signature } from '../email.js';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { buildBoot } from './boot.js';
+import { APP_NAME } from '../brand.js';
 
 /* =====================================================================================
    ACCOUNT -- the doors that exist before there is a session.
@@ -46,6 +48,40 @@ function passwordArg(v) {
   const p = String(v == null ? '' : v).trim();
   if (p.length < MIN_PASSWORD) throw badRequest('Password must be at least ' + MIN_PASSWORD + ' characters.');
   return p;
+}
+
+
+/* ------------------------------------------------------------------ first run
+   A database that has just been created has NOBODY in it, and `register` only ever makes a
+   business and its admin -- deliberately, because a manager can activate businesses, restrict
+   them, change system settings and send email, and that must never be self-service.
+
+   So the very first manager is made here, once, and TWO things have to be true at the same
+   time: the system still has no manager at all, and the caller knows the setup key that was
+   put in the deployment's own environment variables. Either alone would not be enough -- the
+   first stranger to find a fresh URL would otherwise own the system, and a leaked key would
+   otherwise stay useful forever. Once a manager exists this door is shut for good, and further
+   accounts are made from Users inside the app.
+
+   (migrate/create-manager.js does the same job from a terminal, for whoever prefers one.) */
+
+/** The setup key from the deployment's environment. BO_SETUP_KEY if it is set, otherwise
+    BO_SECRET, which every deployment is told to set anyway. Null when neither exists, and
+    that is refused rather than waved through: a setup door with no key is not a door. */
+function setupKey() {
+  const k = String(process.env.BO_SETUP_KEY || process.env.BO_SECRET || '').trim();
+  return k || null;
+}
+/** Constant-time, and length-blind because the hashes are always 32 bytes. */
+function keyMatches(given, expected) {
+  const a = createHash('sha256').update(String(given == null ? '' : given)).digest();
+  const b = createHash('sha256').update(String(expected)).digest();
+  return timingSafeEqual(a, b);
+}
+/** Is there any manager at all? One bounded read. */
+async function hasManager(db) {
+  const list = await rows(db, 'profiles', q => q.select('id').in('role', ['manager', 'assistant-manager']).limit(1));
+  return list.length > 0;
 }
 
 export const FN = {
@@ -109,7 +145,7 @@ export const FN = {
     try {
       await sendEmail({
         to: p.email,
-        subject: '🔑 Password Reset – Business Operator',
+        subject: '🔑 Password Reset – ' + APP_NAME,
         html: '<p>Click below to reset your password (valid 10 minutes):</p><p><a href="' + url + '">' + url + '</a></p>' + signature(),
       }, { fetch: deps && deps.fetch });
     } catch (e) {
@@ -134,6 +170,47 @@ export const FN = {
     await remove(db, 'sessions', q => q.eq('profile_id', r.profile_id));
     bustSessions(db);
     return { message: 'Password updated. You can now log in.' };
+  },
+
+  /** {} -> { needed, keyless }. What the sign-in page asks before drawing anything: is this
+      a brand-new system that still needs its first manager, and does the deployment actually
+      have a setup key set? `keyless` lets the page say what is wrong instead of failing at
+      the last step. One read, and only while the system is empty -- once a manager exists
+      this answers false and costs the same one read. */
+  async setupState(db) {
+    const needed = !(await hasManager(db));
+    return { needed, keyless: needed && !setupKey() };
+  },
+
+  /** { setup_key, email, name, handle, password } -> { token, ...boot }. The first manager,
+      and then never again. Signs them straight in, because they have just proved they hold
+      the deployment's own key and making them type it all again helps nobody. */
+  async setupManager(db, args, nowMs, deps) {
+    const expected = setupKey();
+    if (!expected) {
+      throw badRequest('This deployment has no setup key. Add BO_SETUP_KEY (or BO_SECRET) to its environment variables, redeploy, and try again.');
+    }
+    if (await hasManager(db)) throw new AppError('This system already has a manager account. Sign in, then use Users to add more.', 403);
+    if (!keyMatches(args.setup_key, expected)) throw unauthorized('That setup key is not right.');
+
+    const email = mustText(args.email, 'Email').toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw badRequest('Enter a valid email address.');
+    const name = mustText(args.name, 'Your name');
+    const handle = mustText(args.handle, 'User ID');
+    if (/\s/.test(handle)) throw badRequest('The User ID cannot contain spaces.');
+    const password = passwordArg(args.password);
+    if (await profileExists(db, 'email', email)) throw badRequest('An account with this email already exists.');
+    if (await profileExists(db, 'handle', handle)) throw badRequest('That User ID is already taken.');
+
+    const pw = hashPassword(password);
+    const row = await insertOne(db, 'profiles', {
+      email, name, handle, role: 'manager', vendor_id: null, branch_id: null, active: true,
+      profile_photo_url: null, password_hash: pw.hash, password_salt: pw.salt, created_at: iso(nowMs),
+    });
+    bustSessions(db);
+    const user = await loadUser(db, row.id);
+    const token = await createSession(db, user.id, deps && deps.userAgent, nowMs);
+    return { token, ...(await buildBoot(db, user, nowMs)) };
   },
 
   async logout(db, args) {

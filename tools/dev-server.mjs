@@ -19,14 +19,18 @@ process.env.SUPABASE_URL = process.env.SUPABASE_URL || 'https://local.invalid';
 process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'local-key';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const { richBook, bookDb } = await import('../test/_book.mjs');
+const { richBook, emptyBook, bookDb } = await import('../test/_book.mjs');
 const { resolveSession, readTicket, loadUser } = await import('../api/_lib/auth.js');
 const { boApi } = await import('../api/_lib/bo-core.js');
 const { accountApi } = await import('../api/_lib/bo/account.js');
 const { marketApi } = await import('../api/_lib/bo/market.js');
 const { reportFile } = await import('../api/_lib/bo/reports.js');
 
-const db = bookDb(richBook());
+/* BO_DEV_EMPTY=1 starts with NOTHING in it -- no businesses, no people -- which is the state
+   a real new deployment is in and the only way to see the first-run setup screen. */
+const EMPTY = process.env.BO_DEV_EMPTY === '1';
+const db = bookDb(EMPTY ? emptyBook() : richBook());
+if (EMPTY && !process.env.BO_SETUP_KEY) process.env.BO_SETUP_KEY = 'dev-setup-key';
 const PORT = Number(process.env.PORT) || 8787;
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css', '.png': 'image/png', '.svg': 'image/svg+xml', '.json': 'application/json', '.webmanifest': 'application/manifest+json' };
 const REWRITES = { '/': '/index.html', '/market': '/index.html', '/login': '/index.html', '/app': '/index.html' };
@@ -76,6 +80,7 @@ http.createServer(async (req, res) => {
   res.writeHead(200, { 'Content-Type': TYPES[path.extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-cache' });
   fs.createReadStream(file).pipe(res);
 }).listen(PORT, () => {
-  console.log('Business Operator (local, in-memory book) on http://localhost:' + PORT);
-  console.log('Sign in: frank / pass1234 (admin) · juma / pass1234 (seller) · mama / pass1234 (grocery admin) · markii / pass1234 (manager)');
+  console.log('Samaritan Industrial (local, in-memory book) on http://localhost:' + PORT);
+  if (EMPTY) console.log('EMPTY system: the setup screen is showing. Setup key: ' + process.env.BO_SETUP_KEY);
+  else console.log('Sign in: frank / pass1234 (admin) · juma / pass1234 (seller) · mama / pass1234 (grocery admin) · markii / pass1234 (manager)');
 });

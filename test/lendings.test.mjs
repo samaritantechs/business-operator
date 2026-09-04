@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { bookDb, richBook, userOf, NOW, MANAGER, ADMIN1, SELLER1, ADMIN2 } from './_book.mjs';
 import { FN, WRITES, deps, sendRemindersFor, DEFAULT_LENDING_TEXT } from '../api/_lib/bo/lendings.js';
 import { iso } from '../api/_lib/bo/_shared.js';
+import { APP_BY } from '../api/_lib/brand.js';
 
 /* Every email the module tries to send lands here instead of at Resend. */
 process.env.RESEND_API_KEY = 'test-key';
@@ -212,7 +213,7 @@ test('sendLendingReminder: the default template with every placeholder filled', 
   assert.ok(m.html.includes('<strong>1× Wedding Gown (150,000 each)</strong>'));
   assert.ok(m.html.includes('Total owed: <strong>150,000 TZS</strong>'));
   assert.ok(m.html.includes('Borrowed <strong>5 days</strong> ago'));           // 28 Aug 08:00Z -> 2 Sep 09:00Z
-  assert.ok(m.html.includes('Business Operator – Samaritan Techs'));           // the signature
+  assert.ok(m.html.includes(APP_BY));           // the signature
   assert.equal(m.html.indexOf('{'), -1);                                       // nothing left unfilled
 });
 
@@ -270,4 +271,39 @@ test('sendLendingReminders: the legacy sentence, admin pinned to own vendor', as
   assert.deepEqual(await FN.sendLendingReminders(db, user(MANAGER), { vendor_id: 'V1' }, NOW), { message: 'Sent 0 reminders. 2 borrowers had no email.' });
   assert.equal(await status(FN.sendLendingReminders(db, user(SELLER1), {}, NOW)), 403);
   assert.ok(DEFAULT_LENDING_TEXT.includes('{borrowerName}'));
+});
+
+/* The bug this guards: the status flip was written as a conditional update but its result was
+   never looked at, so two admins clicking the tick together -- or one double-tapping it on a
+   slow connection -- both went on to restore, and a borrowed item came back twice. */
+test('markLendingReturned / deleteLending: the second caller restores nothing', async () => {
+  const db = bookDb();
+  const gown = () => db._dump('products').find(p => p.id === 'P6').stock;
+  const before = gown();
+  const both = await Promise.allSettled([
+    FN.markLendingReturned(db, user(ADMIN2), { lending_id: 'L1' }, NOW),
+    FN.markLendingReturned(db, user(ADMIN2), { lending_id: 'L1' }, NOW),
+  ]);
+  const ok = both.filter(r => r.status === 'fulfilled');
+  const no = both.filter(r => r.status === 'rejected');
+  assert.equal(ok.length, 1, 'exactly one caller may return a lending');
+  assert.equal(no.length, 1);
+  assert.equal(no[0].reason.status, 400);
+  assert.match(no[0].reason.message, /already returned/);
+  assert.equal(gown(), before + 1, 'the gown came back once, not twice');
+  assert.equal(db._dump('stock_movements').filter(m => m.type === 'returned' && m.product_id === 'P6').length, 1);
+
+  // And the same race on delete: both delete, only one restores.
+  const db2 = bookDb();
+  const g2 = () => db2._dump('products').find(p => p.id === 'P6').stock;
+  const start = g2();
+  const races = await Promise.allSettled([
+    FN.deleteLending(db2, user(ADMIN2), { lending_id: 'L1' }, NOW),
+    FN.deleteLending(db2, user(ADMIN2), { lending_id: 'L1' }, NOW),
+  ]);
+  assert.equal(races.filter(r => r.status === 'fulfilled').length, 2, 'deleting twice is not an error');
+  assert.equal(races.filter(r => r.status === 'fulfilled' && /Stock restored/.test(r.value.message)).length, 1,
+    'but only one of them restored the stock');
+  assert.equal(g2(), start + 1);
+  assert.equal(db2._dump('lendings').filter(x => x.id === 'L1').length, 0);
 });

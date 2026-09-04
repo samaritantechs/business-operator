@@ -307,6 +307,41 @@ function logout(silent) {
   if (!silent) showToast('Signed out.', '👋');
 }
 
+
+/* ------------------------------------------------------------------ first run
+   A system nobody has set up yet cannot be signed into, and telling somebody to open a
+   terminal is not an answer for a shopkeeper. So when the server reports that no manager
+   exists, the sign-in box becomes a setup box instead. The server still demands the
+   deployment's own setup key, so finding this screen is not the same as owning the system. */
+function showSetup(state) {
+  showLogin(false);
+  var hide = ['loginFieldsWrap', 'lbl_signin', 'lbl_signin_sub', 'regLink', 'forgotLink'];
+  hide.forEach(function (id) { var el = document.getElementById(id); if (el) el.style.display = 'none'; });
+  var f = document.getElementById('setupForm'); if (f) f.style.display = 'block';
+  var k = document.getElementById('setupKeyless');
+  if (k) k.style.display = (state && state.keyless) ? 'block' : 'none';
+  var b = document.getElementById('setupBtn'); if (b) b.disabled = !!(state && state.keyless);
+}
+function submitSetup() {
+  var msg = document.getElementById('setupMsg');
+  var v = function (id) { var e = document.getElementById(id); return e ? e.value.trim() : ''; };
+  var args = { setup_key: v('setupKey'), name: v('setupName'), handle: v('setupHandle'), email: v('setupEmail'), password: v('setupPwd') };
+  if (!args.setup_key || !args.name || !args.handle || !args.email || !args.password) {
+    msg.innerHTML = '<div class="alert-danger">Fill in every field.</div>'; return;
+  }
+  var btn = document.getElementById('setupBtn');
+  btn.disabled = true; msg.innerHTML = '<div class="muted">Creating your account…</div>';
+  auth('setupManager', args).then(function (b2) {
+    S.token = b2.token; store('boToken', S.token);
+    var f = document.getElementById('setupForm'); if (f) f.style.display = 'none';
+    applyLogin(b2);
+    showToast('Welcome. This system is yours to run.', '🎉');
+  }).catch(function (e) {
+    btn.disabled = false;
+    msg.innerHTML = '<div class="alert-danger">' + esc(e.message) + '</div>';
+  });
+}
+
 /* ------------------------------------------------------------------ login / register / reset */
 function doLogin() {
   var uid = document.getElementById('loginId').value.trim(), pwd = document.getElementById('loginPwd').value;
@@ -415,7 +450,7 @@ function openProductDetail(idx) {
     ? shots.map(function (u, k) { return '<img class="pd-img" src="' + esc(u) + '"' + (k === 0 ? ' onerror="this.outerHTML=\'<div class=\\\'pd-img-ph\\\'>🛍️</div>\'"' : ' onerror="this.remove()"') + '>'; }).join('')
     : '<div class="pd-img-ph">🛍️</div>') + '</div>';
   var phone = digitsOnly(p.vendorPhone || v.phone || '');
-  var contact = phone ? '<a class="btn-primary w-100" style="justify-content:center;margin-top:6px;" href="https://wa.me/' + phone + '?text=' + encodeURIComponent('Hello ' + p.vendor + ', I am interested in "' + p.name + '" I saw on the Business Operator marketplace.') + '" target="_blank" rel="noopener">📲 Contact seller on WhatsApp</a>' : '<div class="alert-info" style="margin-top:6px;">This seller has not listed a contact number.</div>';
+  var contact = phone ? '<a class="btn-primary w-100" style="justify-content:center;margin-top:6px;" href="https://wa.me/' + phone + '?text=' + encodeURIComponent('Hello ' + p.vendor + ', I am interested in "' + p.name + '" I saw on the Samaritan Industrial marketplace.') + '" target="_blank" rel="noopener">📲 Contact seller on WhatsApp</a>' : '<div class="alert-info" style="margin-top:6px;">This seller has not listed a contact number.</div>';
   document.getElementById('pdBody').innerHTML = imgs
     + '<div style="font-size:.7rem;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.05em;">' + (isRent ? 'FOR RENT · ' : '') + esc(p.cat || 'General') + ((p.brand || p.model) ? ' · ' + esc([p.brand, p.model].filter(Boolean).join(' ')) : '') + '</div>'
     + '<div style="font-size:1.3rem;font-weight:800;color:var(--text);margin:2px 0 4px;">' + esc(p.name) + (p.hot ? ' <span style="font-size:.8rem;color:#EF4444;">🔥 Hot</span>' : '') + '</div>'
@@ -479,7 +514,7 @@ function sendSuggestionWhatsApp() {
   var msg = document.getElementById('suggestionMsg').value.trim(), cat = document.getElementById('suggestionCat').value;
   if (!msg) { alert('Type a message first.'); return; }
   var who = S.user ? (S.user.name + (S.vendor ? ' (' + S.vendor.name + ')' : '')) : 'A visitor';
-  var text = '*Business Operator Feedback*\nFrom: ' + who + '\nTopic: ' + cat + '\n\n' + msg;
+  var text = '*Samaritan Industrial Feedback*\nFrom: ' + who + '\nTopic: ' + cat + '\n\n' + msg;
   if (S.token) srv('suggestion', { category: cat, message: msg }).catch(function () {});
   window.open('https://wa.me/' + WA_NUMBER + '?text=' + encodeURIComponent(text), '_blank');
   closeModal('suggestionModal'); showToast('Opening WhatsApp…', '📲');
@@ -507,6 +542,13 @@ BO.boot = function () {
     // A saved session signs straight back in; a dead one falls through to the marketplace.
     auth('me', { token: S.token }).then(function (b) { applyLogin(b); done(); })
       .catch(function (e) { if (/sign in|expired|session|account|Please/i.test(e.message) || e.status === 401) { S.token = ''; store('boToken', null); } showLanding(); done(); });
-  } else { showLanding(); done(); }
+  } else {
+    /* No session. Before showing the marketplace, ask whether this system has a manager at
+       all -- a brand-new deployment goes straight to the setup screen instead. One cheap
+       read, and only for a signed-out visitor. */
+    auth('setupState', {}).then(function (st) {
+      if (st && st.needed) { showSetup(st); done(); } else { showLanding(); done(); }
+    }).catch(function () { showLanding(); done(); });
+  }
   if (/[?&](login|register)=1/.test(window.location.search) && !S.token) showLogin(/register=1/.test(window.location.search));
 };

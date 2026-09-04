@@ -6,6 +6,7 @@ import { requireAdmin } from '../auth.js';
 import { changeStock, claimUnits } from './stock.js';
 import { sendEmail, signature } from '../email.js';
 import { productRows } from './dashboard.js';
+import { APP_NAME } from '../brand.js';
 
 /* =====================================================================================
    SELLING, AND UNDOING A SALE.
@@ -180,7 +181,7 @@ function cancelEmail(seller, sale, vendor, user, reason) {
   const row = (k, v) => '<tr><th align="left">' + k + '</th><td>' + esc(v) + '</td></tr>';
   return {
     to: seller.email,
-    subject: '⚠️ Sale Cancelled – ' + (vendor.name || 'Business Operator'),
+    subject: '⚠️ Sale Cancelled – ' + (vendor.name || APP_NAME),
     html: '<p>Dear ' + esc(seller.name) + ',</p>'
       + '<p>A sale record linked to your account has been <strong>cancelled</strong> by management.</p>'
       + '<table border="1" cellpadding="6" style="border-collapse:collapse;">'
