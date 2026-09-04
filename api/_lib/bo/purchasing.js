@@ -109,6 +109,11 @@ export const FN = {
     for (const it of items) {
       const p = products.find(x => String(x.id) === String(it && it.product_id));
       if (!p) throw notFound('Mojawapo ya bidhaa hizo haiko kwenye orodha yako. / One of those products is not in your catalogue.');
+      /* addStock refuses to restock a deactivated product -- "activate it first" -- and a purchase
+         order is a restock with paperwork, so it must refuse too. Without this a delivery put
+         forty units into a product that appears on no screen: not in the catalogue, not in the
+         marketplace, not sellable, and not in the stock value. */
+      if (!p.active) throw badRequest('"' + p.name + '" haiko hai -- iwashe kwanza. / "' + p.name + '" is not active — activate it before ordering more.');
       const qty = int(it.qty);
       if (qty < 1) throw badRequest('Agiza angalau 1 ya "' + p.name + '". / Order at least 1 of "' + p.name + '".');
       const unitCost = money(it.unit_cost === undefined || it.unit_cost === null || it.unit_cost === '' ? p.cost_price : it.unit_cost);
@@ -166,6 +171,9 @@ export const FN = {
       /* A phone tracked by IMEI cannot arrive as a number -- each handset carries its own, and
          they go in under Stock & Shops where they can be typed. Saying so is better than
          silently inventing a count the units will then contradict. */
+      if (!product.active) {
+        throw badRequest('"' + product.name + '" haiko hai -- iwashe kabla ya kupokea. / "' + product.name + '" is not active — activate it before receiving this delivery.');
+      }
       if (product.is_serialized) {
         throw badRequest('"' + product.name + '" is tracked by IMEI, so a delivery of it is the IMEIs themselves. Add them under Stock & Shops, then mark this line received.');
       }

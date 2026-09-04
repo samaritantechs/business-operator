@@ -247,8 +247,27 @@ async function cashDueReport(db, s) {
   const maps = await nameMaps(db, s, { vendors: true });
   const by = new Map();
   const rowFor = id => bump(by, String(id), () => ({ cash_sales: 0, lipa_sales: 0, credit_sales: 0, cash_received: 0, lipa_received: 0, dep_taken: 0, dep_applied: 0 }));
+  /* ONLY A CASH COLLECTION NETS OFF A DEPOSIT, and the other two are instructive about why.
+
+     Credit: the financing partner pays the shop, so nothing lands in cash_sales or lipa_sales at
+     all. Subtracting the deposit anyway drove the balance NEGATIVE -- the till appeared to owe
+     Juma 36,000 for a phone he had sold on finance.
+
+     Lipa: an unreceipted Lipa sale is ASSUMED received (that rule predates this and is written
+     into the report), so the lipa half already nets to zero. Subtracting the deposit on top of an
+     assumption produced the same negative. The deposit stays billed to whoever took it, on the
+     day they took it, until they hand it in -- which is the true statement.
+
+     Cash is the one case where the arithmetic is not in doubt: cash_sales counted the whole
+     100,000 today and only 60,000 crossed the counter. */
   const sellerOfGroup = new Map();
-  for (const r of sales) if (r.group_id) sellerOfGroup.set(String(r.group_id), r.seller_id);
+  for (const r of sales) {
+    if (!r.group_id) continue;
+    const isCash = bucketOf(r.payment_method) === 'cash';
+    const seen = sellerOfGroup.get(String(r.group_id));
+    if (!seen) sellerOfGroup.set(String(r.group_id), { seller_id: r.seller_id, cash: isCash });
+    else if (isCash) seen.cash = true;
+  }
   for (const r of sales) { const a = rowFor(r.seller_id); const k = bucketOf(r.payment_method); if (k === 'lipa') a.lipa_sales += num(r.total); else if (k === 'credit') a.credit_sales += num(r.total); else a.cash_sales += num(r.total); }
   for (const r of receipts) { const a = rowFor(r.seller_id); a.cash_received += num(r.cash_amount); a.lipa_received += num(r.lipa_amount); }
   /* THE DAY IS THE EAT DAY. Slicing a UTC timestamp gave the wrong date for the three hours
@@ -260,8 +279,8 @@ async function cashDueReport(db, s) {
   for (const d of deposits) {
     if (dayOf(d.created_at) === s.today && d.created_by) rowFor(d.created_by).dep_taken += num(d.deposit);
     const applied = d.status === 'completed' && dayOf(d.closed_at) === s.today;
-    const who = applied && d.sale_group_id ? sellerOfGroup.get(String(d.sale_group_id)) : null;
-    if (who) rowFor(who).dep_applied += num(d.deposit);
+    const g = applied && d.sale_group_id ? sellerOfGroup.get(String(d.sale_group_id)) : null;
+    if (g && g.cash) rowFor(g.seller_id).dep_applied += num(d.deposit);
   }
   let grand = 0;
   const out = sellers.map(p => {

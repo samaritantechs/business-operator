@@ -271,3 +271,24 @@ test('a Cash Due report that could not read the deposits SAYS so', async () => {
      what matters is that SOMETHING is said, not that Postgres is quoted. */
   assert.match(warn, /briefly unreachable|haupatikani/);
 });
+
+test('a deposit nets off a CASH collection only — never into a negative balance', async () => {
+  /* The balance is built from cash and lipa sales. A Credit collection puts nothing in either
+     (the financing partner pays the shop) and an unreceipted Lipa sale is already ASSUMED
+     received, so subtracting the deposit in those two cases drove the balance NEGATIVE: the till
+     appeared to owe the seller 36,000 for a phone he had sold on finance. */
+  const { FN: HOLDS } = await import('../api/_lib/bo/pending.js');
+  for (const [method, nets] of [['Cash', true], ['Lipa Number', false], ['Credit', false]]) {
+    const db = bookDb();
+    const h = await HOLDS.createPendingSale(db, SEL(), {
+      items: [{ product_id: 'P3', qty: 20, list_price: 5000 }], customer_name: 'Neema', deposit: 40000,
+    }, NOW);
+    const args = { id: h.id, payment_method: method };
+    if (method === 'Credit') args.financing_partner_id = 'FP1';
+    await HOLDS.completePendingSale(db, SEL(), args, NOW);
+
+    const juma = (await report(db, ADM(), { type: 'cashdue' })).rows.find(r => /Juma/.test(r.seller));
+    assert.equal(juma.dep_applied, nets ? 40000 : 0, method + ': deposit applied?');
+    assert.ok(juma.balance >= 0, method + ': a balance must never go negative — got ' + juma.balance);
+  }
+});
