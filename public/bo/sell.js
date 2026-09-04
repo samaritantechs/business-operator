@@ -33,6 +33,11 @@ window.BOSell = (function () {
     h += '<div class="form-grid" style="margin-bottom:16px;max-width:760px;">';
     h += '<div class="form-group"><label class="form-label">Payment Method</label><select id="payMethod" class="form-select" onchange="BOSell.payChanged()"><option value="Cash">💵 Cash</option><option value="Lipa Number">📱 Lipa Number</option><option value="Credit">🏦 Credit (financing)</option></select></div>';
     h += '<div class="form-group" id="partnerWrap" style="display:none;"><label class="form-label">Financing Partner</label><select id="salePartner" class="form-select"><option value="">Select partner…</option>' + opts.partners.map(function (p) { return '<option value="' + esc(p.id) + '">' + esc(p.name) + '</option>'; }).join('') + '</select></div>';
+    /* WHO BOUGHT IT. Optional, and it stays optional: most sales over a shop counter are a
+       stranger with cash, and a form that demands a name for those is a form people learn to
+       type "x" into. Filled in, it turns the sale into something you can follow up -- a warranty
+       claim, a second handset, the Sales by Customer report. */
+    h += '<div class="form-group" style="grid-column:span 2;"><label class="form-label">Customer <span class="muted small">(optional — leave blank for a walk-in)</span></label><div class="fg2"><input class="form-control" id="custName" placeholder="Name" autocomplete="off"><input class="form-control" id="custPhone" placeholder="Phone" inputmode="tel" autocomplete="off"></div></div>';
     if (S.features.has_branches && opts.branches.length) {
       h += '<div class="form-group"><label class="form-label">Shop / Branch</label><select id="saleBranch" class="form-select" onchange="BOSell.branchChanged(this.value)"><option value="">— No shop —</option>' + opts.branches.map(function (b) { return '<option value="' + esc(b.id) + '"' + (branchId === b.id ? ' selected' : '') + '>' + esc(b.name) + '</option>'; }).join('') + '</select></div>';
     }
@@ -91,9 +96,13 @@ window.BOSell = (function () {
     if (!items.length) { alert('Add at least one item.'); return; }
     var pay = document.getElementById('payMethod').value, partner = null, partnerName = '';
     if (pay === 'Credit') { var ps = document.getElementById('salePartner'); partner = ps.value; if (!partner) { alert('Choose the financing partner for a credit sale.'); return; } partnerName = ps.options[ps.selectedIndex].text; }
-    if (!BO.confirm('Confirm sale?\n\n' + summary + '\nGrand Total: ' + fmtFull(grandTotal) + ' ' + cur() + '\nPayment: ' + pay + (partnerName ? ' (' + partnerName + ')' : '') + (branchId ? '\nShop: ' + branchName() : ''))) return;
+    var custName = (document.getElementById('custName') || {}).value || '', custPhone = (document.getElementById('custPhone') || {}).value || '';
+    var who = [custName.trim(), custPhone.trim()].filter(Boolean).join(' · ');
+    if (!BO.confirm('Confirm sale?\n\n' + summary + '\nGrand Total: ' + fmtFull(grandTotal) + ' ' + cur() + '\nPayment: ' + pay + (partnerName ? ' (' + partnerName + ')' : '') + (who ? '\nCustomer: ' + who : '') + (branchId ? '\nShop: ' + branchName() : ''))) return;
     var btn = document.getElementById('saleSubmitBtn'); btn.disabled = true;
     var args = { items: items, payment_method: pay };
+    if (custName.trim()) args.customer_name = custName.trim();
+    if (custPhone.trim()) args.customer_phone = custPhone.trim();
     if (partner) args.financing_partner_id = partner;
     if (branchId) args.branch_id = branchId;
     srv('recordSale', args).then(function (r) {

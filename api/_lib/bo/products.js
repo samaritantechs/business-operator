@@ -1,4 +1,4 @@
-import { rows, rowsAll, insertOne, update, badRequest, num, int, money, text, mustText, iso, vendorScope, mustProduct, PRODUCT_COLS } from './_shared.js';
+import { rows, rowsAll, insertOne, update, badRequest, num, int, money, text, mustText, iso, vendorScope, mustProduct, stripCost, canSeeCost, PRODUCT_COLS } from './_shared.js';
 import { requireAdmin } from '../auth.js';
 import { changeStock } from './stock.js';
 import { decodeDataUrl, uploadImage, BUCKETS } from '../storage.js';
@@ -55,7 +55,7 @@ export const FN = {
     });
     const n = await unitCounts(db, list);
     for (const p of list) if (p.is_serialized) p.units_in_stock = n.get(String(p.id)) || 0;
-    return { rows: list };
+    return { rows: stripCost(user, list) };
   },
 
   /** Everything the Sell / Lend form needs in one call: active products, the in-stock units
@@ -93,6 +93,8 @@ export const FN = {
     const name = mustText(args.name, 'Product name');
     const price = money(args.price);
     if (price < 0) throw badRequest('Price cannot be negative.');
+    const cost = money(args.cost_price);
+    if (cost < 0) throw badRequest('Cost price cannot be negative.');
     const opening = int(args.stock);
     if (opening < 0) throw badRequest('Opening stock cannot be negative.');
     const serialized = boolArg(args.is_serialized);
@@ -101,7 +103,7 @@ export const FN = {
     const product = await insertOne(db, 'products', {
       vendor_id: vendor.id, legacy_id: legacyId, name,
       category: text(args.category), brand: text(args.brand), model: text(args.model),
-      price, stock: 0, is_serialized: serialized, supplier: text(args.supplier),
+      price, cost_price: cost, stock: 0, is_serialized: serialized, supplier: text(args.supplier),
       reorder_point: (args.reorder_point === undefined || args.reorder_point === null || args.reorder_point === '') ? 20 : int(args.reorder_point),
       active: true, image1_url: null, image2_url: null,
       listing_type: listingType(args.listing_type), price_unit: text(args.price_unit) || '', location: text(args.location) || '',
@@ -125,6 +127,13 @@ export const FN = {
     if (args.name !== undefined) patch.name = mustText(args.name, 'Product name');
     if (args.category !== undefined) patch.category = text(args.category);
     if (args.price !== undefined) { patch.price = money(args.price); if (patch.price < 0) throw badRequest('Price cannot be negative.'); }
+    /* Only a role that may SEE the cost may set it. Without this a seller who can reach the edit
+       form -- or anyone replaying its request -- could write the field they are not allowed to read,
+       and the profit figures would quietly become fiction. */
+    if (args.cost_price !== undefined && canSeeCost(user)) {
+      patch.cost_price = money(args.cost_price);
+      if (patch.cost_price < 0) throw badRequest('Cost price cannot be negative.');
+    }
     if (args.reorder_point !== undefined) patch.reorder_point = int(args.reorder_point);
     if (args.listing_type !== undefined) patch.listing_type = listingType(args.listing_type);
     if (args.price_unit !== undefined) patch.price_unit = text(args.price_unit) || '';

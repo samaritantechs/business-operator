@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { rows, rowsAll, one, insertMany, update, count, iso, num, money, text, mustText, fmtMoney, badRequest, forbidden, notFound,
-  isAdminLevel, isManagerLevel, vendorScope, scopedVendor, requireVendorUser, requireSameVendor, mustProduct, productById, vendorById,
+  isAdminLevel, isManagerLevel, vendorScope, scopedVendor, requireVendorUser, requireSameVendor, mustProduct, productById, vendorById, stripCost,
   currencyOf, periodBounds, localNow } from './_shared.js';
 import { requireAdmin } from '../auth.js';
 import { changeStock, claimUnits } from './stock.js';
@@ -23,9 +23,9 @@ import { APP_NAME } from '../brand.js';
 export const deps = { fetch: null };                      // tests capture the seller's email here
 
 const PAYMENT_METHODS = ['Cash', 'Lipa Number', 'Credit'];
-const SALE_COLS = 'id, legacy_id, group_id, vendor_id, branch_id, seller_id, seller_name, product_id, product_name, brand, model, unit_id, imei, '
+const SALE_COLS = 'id, legacy_id, group_id, vendor_id, branch_id, seller_id, seller_name, customer_name, customer_phone, product_id, product_name, brand, model, unit_id, imei, '
   + 'qty, list_price, discount, price, total, payment_method, financing_partner_id, partner_paid, partner_paid_at, status, '
-  + 'cancelled_by, cancelled_by_name, cancelled_at, cancel_reason, sold_at';
+  + 'unit_cost, cancelled_by, cancelled_by_name, cancelled_at, cancel_reason, sold_at';
 
 const isBlank = v => v == null || String(v).trim() === '';
 const uniq = list => [...new Set(list.filter(Boolean).map(String))];
@@ -49,6 +49,14 @@ async function recordSale(db, user, args, nowMs) {
     const fp = await one(db, 'financing_partners', q => q.select('id, vendor_id, active').eq('id', partnerId));
     if (!fp || !fp.active || (fp.vendor_id && String(fp.vendor_id) !== String(vid))) throw badRequest('That financing partner is not available to your business.');
   }
+
+  /* Who bought it. Most sales are walk-ins and stay blank; when a name IS given it goes on
+     every line of the checkout, the same way seller_name does, so "everything this person ever
+     bought" is one indexed read rather than a join through a customers table that would
+     otherwise be nine parts empty. */
+  const cut = (v, n) => { const t = text(v); return t ? t.slice(0, n) : null; };   // text() is null when blank
+  const customerName = cut(args.customer_name, 120);
+  const customerPhone = cut(args.customer_phone, 40);
 
   const branchId = text(args.branch_id) || user.branch_id || null;
   if (branchId) {
@@ -114,7 +122,12 @@ async function recordSale(db, user, args, nowMs) {
   for (const l of lines) {
     const base = {
       group_id: groupId, vendor_id: vid, branch_id: branchId, seller_id: user.id, seller_name: user.name,
+      customer_name: customerName, customer_phone: customerPhone,
       product_id: l.product.id, product_name: l.product.name, brand: l.product.brand || null, model: l.product.model || null,
+      /* The margin is fixed HERE, at the till, not worked out later from whatever the product
+         costs by then. Buy the same handset cheaper next month and last month's profit must not
+         move: that is the whole reason product_name is a snapshot too. */
+      unit_cost: num(l.product.cost_price),
       list_price: l.list, discount: l.discount, price: l.price, payment_method: method, financing_partner_id: partnerId,
       partner_paid: false, status: 'completed', sold_at: soldAt,
     };
@@ -241,6 +254,7 @@ async function nameLookups(db, list) {
 
 const saleRow = (s, names) => ({
   id: s.id, legacy_id: s.legacy_id, group_id: s.group_id, sold_at: s.sold_at, seller_id: s.seller_id, seller_name: s.seller_name,
+  customer_name: s.customer_name || '', customer_phone: s.customer_phone || '', unit_cost: num(s.unit_cost),
   product_id: s.product_id, product_name: s.product_name, brand: s.brand || '', model: s.model || '', unit_id: s.unit_id, imei: s.imei || '',
   qty: num(s.qty), list_price: num(s.list_price), discount: num(s.discount), price: num(s.price), total: num(s.total),
   payment_method: s.payment_method, financing_partner_id: s.financing_partner_id, partner_paid: !!s.partner_paid, partner_paid_at: s.partner_paid_at || null,
@@ -293,7 +307,10 @@ async function salesDetail(db, user, args, nowMs) {
     let g = groups.get(name);
     if (!g) { g = { seller_name: name, total: 0, rows: [] }; groups.set(name, g); }
     g.total += num(s.total);
-    g.rows.push(saleRow(s, names));
+    /* salesDetail is the one sale read a SELLER can reach (their own lines, from the dashboard
+       tiles), and saleRow now carries unit_cost. Stripped here rather than left to the page:
+       a field that never leaves the server cannot be read out of the network tab. */
+    g.rows.push(stripCost(user, saleRow(s, names)));
   }
   const out = [...groups.values()].sort((a, c) => a.seller_name.localeCompare(c.seller_name));
   for (const g of out) { g.total = money(g.total); g.rows.sort((a, c) => (a.sold_at < c.sold_at ? -1 : a.sold_at > c.sold_at ? 1 : 0)); }

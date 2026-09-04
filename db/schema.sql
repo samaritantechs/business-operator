@@ -131,6 +131,7 @@ create table if not exists products (
   brand text,                                   -- phone retail: Samsung / Tecno / Infinix ...
   model text,                                   -- A05 / Spark 20 ...
   price numeric(14,2) not null default 0,
+  cost_price numeric(14,2) not null default 0,   -- what the shop PAID. Never public, never shown to a seller.
   stock integer not null default 0,             -- authoritative for non-serialized; a maintained count for serialized
   is_serialized boolean not null default false, -- true -> every unit carries an IMEI/serial in product_units
   supplier text,
@@ -209,6 +210,11 @@ create table if not exists sales (
   discount numeric(14,2) not null default 0,    -- per unit; never changes list_price
   price numeric(14,2) not null,                 -- effective unit price = list_price - discount
   total numeric(14,2) not null,                 -- qty x price
+  unit_cost numeric(14,2) not null default 0,   -- SNAPSHOT of products.cost_price at the moment of sale.
+                                                -- Restocking at a new cost must not move last month's profit,
+                                                -- for the same reason product_name is a snapshot and not a join.
+  customer_name text,                           -- blank = a walk-in, which is most of them
+  customer_phone text,
   payment_method payment_method not null,
   financing_partner_id uuid references financing_partners(id),
   partner_paid boolean not null default false,  -- the partner has settled this credit sale with the shop
@@ -375,6 +381,32 @@ do $$ begin
   alter type movement_type add value if not exists 'adjustment_in';
   alter type movement_type add value if not exists 'adjustment_out';
 exception when others then null; end $$;
+
+-- =====================================================================================
+-- PROFIT, AND WHO BOUGHT IT -- added after the first deployments.
+-- =====================================================================================
+-- A shop that cannot see its margin is guessing. The old app could tell you a phone sold for
+-- 250,000 and that 20,000 was knocked off the sticker; it could not tell you whether that left
+-- anything. cost_price is what the shop PAID, and every sale line carries a SNAPSHOT of it, so
+-- restocking at a new cost tomorrow does not silently rewrite what last month earned.
+--
+-- Cost is commercially sensitive: sellers never see it. That is enforced in the API
+-- (api/_lib/bo/_shared.js -> stripCost, and reports.js which lets a seller open one report only).
+--
+-- customer_name / customer_phone sit on the sale because most sales are walk-ins and a
+-- customers table would then be a table of blanks. When somebody IS named, the name is on
+-- every line of the checkout, the same denormalisation seller_name already uses, so
+-- "everything this person ever bought" is one indexed read and not a join.
+alter table if exists products add column if not exists cost_price numeric(14,2) not null default 0;
+alter table if exists sales    add column if not exists unit_cost  numeric(14,2) not null default 0;
+alter table if exists sales    add column if not exists customer_name text;
+alter table if exists sales    add column if not exists customer_phone text;
+
+-- "What has this customer bought?" and "who has not been back since April?" are the two
+-- questions a phone shop asks about a name, and both are this index. Partial, because the
+-- overwhelming majority of sales have no customer and there is no sense indexing blanks.
+create index if not exists idx_sales_customer on sales (vendor_id, customer_phone, sold_at desc)
+  where customer_phone is not null;
 
 -- =====================================================================================
 -- THE ANDROID APP'S RELEASES.
