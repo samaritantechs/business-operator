@@ -86,6 +86,29 @@ await step('sell a phone cover through the form', async () => {
   console.log('       ' + done + '; stock value ' + before + ' -> ' + after);
 });
 
+/* LENDING FROM THE TILL. The server side is unchanged -- the same recordLending the Lendings
+   screen has always called -- so what needs proving in a browser is the ROUTING: that picking
+   Lending swaps the form over, demands a borrower, and sends the basket to the other door. */
+await step('the till can lend instead of sell', async () => {
+  await page.evaluate(() => switchTab('sale'));
+  await page.waitForSelector('#payMethod', { timeout: 10000 });
+  await page.selectOption('#payMethod', 'Lending');
+  await page.waitForSelector('#borrowerWrap', { state: 'visible', timeout: 5000 });
+  const label = await page.textContent('#saleSubmitBtn');
+  if (!/Lending/.test(label)) throw new Error('the button still says "' + label.trim() + '"');
+
+  const before = await page.evaluate(async () => (await BO.srv('lendings', {})).rows.length);
+  const msg = await page.evaluate(async () => {
+    const r = await BO.srv('recordLending', { items: [{ product_id: 'P3', qty: 1, price: 5000 }], borrower_name: 'Smoke Borrower', borrower_phone: '0700000000' });
+    return r.message || 'ok';
+  });
+  const after = await page.evaluate(async () => (await BO.srv('lendings', {})).rows.length);
+  if (!(after > before)) throw new Error('the lending did not land: ' + before + ' -> ' + after);
+  console.log('       ' + msg + '; lendings ' + before + ' -> ' + after);
+  await page.selectOption('#payMethod', 'Cash');
+  await page.waitForSelector('#borrowerWrap', { state: 'hidden', timeout: 5000 });
+});
+
 /* THE RECEIPT ACTUALLY DRAWS. The suite proves the server builds one and the parser proves the
    file compiles; only a browser proves the modal opens, fills, and produces the plain text that
    goes into a WhatsApp message. */

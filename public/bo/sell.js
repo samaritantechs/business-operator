@@ -31,7 +31,12 @@ window.BOSell = (function () {
   function render(el) {
     var h = '<div class="section-card"><div class="section-hdr"><span>🛒</span><div class="section-hdr-title">New Sale</div></div><div class="section-body">';
     h += '<div class="form-grid" style="margin-bottom:16px;max-width:760px;">';
-    h += '<div class="form-group"><label class="form-label">Payment Method</label><select id="payMethod" class="form-select" onchange="BOSell.payChanged()"><option value="Cash">💵 Cash</option><option value="Lipa Number">📱 Lipa Number</option><option value="Credit">🏦 Credit (financing)</option></select></div>';
+    h += '<div class="form-group"><label class="form-label">Payment Method</label><select id="payMethod" class="form-select" onchange="BOSell.payChanged()"><option value="Cash">💵 Cash</option><option value="Lipa Number">📱 Lipa Number</option><option value="Credit">🏦 Credit (financing)</option><option value="Lending">🤝 Lending (goods leave, not sold)</option></select></div>';
+    /* LENDING FROM THE TILL. Goods that leave without being sold used to mean abandoning the
+       basket, walking to the Lendings screen and typing every line again -- so people either
+       did not bother, or recorded it as a sale and squared it up later, which is how stock and
+       takings both end up wrong. The cart is the same cart; only where it is sent changes. */
+    h += '<div class="form-group" id="borrowerWrap" style="display:none;grid-column:span 2;"><label class="form-label">Borrower <span class="muted small">(the goods stay yours until they come back)</span></label><div class="fg2"><input class="form-control" id="lendName" placeholder="Name *" autocomplete="off"><input class="form-control" id="lendPhone" placeholder="Phone" inputmode="tel" autocomplete="off"></div><input class="form-control" id="lendEmail" placeholder="Email (optional — lets you send a reminder)" inputmode="email" autocomplete="off" style="margin-top:8px;"></div>';
     h += '<div class="form-group" id="partnerWrap" style="display:none;"><label class="form-label">Financing Partner</label><select id="salePartner" class="form-select"><option value="">Select partner…</option>' + opts.partners.map(function (p) { return '<option value="' + esc(p.id) + '">' + esc(p.name) + '</option>'; }).join('') + '</select></div>';
     /* WHO BOUGHT IT. Optional, and it stays optional: most sales over a shop counter are a
        stranger with cash, and a form that demands a name for those is a form people learn to
@@ -74,7 +79,17 @@ window.BOSell = (function () {
     var g = document.getElementById('saleGrand'); if (g) g.textContent = t ? 'Grand total: ' + fmtFull(t) + ' ' + cur() : '';
   }
   function addRow() { var tb = document.getElementById('saleItemsBody'), tr = document.createElement('tr'); tr.className = 'sale-row'; tr.innerHTML = row().replace(/^<tr[^>]*>/, '').replace(/<\/tr>$/, ''); tb.appendChild(tr); }
-  function payChanged() { var m = document.getElementById('payMethod').value; document.getElementById('partnerWrap').style.display = m === 'Credit' ? '' : 'none'; }
+  function payChanged() {
+    var m = document.getElementById('payMethod').value, lend = m === 'Lending';
+    document.getElementById('partnerWrap').style.display = m === 'Credit' ? '' : 'none';
+    document.getElementById('borrowerWrap').style.display = lend ? '' : 'none';
+    /* A lending is not a sale and the button should not claim to be recording one -- the
+       difference is the whole point, and the person tapping it is in a hurry. */
+    var btn = document.getElementById('saleSubmitBtn');
+    if (btn) btn.innerHTML = lend ? '🤝 Record Lending' : '✅ Record Sale';
+    var cust = document.getElementById('custName');
+    if (cust) cust.closest('.form-group').style.display = lend ? 'none' : '';   // the borrower IS the customer
+  }
   function branchChanged(id) { branchId = id || ''; load(); }
 
   function submit() {
@@ -96,6 +111,7 @@ window.BOSell = (function () {
     if (!items.length) { alert('Add at least one item.'); return; }
     var pay = document.getElementById('payMethod').value, partner = null, partnerName = '';
     if (pay === 'Credit') { var ps = document.getElementById('salePartner'); partner = ps.value; if (!partner) { alert('Choose the financing partner for a credit sale.'); return; } partnerName = ps.options[ps.selectedIndex].text; }
+    if (pay === 'Lending') { submitLending(items, grandTotal, summary); return; }
     var custName = (document.getElementById('custName') || {}).value || '', custPhone = (document.getElementById('custPhone') || {}).value || '';
     var who = [custName.trim(), custPhone.trim()].filter(Boolean).join(' · ');
     if (!BO.confirm('Confirm sale?\n\n' + summary + '\nGrand Total: ' + fmtFull(grandTotal) + ' ' + cur() + '\nPayment: ' + pay + (partnerName ? ' (' + partnerName + ')' : '') + (who ? '\nCustomer: ' + who : '') + (branchId ? '\nShop: ' + branchName() : ''))) return;
@@ -119,6 +135,30 @@ window.BOSell = (function () {
         + ' <button class="btn-sm-primary" style="margin-left:8px;" onclick="BORcpt.open({group_id:\'' + BO.jsq(r.group_id) + '\'})">🧾 Receipt</button></div>');
     }).catch(function (e) { btn.disabled = false; document.getElementById('saleMsg').innerHTML = '<div class="alert-danger">' + esc(e.message) + '</div>'; });
   }
+  /* The same basket, sent to recordLending instead. The item shape is already what that call
+     wants -- product, qty, price, unit_ids -- so nothing on the server changes, and a lending
+     costs exactly what it always cost. `price` here is the effective price the cart shows
+     (list less any discount): what the borrower owes if the goods do not come back. */
+  function submitLending(items, grandTotal, summary) {
+    var name = (g('lendName') || '').trim(), phone = (g('lendPhone') || '').trim(), email = (g('lendEmail') || '').trim();
+    if (!name) { alert("Enter the borrower's name — a lending with nobody's name on it is missing stock."); document.getElementById('lendName').focus(); return; }
+    if (!BO.confirm('Record this as a LENDING?\n\n' + summary + '\nValue: ' + fmtFull(grandTotal) + ' ' + cur()
+      + '\nBorrower: ' + name + (phone ? ' · ' + phone : '')
+      + (branchId ? '\nShop: ' + branchName() : '')
+      + '\n\nThe stock leaves now. It comes back when you mark the lending returned.')) return;
+    var btn = document.getElementById('saleSubmitBtn'); btn.disabled = true;
+    var args = { items: items.map(function (i) { return { product_id: i.product_id, qty: i.qty, price: Math.max(0, i.price - (i.discount || 0)), unit_ids: i.unit_ids }; }),
+      borrower_name: name, borrower_phone: phone, borrower_email: email };
+    if (branchId) args.branch_id = branchId;
+    srv('recordLending', args).then(function (r) {
+      showToast(r.message || 'Lending recorded.', '🤝');
+      btn.disabled = false;
+      BO.reload('dashboard'); BO.reload('lendings');
+      load('<div class="alert-success" style="font-size:.9rem;">🤝 ' + esc(r.message || 'Lending recorded.') + ' — <strong>' + fmtFull(grandTotal) + ' ' + cur() + '</strong> with ' + esc(name) + '</div>');
+    }).catch(function (e) { btn.disabled = false; document.getElementById('saleMsg').innerHTML = '<div class="alert-danger">' + esc(e.message) + '</div>'; });
+  }
+  function g(id) { var e = document.getElementById(id); return e ? e.value : ''; }
+
   function branchName() { for (var i = 0; i < opts.branches.length; i++) if (opts.branches[i].id === branchId) return opts.branches[i].name; return ''; }
 
   BO.tabs.sale = { load: load };
