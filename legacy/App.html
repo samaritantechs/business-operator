@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <base target="_top">
+  <script>var _serverResetToken = '<?= resetToken ?>';var _serverView='<?= viewMode ?>';(function(){try{var t=localStorage.getItem('boTheme')||'dark';document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','dark');}})();</script>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Business Operator – Samaritan Techs</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+:root{--bg:#F4F6FB;--surface:#FFFFFF;--surface2:#F0F2F8;--border:#E2E8F0;--accent:#2563EB;--accent-lt:#EEF4FF;--accent2:#059669;--accent2-lt:#ECFDF5;--amber:#D97706;--amber-lt:#FFFBEB;--rose:#E11D48;--rose-lt:#FFF1F2;--purple:#7C3AED;--purple-lt:#F5F3FF;--text:#0F172A;--text2:#475569;--muted:#94A3B8;--sidebar-w:240px;--topbar-h:60px;--radius:12px;--radius-sm:8px;--shadow:0 1px 3px rgba(0,0,0,0.06),0 4px 16px rgba(0,0,0,0.04);--shadow-md:0 4px 12px rgba(0,0,0,0.08),0 12px 40px rgba(0,0,0,0.06);--font:'Plus Jakarta Sans',sans-serif;--mono:'JetBrains Mono',monospace;}
+[data-theme="dark"]{--bg:#0D1117;--surface:#161B22;--surface2:#1E2631;--border:rgba(255,255,255,0.08);--accent-lt:rgba(37,99,235,0.15);--accent2-lt:rgba(5,150,105,0.12);--amber-lt:rgba(217,119,6,0.12);--rose-lt:rgba(225,29,72,0.12);--purple-lt:rgba(124,58,237,0.12);--text:#E2E8F0;--text2:#94A3B8;--muted:#4B5563;--shadow:0 1px 3px rgba(0,0,0,0.3),0 4px 16px rgba(0,0,0,0.2);--shadow-md:0 4px 16px rgba(0,0,0,0.4);}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}html{scroll-behavior:smooth;-webkit-text-size-adjust:100%;text-size-adjust:100%;}body{font-family:var(--font);background:var(--bg);color:var(--text);font-size:14px;transition:background .3s,color .3s;}.hidden{display:none !important;}a{text-decoration:none;}::-webkit-scrollbar{width:6px;height:6px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:var(--border);border-radius:99px;}
+#loadingScreen{position:fixed;inset:0;z-index:9999;background:var(--surface);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;transition:opacity .5s ease;}#loadingScreen.fade-out{opacity:0;pointer-events:none;}
+.loader-logo{width:64px;height:64px;background:linear-gradient(135deg,#2563EB,#7C3AED);border-radius:18px;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 32px rgba(37,99,235,.35);animation:logoPulse 1.5s ease-in-out infinite;}@keyframes logoPulse{0%,100%{transform:scale(1);}50%{transform:scale(1.06);}}
+.loader-logo svg{width:34px;height:34px;}.loader-brand{font-size:1.2rem;font-weight:800;color:var(--text);}.loader-sub{font-size:.78rem;color:var(--muted);}.loader-bar{width:200px;height:3px;background:var(--border);border-radius:99px;overflow:hidden;}.loader-bar-fill{height:100%;background:linear-gradient(90deg,#2563EB,#7C3AED);border-radius:99px;width:0%;transition:width .05s;}
+.form-label{font-size:.75rem;font-weight:600;color:var(--text2);letter-spacing:.04em;text-transform:uppercase;margin-bottom:5px;display:block;}
+.form-control,.form-select{background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:var(--radius-sm);padding:10px 13px;font-size:.88rem;font-family:var(--font);transition:border-color .2s,box-shadow .2s;width:100%;}.form-control:focus,.form-select:focus{background:var(--surface2);color:var(--text);border-color:var(--accent);box-shadow:0 0 0 3px rgba(37,99,235,.12);outline:none;}.form-control::placeholder{color:var(--muted);}.form-select option{background:var(--surface);color:var(--text);}
+.form-check-input{background-color:var(--surface2) !important;border-color:var(--border) !important;}.form-check-input:checked{background-color:var(--accent) !important;border-color:var(--accent) !important;}.form-check-label{color:var(--text2);font-size:.83rem;}.form-switch .form-check-input{width:36px !important;height:20px;}.form-group{display:flex;flex-direction:column;gap:5px;}
+.btn-primary{background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);padding:10px 20px;font-family:var(--font);font-weight:600;font-size:.88rem;cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;gap:6px;}.btn-primary:hover{background:#1D4ED8;transform:translateY(-1px);box-shadow:0 4px 12px rgba(37,99,235,.3);}.btn-primary.w-100{width:100%;justify-content:center;}
+.btn-secondary{background:var(--surface2);color:var(--text2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:9px 16px;font-family:var(--font);font-weight:500;font-size:.85rem;cursor:pointer;transition:all .2s;}.btn-secondary:hover{background:var(--border);color:var(--text);}
+.btn-sm-primary{background:var(--accent-lt);border:1px solid rgba(37,99,235,.25);color:var(--accent);border-radius:6px;padding:4px 11px;font-size:.77rem;cursor:pointer;transition:all .2s;font-family:var(--font);font-weight:500;}.btn-sm-primary:hover{background:var(--accent);color:#fff;}
+.btn-sm-success{background:var(--accent2-lt);border:1px solid rgba(5,150,105,.25);color:var(--accent2);border-radius:6px;padding:4px 11px;font-size:.77rem;cursor:pointer;transition:all .2s;font-family:var(--font);font-weight:500;}.btn-sm-success:hover{background:var(--accent2);color:#fff;}
+.btn-sm-warning{background:var(--amber-lt);border:1px solid rgba(217,119,6,.25);color:var(--amber);border-radius:6px;padding:4px 11px;font-size:.77rem;cursor:pointer;transition:all .2s;font-family:var(--font);font-weight:500;}.btn-sm-warning:hover{background:var(--amber);color:#fff;}
+.btn-sm-danger{background:var(--rose-lt);border:1px solid rgba(225,29,72,.25);color:var(--rose);border-radius:6px;padding:4px 11px;font-size:.77rem;cursor:pointer;transition:all .2s;font-family:var(--font);font-weight:500;}.btn-sm-danger:hover{background:var(--rose);color:#fff;}
+.icon-btn{width:36px;height:36px;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;border:1px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer;transition:all .2s;font-size:.9rem;text-decoration:none;flex-shrink:0;}.icon-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-lt);}
+.link-btn{background:none;border:none;color:var(--accent);text-decoration:underline;cursor:pointer;padding:0;font-family:inherit;font-size:inherit;}
+.alert-success{background:var(--accent2-lt);border:1px solid rgba(5,150,105,.25);color:var(--accent2);border-radius:var(--radius-sm);padding:10px 14px;font-size:.85rem;}.alert-danger{background:var(--rose-lt);border:1px solid rgba(225,29,72,.2);color:var(--rose);border-radius:var(--radius-sm);padding:10px 14px;font-size:.85rem;}.alert-info{background:var(--accent-lt);border:1px solid rgba(37,99,235,.2);color:var(--accent);border-radius:var(--radius-sm);padding:10px 14px;font-size:.85rem;}.text-danger{color:var(--rose);font-size:.82rem;margin-top:6px;}.divider{height:1px;background:var(--border);margin:18px 0;}
+
+/* ============ LANDING / MARKETPLACE ============ */
+#landingPage{position:relative;z-index:0;min-height:100vh;background:var(--bg);}
+#landingPage::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background-image:linear-gradient(rgba(15,23,42,0.035) 1px,transparent 1px),linear-gradient(90deg,rgba(15,23,42,0.035) 1px,transparent 1px);background-size:40px 40px;-webkit-mask-image:radial-gradient(125% 80% at 50% 0%,#000 30%,transparent 78%);mask-image:radial-gradient(125% 80% at 50% 0%,#000 30%,transparent 78%);}
+#landingPage::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(720px 460px at 8% -8%,rgba(37,99,235,0.13),transparent 60%),radial-gradient(680px 460px at 92% -6%,rgba(124,58,237,0.12),transparent 60%),radial-gradient(760px 520px at 76% 10%,rgba(5,150,105,0.08),transparent 64%);}
+[data-theme="dark"] #landingPage::before{background-image:linear-gradient(rgba(255,255,255,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.04) 1px,transparent 1px);}
+[data-theme="dark"] #landingPage::after{background:radial-gradient(720px 460px at 8% -8%,rgba(37,99,235,0.22),transparent 60%),radial-gradient(680px 460px at 92% -6%,rgba(124,58,237,0.20),transparent 60%),radial-gradient(760px 520px at 76% 10%,rgba(16,185,129,0.12),transparent 64%);}
+.mk-nav{position:sticky;top:0;z-index:200;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:12px 26px;gap:12px;flex-wrap:wrap;box-shadow:var(--shadow);}
+.mk-brand{display:flex;align-items:center;gap:11px;}.mk-brand .mk-logo{width:40px;height:40px;background:linear-gradient(135deg,#2563EB,#7C3AED);border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}.mk-brand .mk-logo svg{width:21px;height:21px;}.mk-brand .mk-bn{font-size:1.05rem;font-weight:800;color:var(--text);line-height:1;}.mk-brand .mk-bs{font-size:.68rem;color:var(--muted);margin-top:2px;}
+.mk-navlinks{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.mk-navlink{padding:8px 13px;border-radius:var(--radius-sm);color:var(--text2);font-size:.85rem;font-weight:600;cursor:pointer;background:none;border:none;transition:all .15s;}.mk-navlink:hover{background:var(--surface2);color:var(--text);}
+.mk-hero{max-width:1180px;margin:0 auto;padding:54px 26px 28px;text-align:center;}
+.mk-hero h1{font-size:2.5rem;font-weight:800;letter-spacing:-.02em;line-height:1.12;margin-bottom:14px;background:linear-gradient(120deg,#1E3A8A,#2563EB 45%,#7C3AED);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.mk-hero p{font-size:1.02rem;color:var(--text2);max-width:620px;margin:0 auto 22px;line-height:1.6;}
+.mk-searchwrap{max-width:580px;margin:0 auto;position:relative;}
+.mk-searchwrap .mk-sico{position:absolute;left:16px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:1.05rem;pointer-events:none;}
+.mk-search{width:100%;padding:15px 16px 15px 46px;border-radius:14px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:.95rem;font-family:var(--font);box-shadow:var(--shadow);transition:border-color .2s,box-shadow .2s;}
+.mk-search:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 4px rgba(37,99,235,.12);}
+.mk-stats{display:flex;justify-content:center;gap:14px;margin-top:20px;flex-wrap:wrap;}
+.mk-stat{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 18px;display:flex;flex-direction:column;align-items:center;min-width:96px;box-shadow:var(--shadow);}
+.mk-stat .v{font-size:1.25rem;font-weight:800;color:var(--accent);line-height:1;}.mk-stat .l{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-top:4px;}
+.mk-section{max-width:1180px;margin:0 auto;padding:18px 26px 10px;}
+.mk-sec-title{font-size:1.15rem;font-weight:800;color:var(--text);margin-bottom:4px;display:flex;align-items:center;gap:8px;}
+.mk-sec-sub{font-size:.82rem;color:var(--muted);margin-bottom:16px;}
+.mk-cats{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px;}
+.mk-chip{padding:7px 15px;border-radius:99px;border:1px solid var(--border);background:var(--surface);color:var(--text2);font-size:.8rem;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap;}.mk-chip:hover{border-color:var(--accent);color:var(--accent);}.mk-chip.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+.mk-more{position:relative;display:inline-block;}
+.mk-more .mk-more-btn{display:inline-flex;align-items:center;gap:4px;}
+.mk-more-menu{position:absolute;top:calc(100% + 6px);left:0;z-index:60;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-md);padding:6px;display:none;max-height:280px;overflow-y:auto;min-width:170px;}
+.mk-more-menu.open{display:block;}
+.mk-more-item{display:block;width:100%;text-align:left;padding:8px 12px;border:none;background:none;color:var(--text2);font-size:.82rem;font-weight:600;border-radius:8px;cursor:pointer;white-space:nowrap;font-family:var(--font);}
+.mk-more-item:hover{background:var(--surface2);color:var(--text);}
+.mk-more-item.active{background:var(--accent-lt);color:var(--accent);}
+.mk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:18px;}
+.mk-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;cursor:pointer;transition:transform .2s,box-shadow .2s,border-color .2s;display:flex;flex-direction:column;}
+.mk-card:hover{transform:translateY(-4px);box-shadow:var(--shadow-md);border-color:rgba(37,99,235,.3);}
+.mk-img{width:100%;aspect-ratio:1/1;background:var(--surface2);background-size:cover;background-position:center;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:2.4rem;position:relative;}
+.mk-img .mk-stock{position:absolute;top:8px;right:8px;background:rgba(15,23,42,.78);color:#fff;font-size:.66rem;font-weight:600;padding:2px 8px;border-radius:99px;}
+.mk-img .mk-stock.out{background:rgba(225,29,72,.9);}
+.mk-fire{position:absolute;top:8px;left:8px;background:linear-gradient(135deg,#F97316,#EF4444);color:#fff;font-size:.66rem;font-weight:700;padding:2px 8px;border-radius:99px;box-shadow:0 2px 8px rgba(239,68,68,.4);}
+.mk-cardbody{padding:13px 14px 15px;display:flex;flex-direction:column;gap:5px;flex:1;}
+.mk-cat{font-size:.68rem;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.05em;}
+.mk-name{font-size:.92rem;font-weight:700;color:var(--text);line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.mk-price{font-size:1.02rem;font-weight:800;color:var(--text);font-family:var(--mono);margin-top:2px;}
+.mk-cvendor{display:flex;align-items:center;gap:6px;margin-top:auto;padding-top:8px;border-top:1px solid var(--border);}
+.mk-cvendor img{width:20px;height:20px;border-radius:50%;object-fit:cover;}
+.mk-cvendor .mk-vinit{width:20px;height:20px;border-radius:50%;background:linear-gradient(135deg,#2563EB,#7C3AED);display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:700;color:#fff;}
+.mk-cvendor span{font-size:.76rem;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.mk-vgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;}
+.mk-vcard{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:18px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;transition:transform .2s,box-shadow .2s;}
+.mk-vcard:hover{transform:translateY(-3px);box-shadow:var(--shadow-md);}
+.mk-vlogo{width:60px;height:60px;border-radius:16px;object-fit:contain;background:var(--surface2);border:1px solid var(--border);padding:4px;}
+.mk-vlogo-ph{width:60px;height:60px;border-radius:16px;background:linear-gradient(135deg,#2563EB,#7C3AED);display:flex;align-items:center;justify-content:center;font-size:1.4rem;font-weight:800;color:#fff;}
+.mk-vname{font-size:.98rem;font-weight:800;color:var(--text);}
+.mk-vtype{font-size:.76rem;color:var(--accent);background:var(--accent-lt);padding:3px 10px;border-radius:99px;font-weight:600;}
+.mk-about{background:var(--surface);border-top:1px solid var(--border);margin-top:30px;padding:46px 26px;}
+.mk-about-inner{max-width:1000px;margin:0 auto;}
+.mk-about h2{font-size:1.5rem;font-weight:800;color:var(--text);text-align:center;margin-bottom:8px;}
+.mk-about .lead{text-align:center;color:var(--text2);max-width:640px;margin:0 auto 28px;line-height:1.7;font-size:.95rem;}
+.mk-about-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;}
+.mk-feat{background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:20px;text-align:center;}
+.mk-feat .fi{font-size:1.8rem;margin-bottom:10px;}.mk-feat h4{font-size:.95rem;font-weight:700;color:var(--text);margin-bottom:6px;}.mk-feat p{font-size:.83rem;color:var(--muted);line-height:1.55;}
+.mk-foot{padding:26px;text-align:center;color:var(--muted);font-size:.78rem;border-top:1px solid var(--border);background:var(--surface);}
+.mk-empty{text-align:center;color:var(--muted);padding:50px 20px;font-size:.92rem;}
+@media(max-width:600px){.mk-hero h1{font-size:1.85rem;}.mk-nav{padding:10px 14px;}.mk-section{padding:16px 14px 8px;}.mk-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;}}
+
+/* ============ LOGIN ============ */
+#loginPage{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;background:linear-gradient(135deg,#EEF4FF 0%,#F5F3FF 50%,#ECFDF5 100%);}[data-theme="dark"] #loginPage{background:linear-gradient(135deg,#0D1117 0%,#161B22 100%);}
+.login-wrap{width:100%;max-width:900px;display:grid;grid-template-columns:1fr 1fr;gap:0;border-radius:20px;overflow:hidden;box-shadow:var(--shadow-md);}@media(max-width:640px){.login-wrap{grid-template-columns:1fr;}.login-left{display:none !important;}}
+.login-left{background:linear-gradient(155deg,#1E3A8A,#2563EB 40%,#7C3AED);padding:48px 40px;display:flex;flex-direction:column;justify-content:space-between;}.login-left h2{font-size:1.9rem;font-weight:800;color:#fff;line-height:1.2;margin-top:auto;}.login-left p{color:rgba(255,255,255,.7);margin-top:12px;font-size:.9rem;line-height:1.6;}
+.login-taglines{display:flex;flex-direction:column;gap:10px;margin-top:32px;}.login-tag{display:flex;align-items:center;gap:10px;color:rgba(255,255,255,.85);font-size:.83rem;}.login-tag .dot{width:7px;height:7px;border-radius:50%;background:#06D6A0;flex-shrink:0;}
+.login-right{background:var(--surface);padding:42px 40px;overflow-y:auto;max-height:100vh;}
+.brand-row{display:flex;align-items:center;gap:12px;margin-bottom:18px;}.brand-icon{width:44px;height:44px;background:linear-gradient(135deg,#2563EB,#7C3AED);border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}.brand-icon svg{width:22px;height:22px;}.brand-name{font-size:1.1rem;font-weight:800;color:var(--text);}.brand-sub{font-size:.72rem;color:var(--muted);margin-top:1px;}
+.login-title{font-size:1.4rem;font-weight:800;margin-bottom:6px;}.login-sub{color:var(--text2);font-size:.85rem;margin-bottom:24px;}.custom-logo-row{text-align:center;margin-bottom:18px;}.custom-logo-img{max-height:56px;max-width:160px;object-fit:contain;border-radius:10px;}
+.translate-bar{display:flex;gap:8px;margin-bottom:16px;}.lang-btn{flex:1;padding:7px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface2);color:var(--text2);font-size:.78rem;font-family:var(--font);cursor:pointer;transition:all .2s;font-weight:500;}.lang-btn.active{border-color:var(--accent);background:var(--accent-lt);color:var(--accent);}
+.back-mk{display:inline-flex;align-items:center;gap:6px;font-size:.82rem;color:var(--text2);background:none;border:none;cursor:pointer;margin-bottom:14px;font-weight:600;}.back-mk:hover{color:var(--accent);}
+.fg2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}.fg3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
+  </style>
+</head>
+<body>
+
+<div id="loadingScreen">
+  <div class="loader-logo"><svg viewBox="0 0 34 34" fill="none"><path d="M3 24V13L17 4L31 13V24H3Z" fill="rgba(255,255,255,0.95)"/><rect x="13" y="16" width="8" height="8" rx="1" fill="#1E3A8A"/><rect x="13" y="11" width="8" height="3" rx="1" fill="rgba(255,255,255,0.7)"/><circle cx="17" cy="7" r="2.5" fill="#FCD34D"/></svg></div>
+  <div style="text-align:center;"><div class="loader-brand">Business Operator</div><div class="loader-sub">by Samaritan Techs</div></div>
+  <div class="loader-bar"><div class="loader-bar-fill" id="loaderFill"></div></div>
+</div>
+
+<!-- ==================== LANDING / MARKETPLACE ==================== -->
+<div id="landingPage" class="hidden">
+  <nav class="mk-nav">
+    <div class="mk-brand">
+      <div class="mk-logo"><svg viewBox="0 0 21 21" fill="none"><path d="M2.5 15V8.5L10.5 3.5L18.5 8.5V15H2.5Z" fill="rgba(255,255,255,0.95)"/><rect x="8" y="10.5" width="5" height="4.5" rx=".6" fill="#1E3A8A"/><circle cx="10.5" cy="6.3" r="1.5" fill="#FCD34D"/></svg></div>
+      <div><div class="mk-bn">Business Operator</div><div class="mk-bs">Marketplace by Samaritan Techs</div></div>
+    </div>
+    <div class="mk-navlinks">
+      <button class="mk-navlink" onclick="mkScrollTo('mkMarketSection')">🛍️ Marketplace</button>
+      <button class="mk-navlink" onclick="mkScrollTo('mkAboutSection')">ℹ️ About Us</button>
+      <a href="#" class="icon-btn" onclick="showSuggestionBox();return false;" title="Feedback via WhatsApp">💬</a>
+      <button class="icon-btn" id="mkLangBtn" onclick="toggleLang()" title="Lugha ya vidokezo / Tips language (EN/SW)" style="font-weight:800;font-size:.72rem;">EN</button><button class="icon-btn" id="mkThemeBtn" onclick="toggleTheme()" title="Toggle theme">🌙</button>
+      <button class="icon-btn" onclick="globalRefresh()" title="Refresh data">↻</button>
+      <button class="btn-secondary" onclick="showLogin(false)" style="padding:8px 16px;">Log in</button>
+      <button class="btn-primary" onclick="showLogin(true)" style="padding:8px 16px;">Register</button>
+    </div>
+  </nav>
+
+  <section class="mk-hero">
+    <h1>Discover products from real businesses near you</h1>
+    <p>Browse a growing marketplace of goods from trusted local vendors — view photos, prices and contacts freely. Run a business? Manage your sales, stock and reports all in one place.</p>
+    <div class="mk-searchwrap">
+      <span class="mk-sico">🔍</span>
+      <input type="text" id="mkSearch" class="mk-search" placeholder="Search products, categories or businesses…" oninput="filterMarket()">
+    </div>
+    <div class="mk-stats">
+      <div class="mk-stat"><div class="v" id="mkStatProducts">–</div><div class="l">Products</div></div>
+      <div class="mk-stat"><div class="v" id="mkStatVendors">–</div><div class="l">Businesses</div></div>
+      <div class="mk-stat"><div class="v" id="mkStatCats">–</div><div class="l">Categories</div></div>
+    </div>
+  </section>
+
+  <section class="mk-section" id="mkMarketSection">
+    <div class="mk-sec-title">🛍️ Marketplace</div>
+    <div class="mk-sec-sub">Tap any product to see details and contact the seller. Viewing is always free.</div>
+    <div class="mk-cats" id="mkTypeChips" style="margin-bottom:10px;">
+      <button class="mk-chip active" id="mkType_ALL" onclick="setMkType('ALL')">All Listings</button>
+      <button class="mk-chip" id="mkType_Sale" onclick="setMkType('Sale')">&#128722; For Sale</button>
+      <button class="mk-chip" id="mkType_Rent" onclick="setMkType('Rent')">&#128273; For Rent</button>
+    </div>
+    <div class="mk-cats" id="mkCats"></div>
+    <div id="mkProductGrid" class="mk-grid"><div class="mk-empty">Loading products…</div></div>
+    <div id="mkLoadMoreWrap" style="text-align:center;margin-top:6px;"></div>
+  </section>
+
+
+  <section class="mk-about" id="mkAboutSection">
+    <div class="mk-about-inner">
+      <h2>About Business Operator</h2>
+      <p class="lead">Business Operator helps shops and vendors leave the counterbook behind — recording sales, tracking stock and cash, and sending reports digitally. And now it gives every business a free storefront in our shared marketplace, so more customers can find what you sell.</p>
+      <div class="mk-about-grid">
+        <div class="mk-feat"><div class="fi">📝</div><h4>Goodbye Counterbooks</h4><p>Record every sale digitally in seconds. No handwriting, no lost pages, no carbon paper.</p></div>
+        <div class="mk-feat"><div class="fi">🛍️</div><h4>A Free Storefront</h4><p>Your products appear in the marketplace with photos, prices and your contact — at no cost.</p></div>
+        <div class="mk-feat"><div class="fi">📊</div><h4>Reports & Insights</h4><p>Daily, weekly and monthly reports plus stock and cash tracking, ready whenever you need them.</p></div>
+        <div class="mk-feat"><div class="fi">👥</div><h4>Your Whole Team</h4><p>Sellers record from their own devices while owners keep full oversight in one dashboard.</p></div>
+      </div>
+      <div style="text-align:center;margin-top:28px;">
+        <button class="btn-primary" onclick="showLogin(true)" style="padding:13px 30px;font-size:.95rem;">🚀 Register your business — free</button>
+      </div>
+    </div>
+  </section>
+
+  <footer class="mk-foot">&copy; <span id="mkFootYear"></span> Samaritan Techs · Business Operator — Smart business management & marketplace</footer>
+</div>
+
+<!-- ==================== LOGIN / REGISTER ==================== -->
+<div id="loginPage" class="hidden">
+  <div class="login-wrap">
+    <div class="login-left">
+      <div><div style="font-size:.75rem;font-weight:700;color:rgba(255,255,255,.5);letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px;">Samaritan Techs</div><h2>Smart Business<br>Management System</h2><p>A powerful sales, inventory &amp; reporting platform — with a free marketplace storefront for your products.</p></div>
+      <div class="login-taglines"><div class="login-tag"><span class="dot"></span>Real-time sales tracking</div><div class="login-tag"><span class="dot"></span>Automated PDF &amp; Excel reports</div><div class="login-tag"><span class="dot"></span>Free marketplace storefront</div><div class="login-tag"><span class="dot"></span>Lending &amp; borrower tracking</div><div class="login-tag"><span class="dot"></span>Multi-vendor management</div></div>
+      <div style="margin-top:32px;color:rgba(255,255,255,.4);font-size:.72rem;">&copy; <span id="loginYear"></span> Samaritan Techs. All rights reserved.</div>
+    </div>
+    <div class="login-right">
+      <button class="back-mk" onclick="showLanding()">← Back to Marketplace</button>
+      <div class="brand-row"><div class="brand-icon"><svg viewBox="0 0 22 22" fill="none"><path d="M2 16V9L11 3L20 9V16H2Z" fill="rgba(255,255,255,0.95)"/><rect x="8" y="11" width="6" height="5" rx="1" fill="#1E3A8A"/><circle cx="11" cy="6.5" r="1.8" fill="#FCD34D"/></svg></div><div><div class="brand-name">Business Operator</div><div class="brand-sub">Powered by Samaritan Techs</div></div></div>
+      <div id="customLogoRow" class="custom-logo-row hidden"><img id="customLogoImg" src="" class="custom-logo-img" alt="Business Logo"></div>
+      <div class="translate-bar"><button class="lang-btn active" id="langEn" onclick="setLang('en')">🇬🇧 English</button><button class="lang-btn" id="langSw" onclick="setLang('sw')">🇹🇿 Kiswahili</button></div>
+      <div class="login-title" id="lbl_signin">Sign in to your account</div>
+      <div class="login-sub" id="lbl_signin_sub">Enter your User ID or Email to access the system</div>
+      <div id="loginFieldsWrap">
+        <div class="form-group" style="margin-bottom:13px;"><label class="form-label" id="lbl_userid">User ID or Email</label><input type="text" id="loginId" class="form-control" placeholder="username or email@example.com" onkeypress="if(event.keyCode===13)doLogin()"></div>
+        <div class="form-group" style="margin-bottom:18px;"><label class="form-label" id="lbl_password">Password</label><input type="password" id="loginPwd" class="form-control" onkeypress="if(event.keyCode===13)doLogin()"></div>
+        <button class="btn-primary w-100" onclick="doLogin()" id="lbl_login_btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>Sign In</button>
+        <div style="text-align:right;margin-top:8px;"><button class="link-btn" onclick="forgotPassword()" style="font-size:.82rem;">Forgot Password?</button></div>
+        <div id="loginMsg" class="text-danger"></div>
+        <div class="divider"></div>
+        <div style="text-align:center;"><button class="link-btn" onclick="toggleRegForm()" id="regLink" style="font-size:.84rem;">+ Register New Business</button></div>
+        <div id="regForm" style="display:none;margin-top:18px;">
+          <div style="font-size:.85rem;font-weight:700;color:var(--text);margin-bottom:14px;">Create Business Account</div>
+          <div class="form-group" style="margin-bottom:10px;"><label class="form-label">Business Name</label><input class="form-control" id="regVendorName" placeholder="e.g. Fromville Electronics"></div>
+          <div class="fg2" style="margin-bottom:10px;"><div class="form-group"><label class="form-label">Business Type</label><input class="form-control" id="regBusinessType" placeholder="e.g. Groceries, Electronics"></div><div class="form-group"><label class="form-label">Business Phone (WhatsApp)</label><input class="form-control" id="regBusinessPhone" placeholder="Start with code, e.g. +255"></div></div>
+          <div class="form-group" style="margin-bottom:10px;"><label class="form-label">Business Address / Location</label><input class="form-control" id="regBusinessAddress" placeholder="e.g. Kariakoo, Dar es Salaam"></div>
+          <div class="fg2" style="margin-bottom:10px;"><div class="form-group"><label class="form-label">Admin Email</label><input class="form-control" id="regAdminEmail" placeholder="admin@email.com"></div><div class="form-group"><label class="form-label">Full Name</label><input class="form-control" id="regAdminName"></div></div>
+          <div class="fg2" style="margin-bottom:12px;"><div class="form-group"><label class="form-label">User ID</label><input class="form-control" id="regAdminUserId" placeholder="username"></div><div class="form-group"><label class="form-label">Password</label><input class="form-control" id="regAdminPwd" type="password"></div></div>
+          <div class="form-check mb-3"><input class="form-check-input" type="checkbox" id="agreeTerms"><label class="form-check-label" for="agreeTerms">I agree to the <button class="link-btn" onclick="showTerms()">Terms &amp; Conditions</button></label></div>
+          <button class="btn-primary w-100" onclick="submitVendorRegistration()">Register Business</button>
+          <div id="regMsg" style="font-size:.82rem;margin-top:8px;"></div>
+        </div>
+      </div>
+      <div id="resetForm" style="display:none;">
+        <div class="login-title" style="font-size:1.2rem;">Set New Password</div>
+        <div class="login-sub" style="margin-bottom:18px;">Choose a new password for your account.</div>
+        <div class="form-group" style="margin-bottom:12px;"><label class="form-label">New Password</label><input type="password" id="resetNewPwd" class="form-control"></div>
+        <div class="form-group" style="margin-bottom:16px;"><label class="form-label">Confirm Password</label><input type="password" id="resetConfirmPwd" class="form-control"></div>
+        <button class="btn-primary w-100" onclick="submitResetPassword()">Update Password</button>
+        <div id="resetMsg" style="margin-top:12px;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+/* ============ APP SHELL ============ */
+.topbar{height:var(--topbar-h);background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 24px;position:sticky;top:0;z-index:100;box-shadow:0 1px 0 var(--border);}.tb-left{display:flex;align-items:center;gap:16px;}.tb-brand{display:flex;align-items:center;gap:10px;}.tb-logo{width:34px;height:34px;background:linear-gradient(135deg,#2563EB,#7C3AED);border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}.tb-logo svg{width:18px;height:18px;}.tb-name{font-size:.95rem;font-weight:800;color:var(--text);}.tb-vendor-badge{background:var(--accent-lt);border:1px solid rgba(37,99,235,.2);color:var(--accent);padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:600;max-width:140px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}.tb-right{display:flex;align-items:center;gap:8px;}.tb-user{display:flex;align-items:center;gap:8px;}.tb-avatar{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#2563EB,#7C3AED);display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;color:#fff;text-transform:uppercase;flex-shrink:0;overflow:hidden;}.tb-user-info{line-height:1.2;}.tb-user-name{font-size:.82rem;font-weight:600;color:var(--text);}.tb-user-role{font-size:.72rem;color:var(--accent);}
+.app-layout{display:flex;height:calc(100vh - var(--topbar-h));overflow:hidden;}.sidebar{width:var(--sidebar-w);flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);padding:16px 10px;display:flex;flex-direction:column;gap:2px;overflow-y:auto;}.nav-group-label{font-size:.66rem;font-weight:700;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;padding:10px 10px 4px;}.nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--radius-sm);color:var(--text2);font-size:.83rem;font-weight:500;cursor:pointer;transition:all .15s;border:none;background:none;text-align:left;width:100%;}.nav-item:hover{background:var(--surface2);color:var(--text);}.nav-item.active{background:var(--accent-lt);color:var(--accent);font-weight:600;}.nav-item .ni{font-size:.95rem;width:20px;text-align:center;flex-shrink:0;}.sidebar-footer{margin-top:auto;padding-top:12px;border-top:1px solid var(--border);}
+.main-content{flex:1;overflow-y:auto;padding:28px 30px;background:var(--bg);}@media(max-width:768px){.sidebar{display:none;}.main-content{padding:16px;}.topbar{padding:0 10px;}.tb-vendor-badge{display:none;}.tb-right{gap:5px;}}
+.page-hdr{margin-bottom:24px;display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px;}.page-title{font-size:1.4rem;font-weight:800;color:var(--text);letter-spacing:-.02em;}.page-sub{font-size:.83rem;color:var(--muted);margin-top:3px;}
+.stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:14px;margin-bottom:22px;}.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;cursor:pointer;transition:all .2s;position:relative;overflow:hidden;}.stat-card:hover{transform:translateY(-2px);box-shadow:var(--shadow-md);}.stat-card .sc-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1rem;margin-bottom:12px;}.stat-card .sc-label{font-size:.72rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;}.stat-card .sc-value{font-size:1.35rem;font-weight:800;color:var(--text);letter-spacing:-.02em;margin-top:3px;line-height:1;}.stat-card .sc-unit{font-size:.72rem;color:var(--muted);font-weight:400;margin-left:2px;}.stat-card .sc-accent{position:absolute;bottom:0;left:0;right:0;height:3px;border-radius:0 0 var(--radius) var(--radius);}
+.sc-blue .sc-icon{background:var(--accent-lt);}.sc-blue .sc-accent{background:var(--accent);}.sc-green .sc-icon{background:var(--accent2-lt);}.sc-green .sc-accent{background:var(--accent2);}.sc-amber .sc-icon{background:var(--amber-lt);}.sc-amber .sc-accent{background:var(--amber);}.sc-rose .sc-icon{background:var(--rose-lt);}.sc-rose .sc-accent{background:var(--rose);}.sc-purple .sc-icon{background:var(--purple-lt);}.sc-purple .sc-accent{background:var(--purple);}
+.table-wrap{overflow:auto;max-height:70vh;}.bo-table{width:100%;border-collapse:collapse;font-size:.84rem;}.bo-table thead th{background:var(--surface2);color:var(--muted);font-weight:700;font-size:.7rem;letter-spacing:.07em;text-transform:uppercase;padding:10px 14px;border-bottom:1px solid var(--border);white-space:nowrap;position:sticky;top:0;z-index:3;}.bo-table tbody tr{border-bottom:1px solid var(--border);transition:background .12s;}.bo-table tbody tr:hover{background:var(--surface2);}.bo-table tbody td{padding:10px 14px;color:var(--text);vertical-align:middle;}.bo-table tbody tr:last-child{border-bottom:none;}
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:.72rem;font-weight:600;white-space:nowrap;}.badge-ok,.badge-status.badge-ok{background:var(--accent2-lt);color:var(--accent2);border:1px solid rgba(5,150,105,.2);}.badge-low,.badge-status.badge-low{background:var(--amber-lt);color:var(--amber);border:1px solid rgba(217,119,6,.2);}.badge-out,.badge-status.badge-out{background:var(--rose-lt);color:var(--rose);border:1px solid rgba(225,29,72,.2);}.badge-status{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:.72rem;font-weight:600;white-space:nowrap;}.badge-active{background:var(--accent2-lt);color:var(--accent2);border:1px solid rgba(5,150,105,.2);}.badge-inactive{background:var(--rose-lt);color:var(--rose);border:1px solid rgba(225,29,72,.2);}.badge-admin,.badge-assistant-admin{background:var(--purple-lt);color:var(--purple);border:1px solid rgba(124,58,237,.2);}.badge-seller{background:var(--accent-lt);color:var(--accent);border:1px solid rgba(37,99,235,.2);}.badge-manager{background:var(--amber-lt);color:var(--amber);border:1px solid rgba(217,119,6,.2);}
+.section-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:20px;box-shadow:var(--shadow);overflow:hidden;}.section-hdr{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;}.section-hdr-title{font-size:.85rem;font-weight:700;color:var(--text);}.section-body{padding:20px;}
+.sale-tbl{width:100%;border-collapse:collapse;}.sale-tbl th{color:var(--muted);font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;padding:8px 10px;border-bottom:1px solid var(--border);font-weight:700;}.sale-tbl td{padding:6px 8px;}.row-total{font-family:var(--mono);font-weight:600;color:var(--accent2);font-size:.88rem;}.chart-wrap{position:relative;height:200px;}
+.report-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:16px;}.report-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:12px;text-decoration:none;color:var(--text);}.report-card:hover{border-color:var(--accent);background:var(--accent-lt);transform:translateY(-1px);box-shadow:var(--shadow-md);}.rc-icon{font-size:1.5rem;}.rc-title{font-weight:600;font-size:.85rem;}.rc-sub{font-size:.73rem;color:var(--muted);margin-top:2px;}
+.avatar-placeholder{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#2563EB,#7C3AED);display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;color:#fff;text-transform:uppercase;flex-shrink:0;}.photo-upload-area{border:2px dashed var(--border);border-radius:var(--radius);padding:20px;text-align:center;cursor:pointer;transition:all .2s;background:var(--surface2);}.photo-upload-area:hover{border-color:var(--accent);background:var(--accent-lt);}.photo-preview{width:80px;height:80px;border-radius:50%;object-fit:cover;border:3px solid var(--border);}
+.prod-img-slot{border:2px dashed var(--border);border-radius:var(--radius-sm);padding:10px;text-align:center;cursor:pointer;transition:all .2s;background:var(--surface2);min-height:120px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;}.prod-img-slot:hover{border-color:var(--accent);background:var(--accent-lt);}.prod-img-slot img{max-width:100%;max-height:90px;border-radius:6px;object-fit:cover;}
+#hintToast{position:fixed;bottom:22px;right:22px;max-width:340px;min-width:260px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow-md);z-index:8888;display:flex;align-items:flex-start;gap:10px;font-size:.83rem;opacity:0;transform:translateY(14px) scale(.97);transition:all .35s ease;pointer-events:none;}#hintToast.show{opacity:1;transform:translateY(0) scale(1);}#hintToast .hint-icon{font-size:1rem;flex-shrink:0;margin-top:1px;}#hintToast .hint-text{color:var(--text);line-height:1.5;}
+.modal-content{background:var(--surface) !important;border:1px solid var(--border) !important;border-radius:16px !important;color:var(--text);box-shadow:var(--shadow-md) !important;}.modal-header{border-bottom:1px solid var(--border) !important;padding:18px 22px 14px !important;}.modal-title{font-weight:800 !important;font-size:.95rem !important;color:var(--text) !important;}.modal-body{padding:18px 22px !important;max-height:70vh;overflow-y:auto;}.modal-footer{border-top:1px solid var(--border) !important;padding:12px 22px !important;gap:8px;}.btn-close{filter:var(--close-filter,none) !important;}[data-theme="dark"] .btn-close{filter:invert(1) !important;}
+.perm-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;}.perm-item{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;display:flex;align-items:center;justify-content:space-between;}.perm-label{font-size:.82rem;font-weight:500;color:var(--text);}.perm-sub{font-size:.72rem;color:var(--muted);margin-top:2px;}
+.suggestion-box{background:linear-gradient(135deg,#EEF4FF,#F5F3FF);border:1px solid rgba(37,99,235,.2);border-radius:var(--radius);padding:20px;}[data-theme="dark"] .suggestion-box{background:linear-gradient(135deg,rgba(37,99,235,.08),rgba(124,58,237,.06));}
+.search-wrap{position:relative;margin-bottom:14px;}.search-wrap .form-control{padding-left:38px;}.search-ico{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:.9rem;pointer-events:none;}
+.mgr-report-card{background:var(--surface2);border:2px solid var(--border);border-radius:var(--radius);padding:20px 18px;cursor:pointer;transition:all .2s;text-align:center;}.mgr-report-card:hover,.mgr-report-card.selected{border-color:var(--accent);background:var(--accent-lt);}.mgr-report-card .mrc-icon{font-size:2rem;margin-bottom:8px;}.mgr-report-card .mrc-title{font-weight:700;font-size:.9rem;color:var(--text);}.mgr-report-card .mrc-sub{font-size:.75rem;color:var(--muted);margin-top:4px;}
+.email-btn{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px 16px;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:12px;text-align:left;width:100%;color:var(--text);}.email-btn:hover{border-color:var(--accent);background:var(--accent-lt);}.email-btn .eb-ico{font-size:1.3rem;}.email-btn .eb-t{font-weight:600;font-size:.85rem;}.email-btn .eb-s{font-size:.73rem;color:var(--muted);margin-top:2px;}
+.app-footer{padding:12px 30px;border-top:1px solid var(--border);font-size:.73rem;color:var(--muted);text-align:center;background:var(--surface);}.currency-pill{background:var(--accent-lt);color:var(--accent);border:1px solid rgba(37,99,235,.2);border-radius:20px;padding:2px 8px;font-size:.72rem;font-weight:600;font-family:var(--mono);}
+.pd-imgs{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px;}.pd-img{width:100%;aspect-ratio:1/1;border-radius:12px;object-fit:cover;background:var(--surface2);border:1px solid var(--border);}.pd-img-ph{width:100%;aspect-ratio:1/1;border-radius:12px;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:2.5rem;color:var(--muted);}
+/* ============ MOBILE SIDEBAR (HAMBURGER) ============ */
+.mobile-menu-btn{display:none;width:36px;height:36px;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text2);cursor:pointer;font-size:1.1rem;}
+@media(max-width:768px){
+  .sidebar{display:block !important;position:fixed;top:var(--topbar-h);left:0;bottom:0;width:var(--sidebar-w);z-index:200;background:var(--surface);border-right:1px solid var(--border);box-shadow:var(--shadow-md);transform:translateX(-100%);transition:transform 0.25s ease;overflow-y:auto;}
+  .sidebar.open{transform:translateX(0);}
+  .mobile-menu-btn{display:flex !important;}
+  .sidebar-overlay{display:none;position:fixed;inset:0;top:var(--topbar-h);background:rgba(0,0,0,0.4);z-index:199;}
+  .sidebar-overlay.show{display:block;}
+}
+/* ===== PAYMENT RESTRICTION (read-only lock) ===== */
+#restrictionBanner,#restrictionOverlay{display:none;}
+body.bo-restricted #restrictionBanner{display:block;position:fixed;top:var(--topbar-h);left:0;right:0;z-index:250;background:linear-gradient(90deg,#B45309,#D97706);color:#fff;padding:11px 18px;font-size:.85rem;font-weight:600;box-shadow:0 2px 10px rgba(0,0,0,.18);}
+body.bo-restricted #restrictionBanner .rb-inner{display:flex;align-items:center;gap:10px;max-width:1180px;margin:0 auto;line-height:1.45;}
+body.bo-restricted #restrictionBanner .rb-lock{font-size:1.15rem;flex-shrink:0;}
+body.bo-restricted #restrictionOverlay{display:block;position:fixed;top:var(--topbar-h);left:0;right:0;bottom:0;z-index:240;background:rgba(13,17,23,.35);cursor:not-allowed;}
+body.bo-restricted .app-layout{filter:grayscale(.35);opacity:.7;pointer-events:none;user-select:none;overflow:hidden;}
+body.bo-restricted .topbar{position:relative;z-index:260;}
+</style>
+
+<!-- ==================== MAIN APP ==================== -->
+<div id="mainApp" class="hidden" style="display:flex;flex-direction:column;height:100vh;">
+  <div class="topbar">
+    <div class="tb-left"><button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu">☰</button><div class="tb-brand"><div class="tb-logo"><svg viewBox="0 0 18 18" fill="none"><path d="M2 13V8L9 3L16 8V13H2Z" fill="rgba(255,255,255,0.95)"/><rect x="7" y="9" width="4" height="4" rx=".5" fill="#1E3A8A"/><circle cx="9" cy="5.5" r="1.3" fill="#FCD34D"/></svg></div><span class="tb-name">Business Operator</span></div><span class="tb-vendor-badge" id="displayVendor"></span></div>
+    <div class="tb-right"><div class="tb-user"><div class="tb-avatar" id="topbarAvatar">U</div><div class="tb-user-info" style="display:none;" id="tbUserInfo"><div class="tb-user-name" id="displayName"></div><div class="tb-user-role" id="displayRole"></div></div></div><button class="icon-btn" id="viewToggleBtn" onclick="toggleView()" title="Mtazamo wa kompyuta / Desktop view">🖥️</button><button class="icon-btn" id="langToggleBtn" onclick="toggleLang()" title="Lugha ya vidokezo / Tips language (EN/SW)" style="font-weight:800;font-size:.72rem;">EN</button><button class="icon-btn" id="themeToggleBtn" onclick="toggleTheme()" title="Toggle theme">🌙</button><a href="#" class="icon-btn" onclick="showSuggestionBox();return false;" title="Feedback via WhatsApp">💬</a><button class="icon-btn" onclick="globalRefresh()" title="Refresh / sync data">↻</button><button class="icon-btn" onclick="logout()" title="Logout" style="border-color:rgba(225,29,72,.3);color:var(--rose);">⏻</button></div>
+  </div>
+  <div class="app-layout">
+    <nav class="sidebar" id="sidebar">
+      <div class="nav-group-label">Main</div>
+      <button class="nav-item active" id="nav-dashboard" onclick="switchTab('dashboard',this)"><span class="ni">📊</span>Dashboard</button>
+      <button class="nav-item" id="nav-sale" onclick="switchTab('sale',this)"><span class="ni">🛒</span>Sell</button>
+      <button class="nav-item" id="nav-lendings" onclick="switchTab('lendings',this)"><span class="ni">📋</span>Lendings</button>
+      <div class="nav-group-label adminOnly">Inventory</div>
+      <button class="nav-item adminOnly" id="nav-products" onclick="switchTab('products',this)"><span class="ni">📦</span>Products</button>
+      <button class="nav-item adminOnly" id="nav-cash" onclick="switchTab('cash',this)"><span class="ni">💰</span>Cash</button>
+      <div class="nav-group-label showUsers">People</div>
+      <button class="nav-item showUsers" id="nav-users" onclick="switchTab('users',this)"><span class="ni">👥</span>Users</button>
+      <div class="nav-group-label adminOnly">Export</div>
+      <button class="nav-item adminOnly" id="nav-reports" onclick="switchTab('reports',this)"><span class="ni">📥</span>Reports</button>
+      <div class="nav-group-label managerOnly">System</div>
+      <button class="nav-item managerOnly" id="nav-manager" onclick="switchTab('manager',this)"><span class="ni">🏢</span>Management</button>
+      <button class="nav-item managerOnly" id="nav-mgrreports" onclick="switchTab('mgrreports',this)"><span class="ni">📥</span>Reports</button>
+      <button class="nav-item managerOnly" id="nav-settings" onclick="switchTab('settings',this)"><span class="ni">⚙️</span>Settings</button>
+      <div class="sidebar-footer"><div style="font-size:.68rem;color:var(--muted);text-align:center;">Samaritan Techs</div></div>
+    </nav>
+    <main class="main-content" id="mainScroll">
+      <div id="tab-dashboard"><div class="page-hdr"><div><div class="page-title">Dashboard</div><div class="page-sub" id="dashSubLine">Business overview</div></div></div><div id="dashboardContent"><div style="color:var(--muted);padding:40px;text-align:center;">Loading…</div></div></div>
+      <div id="tab-sale" class="hidden"><div class="page-hdr"><div><div class="page-title">New Sale</div><div class="page-sub">Record a transaction</div></div></div><div id="saleContent"></div></div>
+      <div id="tab-lendings" class="hidden"><div class="page-hdr"><div><div class="page-title">Lendings</div><div class="page-sub">Record and track borrowed items</div></div></div><div id="lendingsContent"></div></div>
+      <div id="tab-products" class="hidden"><div class="page-hdr"><div><div class="page-title">Products</div><div class="page-sub">Manage your inventory &amp; marketplace photos</div></div></div><div id="productsContent"></div></div>
+      <div id="tab-users" class="hidden"><div class="page-hdr"><div><div class="page-title">Users</div><div class="page-sub">Manage team access &amp; business profile</div></div></div><div id="addUserSection"></div><div class="search-wrap"><span class="search-ico">🔍</span><input type="text" class="form-control" id="userSearch" placeholder="Search name, role, user ID, vendor…" onkeyup="doSearch()"></div><div id="usersTable"></div></div>
+      <div id="tab-cash" class="hidden"><div class="page-hdr"><div><div class="page-title">Cash Tracking</div><div class="page-sub">Record payments from sellers</div></div></div><div id="cashContent"></div></div>
+      <div id="tab-reports" class="hidden"><div class="page-hdr"><div><div class="page-title">Reports</div><div class="page-sub">Download business reports</div></div></div><div id="reportsContent"></div></div>
+      <div id="tab-manager" class="hidden"><div class="page-hdr"><div><div class="page-title">Management</div><div class="page-sub">Businesses, email center &amp; marketplace analytics</div></div></div><div id="managerContent"></div></div>
+      <div id="tab-mgrreports" class="hidden"><div class="page-hdr"><div><div class="page-title">Manager Reports</div><div class="page-sub">Download sales, lending, stock &amp; commission reports</div></div></div><div id="mgrReportsContent"></div></div>
+      <div id="tab-settings" class="hidden"><div class="page-hdr"><div><div class="page-title">Settings</div><div class="page-sub">System configuration</div></div></div><div id="settingsContent"></div></div>
+    </main>
+  </div>
+  <div class="app-footer">&copy; <span id="footerYear"></span> Samaritan Techs · Business Operator</div>
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeMobileSidebar()"></div>
+  <div id="restrictionOverlay"></div>
+  <div id="restrictionBanner"><div class="rb-inner"><span class="rb-lock">&#128274;</span><span id="restrictionBannerText">This account is currently restricted. Please settle your balance to restore full access.</span></div></div>
+</div>
+
+<!-- ==================== MODALS ==================== -->
+<div class="modal fade" id="detailModal" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="detailModalTitle"></h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body" id="detailModalBody"></div></div></div></div>
+
+<div class="modal fade" id="editUserModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+  <div class="modal-header"><h5 class="modal-title">Edit User</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body"><input type="hidden" id="editUserRow"><input type="hidden" id="editUserVendorHidden">
+    <div class="form-group" style="margin-bottom:12px;"><label class="form-label">Email</label><input class="form-control" id="editUserEmail"></div>
+    <div class="fg2" style="margin-bottom:12px;"><div class="form-group"><label class="form-label">Name</label><input class="form-control" id="editUserName"></div><div class="form-group"><label class="form-label">Role</label><select class="form-select" id="editUserRole"><option value="seller">Seller</option><option value="admin">Admin</option><option value="assistant-admin">Asst. Admin</option></select></div></div>
+    <div class="fg2" style="margin-bottom:12px;"><div class="form-group"><label class="form-label">User ID</label><input class="form-control" id="editUserId"></div><div class="form-group" id="editUserPwdGroup"><label class="form-label">Password</label><input class="form-control" id="editUserPwd" placeholder="Leave blank to keep"></div></div>
+    <div class="form-group" style="margin-bottom:14px;"><label class="form-label">Active</label><select class="form-select" id="editUserActive"><option value="Yes">Yes</option><option value="No">No</option></select></div>
+    <div class="form-group"><label class="form-label">Profile Photo</label><div class="photo-upload-area" onclick="document.getElementById('photoFileInput').click()"><img id="photoPreview" class="photo-preview" src="" alt="" style="display:none;margin:0 auto 8px;"><div id="photoPlaceholder" style="color:var(--muted);font-size:.82rem;">📷 Click to upload photo</div></div><input type="file" id="photoFileInput" accept="image/*" style="display:none;" onchange="previewPhoto(this)"></div>
+  </div>
+  <div class="modal-footer"><button class="btn-secondary" data-bs-dismiss="modal">Cancel</button><button class="btn-primary" onclick="saveUser()">Save Changes</button></div>
+</div></div></div>
+
+<div class="modal fade" id="editProductModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+  <div class="modal-header"><h5 class="modal-title">Edit Product</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body"><input type="hidden" id="editProdRow"><input type="hidden" id="editProdId">
+    <div class="form-group" style="margin-bottom:12px;"><label class="form-label">Product Name</label><input class="form-control" id="editProdName"></div>
+    <div class="form-group" style="margin-bottom:12px;"><label class="form-label">Category</label><input class="form-control" id="editProdCat"></div>
+    <div class="fg2" style="margin-bottom:12px;"><div class="form-group"><label class="form-label">Price</label><input type="number" class="form-control" id="editProdPrice"></div><div class="form-group"><label class="form-label">Stock QTY</label><input type="number" class="form-control" id="editProdStock"></div></div>
+    <div class="form-group" style="margin-bottom:14px;"><label class="form-label">Reorder Point</label><input type="number" class="form-control" id="editProdReorder"></div>
+    <div class="fg2" style="margin-bottom:12px;"><div class="form-group"><label class="form-label">Type</label><select class="form-select" id="editProdType"><option value="Sale">For Sale</option><option value="Rent">For Rent</option></select></div><div class="form-group"><label class="form-label">Price Unit (rent)</label><select class="form-select" id="editProdUnit"><option value="">—</option><option value="per day">per day</option><option value="per week">per week</option><option value="per month">per month</option><option value="per event">per event</option></select></div></div>
+    <div class="form-group" style="margin-bottom:14px;"><label class="form-label">Location (optional)</label><input class="form-control" id="editProdLoc" placeholder="e.g. Kariakoo, Dar"></div>
+    <label class="form-label">Marketplace Photo</label>
+    <div class="prod-img-slot" onclick="document.getElementById('prodImg1Input').click()"><img id="prodImg1Preview" src="" style="display:none;"><div id="prodImg1Ph" style="color:var(--muted);font-size:.78rem;">📷 Add photo</div></div>
+    <input type="file" id="prodImg1Input" accept="image/*" style="display:none;" onchange="previewProdImage(this,1)">
+    <div id="prodImgMsg" style="font-size:.78rem;color:var(--muted);margin-top:8px;"></div>
+  </div>
+  <div class="modal-footer"><button class="btn-secondary" data-bs-dismiss="modal">Cancel</button><button class="btn-primary" onclick="saveProduct()">Save Changes</button></div>
+</div></div></div>
+
+<div class="modal fade" id="adminEditModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+  <div class="modal-header"><h5 class="modal-title">✏️ Edit Admin</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body">
+    <input type="hidden" id="adminEditRow"><input type="hidden" id="adminEditEmailHidden"><input type="hidden" id="adminEditUserIdHidden">
+    <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:16px;font-size:.82rem;display:flex;flex-direction:column;gap:4px;">
+      <div><span style="color:var(--muted);font-weight:600;">Email:</span> <span id="adminEditEmailDisp" style="color:var(--text2);"></span></div>
+      <div><span style="color:var(--muted);font-weight:600;">User ID:</span> <span id="adminEditUserIdDisp" style="font-family:var(--mono);color:var(--accent);"></span></div>
+      <div><span style="color:var(--muted);font-weight:600;">Vendor:</span> <span id="adminEditVendorDisp" style="color:var(--text2);"></span></div>
+      <div><span style="color:var(--muted);font-weight:600;">Business Type:</span> <span id="adminEditTypeDisp" style="color:var(--text2);"></span></div>
+      <div><span style="color:var(--muted);font-weight:600;">Phone:</span> <span id="adminEditPhoneDisp" style="color:var(--text2);"></span></div>
+    </div>
+    <div class="form-group" style="margin-bottom:12px;"><label class="form-label">Full Name</label><input class="form-control" id="adminEditNameInput" placeholder="Admin full name"></div>
+    <div class="fg2">
+      <div class="form-group"><label class="form-label">Role</label><select class="form-select" id="adminEditRole"><option value="admin">Admin</option><option value="assistant-admin">Assistant Admin</option></select></div>
+      <div class="form-group"><label class="form-label">Status</label><select class="form-select" id="adminEditActive"><option value="Yes">Active</option><option value="No">Inactive</option></select></div>
+    </div>
+  </div>
+  <div class="modal-footer"><button class="btn-secondary" data-bs-dismiss="modal">Cancel</button><button class="btn-primary" onclick="saveAdminEdit()">Save Changes</button></div>
+</div></div></div>
+
+<!-- MARKETPLACE PRODUCT DETAIL -->
+<div class="modal fade" id="productDetailModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
+  <div class="modal-header"><h5 class="modal-title" id="pdTitle">Product</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body" id="pdBody"></div>
+</div></div></div>
+
+<div class="modal fade" id="suggestionModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">💬 Feedback via WhatsApp</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="suggestion-box" style="margin-bottom:16px;"><div style="font-size:.85rem;color:var(--text2);line-height:1.6;">Have an idea or found a bug? Send us a WhatsApp message — we build based on your feedback!</div></div><div class="form-group" style="margin-bottom:12px;"><label class="form-label">Topic</label><select id="suggestionCat" class="form-select"><option value="Feature Request">💡 Feature Request</option><option value="Bug Report">🐛 Bug Report</option><option value="Design Feedback">🎨 Design Feedback</option><option value="Performance Issue">⚡ Performance Issue</option><option value="General">💬 General</option></select></div><div class="form-group"><label class="form-label">Your Message</label><textarea id="suggestionMsg" class="form-control" rows="4" placeholder="Type your message…" style="resize:vertical;"></textarea></div></div><div class="modal-footer"><button class="btn-secondary" data-bs-dismiss="modal">Close</button><button class="btn-primary" onclick="sendSuggestionWhatsApp()">📲 Open WhatsApp</button></div></div></div></div>
+
+<div class="modal fade" id="logoModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Upload Business Logo</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="photo-upload-area" onclick="document.getElementById('logoFileInput').click()"><img id="logoPreview" style="max-height:80px;max-width:200px;object-fit:contain;border-radius:8px;display:none;margin:0 auto 8px;" src="" alt=""><div id="logoPlaceholder" style="color:var(--muted);font-size:.82rem;">🖼️ Click to upload logo (JPG / PNG)</div></div><input type="file" id="logoFileInput" accept="image/*" style="display:none;" onchange="previewLogo(this)"><div id="logoUploadResult" style="margin-top:10px;"></div></div><div class="modal-footer"><button class="btn-secondary" data-bs-dismiss="modal">Cancel</button><button class="btn-primary" onclick="uploadLogo()">Upload Logo</button></div></div></div></div>
+
+<div class="modal fade" id="termsModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Terms &amp; Conditions</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body" style="font-size:.85rem;line-height:1.7;color:var(--text2);"><p><strong style="color:var(--text);">Your Data Belongs to You</strong><br>Everything you enter is your property. Samaritan Techs never sells or shares your data.</p><p><strong style="color:var(--text);">No Data Loss, Ever</strong><br>Your information is continuously saved. Download a copy anytime via Reports.</p><p><strong style="color:var(--text);">Marketplace Visibility</strong><br>Your active products and business contact may be shown publicly in the marketplace to help customers find you. You control what is active.</p><p><strong style="color:var(--text);">You Are in Control</strong><br>You decide who can sell, manage, or view reports. Revoke access at any time.</p><p><strong style="color:var(--text);">Responsibility</strong><br>Keep your password safe. You are responsible for all actions under your credentials.</p><p style="text-align:center;margin-top:16px;font-size:.75rem;">&copy; <span id="currentYear"></span> Samaritan Techs.</p></div><div class="modal-footer"><button class="btn-secondary" data-bs-dismiss="modal">Close</button></div></div></div></div>
+
+<div id="hintToast"><span class="hint-icon">💡</span><span class="hint-text" id="hintText"></span></div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+/* ==================== STATE ==================== */
+var WA_NUMBER='255756749261';
+var userId,userName,userRole,vendor,userCurrency='TZS',userPerms={};
+var hintTimer=null,hintLifetime=5,hintInterval=300;
+var _activeTab='dashboard',_salesChart=null;
+var _currentTheme=localStorage.getItem('boTheme')||'dark';
+var _lang=localStorage.getItem('boLang')||'en';
+var _hintList=[];
+var _pendingPhotoBase64=null,_pendingPhotoMime=null,_pendingLogoBase64=null,_pendingLogoMime=null;
+var _pendingProdImg1Base64=null,_pendingProdImg1Mime=null,_pendingProdImg2Base64=null,_pendingProdImg2Mime=null;
+var _loadingMs=2000,_mgrVendorList=[],_autoSyncTimer=null;
+var _market={products:[],vendors:[]},_mkFilterCat='ALL';
+var _mkPageSize=48,_mkShown=48,_mkFiltered=[];
+var _mkFilterType='ALL';
+function setMkType(t){_mkFilterType=t;['ALL','Sale','Rent'].forEach(function(k){var el=document.getElementById('mkType_'+k);if(el)el.classList.toggle('active',k===t);});filterMarket();}
+var _screen='landing';
+var _idleTimer=null,_idleMs=0;
+
+function clientIsAdmin(){return userRole==='admin'||userRole==='assistant-admin';}
+function clientIsManager(){return userRole==='manager'||userRole==='assistant-manager';}
+
+/* ==================== LANGUAGE ==================== */
+var T={en:{signin:'Sign in to your account',signin_sub:'Enter your User ID or Email to access the system',userid:'User ID or Email',password:'Password',login_btn:'Sign In'},sw:{signin:'Ingia kwenye akaunti yako',signin_sub:'Weka kitambulisho au barua pepe kufikia mfumo',userid:'Kitambulisho au Barua Pepe',password:'Nywila',login_btn:'Ingia'}};
+function setLang(l){_lang=l;localStorage.setItem('boLang',l);var en=document.getElementById('langEn'),sw=document.getElementById('langSw');if(en)en.classList.toggle('active',l==='en');if(sw)sw.classList.toggle('active',l==='sw');var t=T[l]||T.en;['signin','signin_sub','userid','password','login_btn'].forEach(function(k){var el=document.getElementById('lbl_'+k);if(el)el.textContent=t[k];});updateLangUI();}
+
+/* ==================== THEME ==================== */
+function applyTheme(t){_currentTheme=t;document.documentElement.setAttribute('data-theme',t);var b1=document.getElementById('themeToggleBtn'),b2=document.getElementById('mkThemeBtn');if(b1)b1.textContent=t==='dark'?'☀️':'🌙';if(b2)b2.textContent=t==='dark'?'☀️':'🌙';localStorage.setItem('boTheme',t);if(_salesChart){_salesChart.destroy();_salesChart=null;}}
+function toggleTheme(){applyTheme(_currentTheme==='dark'?'light':'dark');if(_screen==='app'&&_activeTab==='dashboard')loadDashboard();}
+applyTheme(_currentTheme);
+function currentView(){return (_serverView==='desktop')?'desktop':'mobile';}
+function reloadWithView(v){try{localStorage.setItem('boView',v);}catch(e){}try{showToast(v==='desktop'?'Inabadili kuwa Desktop… / Switching to desktop…':'Inabadili kuwa Simu… / Switching to mobile…','🔄');}catch(e){}google.script.run.withSuccessHandler(function(url){var u=url+(v==='desktop'?'?view=desktop':'');try{window.top.location.href=u;}catch(e){try{window.location.href=u;}catch(_){location.reload();}}}).withFailureHandler(function(){try{window.top.location.reload();}catch(e){location.reload();}}).getScriptUrl();}
+function toggleView(){reloadWithView(currentView()==='desktop'?'mobile':'desktop');}
+function updateViewUI(){var b=document.getElementById('viewToggleBtn');if(!b)return;if(currentView()==='desktop'){b.textContent='📱';b.title='Mtazamo wa simu / Mobile view';}else{b.textContent='🖥️';b.title='Mtazamo wa kompyuta / Desktop view';}}
+
+/* ==================== HELPERS ==================== */
+function fmt(n){n=Number(n)||0;if(n>=1e9)return(n/1e9).toFixed(2)+'B';if(n>=1e6)return(n/1e6).toFixed(1)+'M';if(n>=1e3)return(n/1e3).toFixed(1)+'K';return n.toLocaleString('en-TZ');}
+function fmtFull(n){return (Number(n)||0).toLocaleString('en-TZ');}
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function digitsOnly(s){return String(s||'').replace(/[^0-9]/g,'');}
+function showToast(msg,icon){var t=document.getElementById('hintToast');if(!t)return;document.querySelector('#hintToast .hint-icon').textContent=icon||'✅';document.getElementById('hintText').textContent=msg;t.classList.add('show');setTimeout(function(){t.classList.remove('show');},2600);}
+
+function showLoader(ms){var el=document.getElementById('loadingScreen'),fill=document.getElementById('loaderFill');if(!el)return;el.classList.remove('hidden');el.style.opacity='1';el.style.pointerEvents='all';var steps=100,interval=ms/steps,i=0;var t=setInterval(function(){i++;if(fill)fill.style.width=i+'%';if(i>=steps){clearInterval(t);setTimeout(function(){el.classList.add('fade-out');setTimeout(function(){el.classList.add('hidden');el.classList.remove('fade-out');if(fill)fill.style.width='0%';},500);},200);}},interval);}
+
+/* ==================== SESSION ==================== */
+function storeSession(){try{localStorage.setItem('boSess',JSON.stringify({userId:userId,userName:userName,userRole:userRole,vendor:vendor,userCurrency:userCurrency}));}catch(e){}}
+function clearSession(){try{localStorage.removeItem('boSess');}catch(e){}}
+function restoreSession(){var s=null;try{s=localStorage.getItem('boSess');}catch(e){}if(s){try{var o=JSON.parse(s);applyLogin(o.userId,o.userName,o.userRole,o.vendor,o.userCurrency||'TZS','',true);return true;}catch(e){}}return false;}
+
+/* ==================== SCREEN ROUTING ==================== */
+function showLanding(){_screen='landing';document.getElementById('loginPage').classList.add('hidden');var ma=document.getElementById('mainApp');ma.classList.add('hidden');ma.style.display='none';var lp=document.getElementById('landingPage');lp.classList.remove('hidden');window.scrollTo(0,0);if(!_market.products.length)loadMarketplace();startMarketplaceHints();}
+function showLogin(openReg){_screen='login';if(hintTimer){clearInterval(hintTimer);hintTimer=null;}document.getElementById('landingPage').classList.add('hidden');var ma=document.getElementById('mainApp');ma.classList.add('hidden');ma.style.display='none';document.getElementById('loginPage').classList.remove('hidden');var rf=document.getElementById('regForm'),rl=document.getElementById('regLink');if(rf&&rl){if(openReg===true){rf.style.display='block';rl.textContent='– Hide';}else{rf.style.display='none';rl.textContent='+ Register New Business';}}window.scrollTo(0,0);setTimeout(function(){var c=document.getElementById('loginId');if(c&&openReg!==true)c.focus();},60);}
+
+/* ==================== MARKETPLACE ==================== */
+function loadMarketplace(){
+  var grid=document.getElementById('mkProductGrid');if(grid&&!_market.products.length)grid.innerHTML='<div class="mk-empty">Loading products…</div>';
+  google.script.run.withSuccessHandler(function(data){_market=data||{products:[],vendors:[]};renderMarket();}).withFailureHandler(function(e){var g=document.getElementById('mkProductGrid');if(g)g.innerHTML='<div class="mk-empty">Could not load marketplace. Tap ↻ to retry.</div>';}).getMarketplaceData();
+}
+function renderMarket(){
+  var prods=_market.products||[],vends=_market.vendors||[];
+  var cats={};prods.forEach(function(p){if(p.cat)cats[p.cat]=(cats[p.cat]||0)+1;});
+  var catKeys=Object.keys(cats);
+  document.getElementById('mkStatProducts').textContent=prods.length;
+  document.getElementById('mkStatVendors').textContent=vends.length;
+  document.getElementById('mkStatCats').textContent=catKeys.length;
+  renderMarketCats();
+  filterMarket();
+}
+function renderMarketCats(){
+  var prods=_market.products||[];
+  var catClicks={},catCount={};
+  prods.forEach(function(p){if(p.cat){catClicks[p.cat]=(catClicks[p.cat]||0)+(Number(p.clicks)||0);catCount[p.cat]=(catCount[p.cat]||0)+1;}});
+  var catKeys=Object.keys(catCount);
+  catKeys.sort(function(a,b){var d=(catClicks[b]||0)-(catClicks[a]||0);if(d!==0)return d;var c=(catCount[b]||0)-(catCount[a]||0);if(c!==0)return c;return a.localeCompare(b);});
+  var TOP=5,top=catKeys.slice(0,TOP),rest=catKeys.slice(TOP);
+  if(_mkFilterCat!=='ALL'&&rest.indexOf(_mkFilterCat)!==-1){rest.splice(rest.indexOf(_mkFilterCat),1);top.push(_mkFilterCat);}
+  var chips='<button class="mk-chip '+(_mkFilterCat==='ALL'?'active':'')+'" onclick="setMkCat(\'ALL\')">All</button>';
+  top.forEach(function(c){chips+='<button class="mk-chip '+(_mkFilterCat===c?'active':'')+'" onclick="setMkCat(\''+esc(c).replace(/'/g,"\\'")+'\')">'+esc(c)+'</button>';});
+  if(rest.length){
+    var menu=rest.map(function(c){return '<button type="button" class="mk-more-item'+(_mkFilterCat===c?' active':'')+'" onclick="setMkCat(\''+esc(c).replace(/'/g,"\\'")+'\')">'+esc(c)+'</button>';}).join('');
+    chips+='<div class="mk-more"><button type="button" class="mk-chip mk-more-btn" onclick="toggleMkMore(event)">More ▾</button><div class="mk-more-menu" id="mkMoreMenu">'+menu+'</div></div>';
+  }
+  document.getElementById('mkCats').innerHTML=chips;
+}
+function toggleMkMore(ev){if(ev){ev.stopPropagation();}var m=document.getElementById('mkMoreMenu');if(m)m.classList.toggle('open');}
+function setMkCat(c){_mkFilterCat=c;var mm=document.getElementById('mkMoreMenu');if(mm)mm.classList.remove('open');renderMarketCats();filterMarket();}
+document.addEventListener('click',function(e){var m=document.getElementById('mkMoreMenu');if(!m)return;if(!e.target.closest('.mk-more'))m.classList.remove('open');});
+function renderMarketChipsActive(){var chips=document.querySelectorAll('#mkCats .mk-chip');chips.forEach(function(ch){ch.classList.toggle('active',(ch.textContent==='All'&&_mkFilterCat==='ALL')||ch.textContent===_mkFilterCat);});}
+function filterMarket(){
+  var q=(document.getElementById('mkSearch').value||'').trim().toLowerCase();
+  _mkFiltered=(_market.products||[]).filter(function(p){
+    if(_mkFilterType!=='ALL'&&(p.listingType||'Sale')!==_mkFilterType)return false;
+    if(_mkFilterCat!=='ALL'&&p.cat!==_mkFilterCat)return false;
+    if(!q)return true;
+    return (String(p.name).toLowerCase().indexOf(q)!==-1)||(String(p.cat).toLowerCase().indexOf(q)!==-1)||(String(p.vendor).toLowerCase().indexOf(q)!==-1)||(String(p.location||'').toLowerCase().indexOf(q)!==-1);
+  });
+  _mkShown=_mkPageSize;
+  renderMarketPage();
+}
+function renderMarketPage(){
+  var grid=document.getElementById('mkProductGrid'),wrap=document.getElementById('mkLoadMoreWrap');
+  var list=_mkFiltered||[];
+  if(!list.length){grid.innerHTML='<div class="mk-empty">No products match your search.</div>';if(wrap)wrap.innerHTML='';return;}
+  var shown=Math.min(_mkShown,list.length),allProds=_market.products,html='';
+  for(var i=0;i<shown;i++){
+    var p=list[i];
+    var gi=allProds.indexOf(p);
+    var img=p.image1||p.image2;
+    var imgHtml=img?'<div class="mk-img" style="background-image:url(\''+esc(img)+'\');">':'<div class="mk-img">';
+    var isRent=(p.listingType||'Sale')==='Rent';
+    var stockTag=(p.stock>0)?'<span class="mk-stock">'+(isRent?'Available':'In stock')+'</span>':'<span class="mk-stock out">'+(isRent?'Booked':'Out')+'</span>';
+    if(!img)imgHtml+='🛍️';
+    var hotTag=p.hot?'<span class="mk-fire">🔥 Hot</span>':'';
+    imgHtml+=stockTag+hotTag+'</div>';
+    var vlogo='';var v=findVendor(p.vendor);if(v&&v.logo){vlogo='<img src="'+esc(v.logo)+'" onerror="this.style.display=\'none\'">';}else{vlogo='<div class="mk-vinit">'+esc((p.vendor||'B')[0]).toUpperCase()+'</div>';}
+    html+='<div class="mk-card" onclick="openProductDetail('+gi+')">'+imgHtml+'<div class="mk-cardbody"><div class="mk-cat">'+(isRent?'FOR RENT · ':'')+esc(p.cat||'General')+'</div><div class="mk-name">'+esc(p.name)+'</div><div class="mk-price">'+fmtFull(p.price)+' <span style="font-size:.7rem;color:var(--muted);font-weight:600;">'+esc(p.currency||'TZS')+(isRent&&p.priceUnit?' '+esc(p.priceUnit):'')+'</span></div><div class="mk-cvendor">'+vlogo+'<span>'+esc(p.vendor)+'</span></div></div></div>';
+  }
+  grid.innerHTML=html;
+  var remaining=list.length-shown;
+  if(wrap)wrap.innerHTML=remaining>0?'<button class="btn-secondary" onclick="loadMoreMarket()" style="margin-top:14px;">Load more ('+remaining+' more)</button>':'';
+}
+function loadMoreMarket(){_mkShown+=_mkPageSize;renderMarketPage();}
+function findVendor(name){var vs=_market.vendors||[];for(var i=0;i<vs.length;i++){if(vs[i].name===name)return vs[i];}return null;}
+function openProductDetail(idx){
+  var p=_market.products[idx];if(!p)return;
+  try{google.script.run.trackProductClick(p.id,p.name,p.vendor);}catch(e){}
+  var v=findVendor(p.vendor)||{};
+  document.getElementById('pdTitle').textContent=p.name;
+  var imgs='<div class="pd-imgs">';
+  imgs+=p.image1?'<img class="pd-img" src="'+esc(p.image1)+'" onerror="this.outerHTML=\'<div class=\\\'pd-img-ph\\\'>🛍️</div>\'">':'<div class="pd-img-ph">🛍️</div>';
+  imgs+=p.image2?'<img class="pd-img" src="'+esc(p.image2)+'">':'';
+  imgs+='</div>';
+  var phone=digitsOnly(p.vendorPhone||v.phone||'');
+  var contactBtn=phone?'<a class="btn-primary w-100" style="justify-content:center;margin-top:6px;" href="https://wa.me/'+phone+'?text='+encodeURIComponent('Hello '+p.vendor+', I am interested in "'+p.name+'" I saw on the Business Operator marketplace.')+'" target="_blank">📲 Contact seller on WhatsApp</a>':'<div class="alert-info" style="margin-top:6px;">This seller has not listed a contact number.</div>';
+  var body=imgs+
+    '<div style="font-size:.7rem;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.05em;">'+((p.listingType||'Sale')==='Rent'?'FOR RENT · ':'')+esc(p.cat||'General')+'</div>'+
+    '<div style="font-size:1.3rem;font-weight:800;color:var(--text);margin:2px 0 4px;">'+esc(p.name)+(p.hot?' <span style="font-size:.8rem;color:#EF4444;">🔥 Hot</span>':'')+'</div>'+
+    '<div style="font-size:1.4rem;font-weight:800;font-family:var(--mono);color:var(--accent2);margin-bottom:6px;">'+fmtFull(p.price)+' '+esc(p.currency||'TZS')+((p.listingType||'Sale')==='Rent'&&p.priceUnit?' <span style="font-size:.85rem;color:var(--muted);">'+esc(p.priceUnit)+'</span>':'')+'</div>'+
+    '<div style="font-size:.84rem;color:var(--text2);margin-bottom:12px;">'+((p.listingType||'Sale')==='Rent'?(p.stock>0?'✅ Available now':'🔴 Currently booked out'):(p.stock>0?('✅ '+p.stock+' in stock'):'🔴 Currently out of stock'))+'</div>'+
+    (p.location?'<div style="font-size:.82rem;color:var(--text2);margin-bottom:12px;">📍 '+esc(p.location)+'</div>':'')+
+    '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:6px;"><div style="font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Sold by</div><div style="font-weight:700;color:var(--text);">'+esc(p.vendor)+(v.businessType?' <span style="font-weight:500;color:var(--accent);font-size:.8rem;">· '+esc(v.businessType)+'</span>':'')+'</div>'+(v.address?'<div style="font-size:.78rem;color:var(--text2);margin-top:6px;">📍 '+esc(v.address)+'</div>':'')+'</div></div>'+
+    contactBtn;
+  document.getElementById('pdBody').innerHTML=body;
+  new bootstrap.Modal(document.getElementById('productDetailModal')).show();
+}
+function openVendorContact(idx){var v=(_market.vendors||[])[idx];if(!v){return;}var phone=digitsOnly(v.phone);if(!phone){showToast('This business has not listed a contact number.','ℹ️');return;}window.open('https://wa.me/'+phone+'?text='+encodeURIComponent('Hello '+v.name+', I found your business on the Business Operator marketplace.'),'_blank');}
+
+/* ==================== GLOBAL REFRESH ==================== */
+function globalRefresh(){try{showToast('Reloading…','🔄');}catch(e){}google.script.run.withSuccessHandler(function(url){try{window.top.location.href=url;}catch(e){try{window.location.href=url;}catch(_){location.reload();}}}).withFailureHandler(function(){try{window.top.location.reload();}catch(e){location.reload();}}).getScriptUrl();}
+
+/* ==================== LOGOUT (in-app reset, NO navigation) ==================== */
+function logout(){
+  clearSession();
+  if(hintTimer){clearInterval(hintTimer);hintTimer=null;}
+  if(_autoSyncTimer){clearInterval(_autoSyncTimer);_autoSyncTimer=null;}stopIdleTimer();
+  if(_salesChart){try{_salesChart.destroy();}catch(e){}_salesChart=null;}
+  try{document.querySelectorAll('.modal.show').forEach(function(m){var inst=bootstrap.Modal.getInstance(m);if(inst)inst.hide();});}catch(e){}
+  try{document.querySelectorAll('.modal-backdrop').forEach(function(b){b.remove();});document.body.classList.remove('modal-open');document.body.style.removeProperty('overflow');document.body.style.removeProperty('padding-right');}catch(e){}
+  userId=null;userName=null;userRole=null;vendor=null;userCurrency='TZS';userPerms={};document.body.classList.remove('bo-restricted');
+  ['dashboardContent','saleContent','lendingsContent','productsContent','usersTable','addUserSection','cashContent','reportsContent','managerContent','mgrReportsContent','settingsContent'].forEach(function(id){var el=document.getElementById(id);if(el)el.innerHTML='';});
+  var li=document.getElementById('loginId');if(li)li.value='';var lp=document.getElementById('loginPwd');if(lp)lp.value='';var lm=document.getElementById('loginMsg');if(lm)lm.innerHTML='';
+  document.getElementById('customLogoRow').classList.add('hidden');
+  var ma=document.getElementById('mainApp');ma.classList.add('hidden');ma.style.display='none';
+  document.getElementById('loginPage').classList.add('hidden');
+  showLanding();loadMarketplace();
+  showToast('Signed out.','👋');
+}
+
+/* ==================== LOGIN ==================== */
+function applyLogin(uid,uname,urole,uvendor,currency,photo,fromStorage){
+  userId=uid;userName=uname;userRole=urole;vendor=uvendor;userCurrency=currency||'TZS';_screen='app';
+  document.getElementById('landingPage').classList.add('hidden');
+  document.getElementById('loginPage').classList.add('hidden');
+  var ma=document.getElementById('mainApp');ma.classList.remove('hidden');ma.style.display='flex';
+  document.getElementById('displayVendor').textContent=vendor||'System Manager';
+  document.getElementById('displayName').textContent=userName;document.getElementById('displayRole').textContent=urole;
+  var initials=(userName||'U').split(' ').map(function(w){return w[0];}).join('').substring(0,2).toUpperCase();
+  var av=document.getElementById('topbarAvatar');if(photo){av.innerHTML='<img src="'+photo+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">';}else{av.textContent=initials;}
+  document.getElementById('tbUserInfo').style.display='';
+  var isM=clientIsManager(),isA=urole==='admin';
+  document.getElementById('nav-sale').style.display=isM?'none':'';
+  document.getElementById('nav-lendings').style.display='';
+  document.querySelectorAll('.adminOnly').forEach(function(el){el.style.display=isA?'':'none';});
+  document.querySelectorAll('.managerOnly').forEach(function(el){el.style.display=isM?'':'none';});
+  document.querySelectorAll('.showUsers').forEach(function(el){el.style.display=(isA||isM)?'':'none';});
+  switchTab('dashboard',document.getElementById('nav-dashboard'));
+  storeSession();
+  if(!fromStorage){
+    google.script.run.withSuccessHandler(function(p){userPerms=p;}).getPermissionsForUser(userId,vendor||'');
+    google.script.run.withSuccessHandler(function(logo){if(logo){document.getElementById('customLogoImg').src=logo;document.getElementById('customLogoRow').classList.remove('hidden');}}).getBusinessLogo(vendor||'');
+  }
+  checkRestriction();
+  showLoader(_loadingMs);
+  setTimeout(function(){initApp();loadSettingsAndStartHints();},300);
+}
+function doLogin(){var uid=document.getElementById('loginId').value.trim(),pwd=document.getElementById('loginPwd').value.trim();if(!uid||!pwd){document.getElementById('loginMsg').innerHTML='Please enter your credentials.';return;}document.getElementById('loginMsg').innerHTML='<span style="color:var(--muted);">Signing in…</span>';google.script.run.withSuccessHandler(function(res){if(res.success){google.script.run.withSuccessHandler(function(lt){_loadingMs=(lt||2)*1000;applyLogin(res.userId,res.name,res.role,res.vendor,'',res.profilePhoto||'',false);}).getLoadingTime();google.script.run.withSuccessHandler(function(c){userCurrency=c||'TZS';}).getVendorCurrency(res.vendor||'');}else{document.getElementById('loginMsg').innerHTML=res.message;}}).validateLogin(uid,pwd);}
+function forgotPassword(){var email=prompt('Enter the email address associated with your account:');if(!email)return;google.script.run.withSuccessHandler(function(res){alert(res.message);}).requestPasswordReset(email.trim());}
+(function(){if(_serverResetToken&&_serverResetToken!==''){document.getElementById('loginFieldsWrap').style.display='none';document.getElementById('lbl_signin').style.display='none';document.getElementById('lbl_signin_sub').style.display='none';document.getElementById('resetForm').style.display='block';window._resetToken=_serverResetToken;}})();
+function submitResetPassword(){var pwd=document.getElementById('resetNewPwd').value,cpwd=document.getElementById('resetConfirmPwd').value;if(!pwd||pwd.length<4){document.getElementById('resetMsg').innerHTML='<div class="alert-danger">Password must be at least 4 characters.</div>';return;}if(pwd!==cpwd){document.getElementById('resetMsg').innerHTML='<div class="alert-danger">Passwords do not match.</div>';return;}google.script.run.withSuccessHandler(function(res){document.getElementById('resetMsg').innerHTML=res.success?'<div class="alert-success">'+res.message+'</div>':'<div class="alert-danger">'+res.message+'</div>';if(res.success)setTimeout(function(){google.script.run.withSuccessHandler(function(url){window.top.location.href=url;}).getScriptUrl();},3000);}).resetPassword(window._resetToken,pwd);}
+
+/* ==================== TABS ==================== */
+function switchTab(name,btn){closeMobileSidebar();document.querySelectorAll('[id^="tab-"]').forEach(function(el){el.classList.add('hidden');});var t=document.getElementById('tab-'+name);if(t)t.classList.remove('hidden');document.querySelectorAll('.nav-item').forEach(function(el){el.classList.remove('active');});if(btn)btn.classList.add('active');_activeTab=name;var ms=document.getElementById('mainScroll');if(ms)ms.scrollTop=0;}
+
+function refreshData(){loadDashboard();if(userRole==='admin'){loadProductsTab();doSearch();populateSellerDropdown();}if(clientIsManager()){loadManagerPanel();doSearch();}if(_activeTab==='lendings')loadLendingsTab();}
+
+function initApp(){
+  loadDashboard();
+  if(!clientIsManager())loadSellTab();
+  loadLendingsTab();
+  if(userRole==='admin'){loadProductsTab();loadUsersList();loadCashTab();loadReportsTab();}
+  if(clientIsManager()){loadManagerPanel();loadManagerReportsTab();loadUsersList();loadSettingsTab();}
+  document.getElementById('footerYear').textContent=new Date().getFullYear();
+}
+
+function mkScrollTo(id){var el=document.getElementById(id);if(el)el.scrollIntoView({behavior:'smooth'});}
+
+/* ==================== HINTS ==================== */
+function loadSettingsAndStartHints(){google.script.run.withSuccessHandler(function(s){hintLifetime=s.lifetime||5;hintInterval=s.interval||300;startHintTimer(s.hints||[]);}).getHintSettingsForUser(userRole);google.script.run.withSuccessHandler(function(sec){startAutoSync(sec);}).getAutoSyncSeconds();google.script.run.withSuccessHandler(function(m){startIdleTimer(m);}).getSessionTimeoutMinutes();}
+function startAutoSync(sec){if(_autoSyncTimer){clearInterval(_autoSyncTimer);_autoSyncTimer=null;}sec=parseInt(sec)||0;if(sec<5)return;_autoSyncTimer=setInterval(function(){if(_screen==='app')silentSync();},sec*1000);}
+function silentSync(){if(_screen!=='app')return;checkRestriction();loadDashboard();if(_activeTab==='lendings'){refreshActiveLendings();refreshReturnedLendings();}else if(_activeTab==='products'&&userRole==='admin'){loadProductsTab();}else if(_activeTab==='users'){doSearch();}else if(_activeTab==='manager'&&clientIsManager()){loadAdminsWithStats();loadAnalytics();}else if(_activeTab==='cash'&&userRole==='admin'){populateSellerDropdown();}}
+function startMarketplaceHints(){google.script.run.withSuccessHandler(function(s){hintLifetime=s.lifetime||5;hintInterval=s.interval||300;startHintTimer(s.hints||[]);}).getHintSettingsForUser('marketplace');}
+function startHintTimer(hints){if(hintTimer)clearInterval(hintTimer);if(!hints||!hints.length)return;_hintList=hints;var show=function(){var h=_hintList[Math.floor(Math.random()*_hintList.length)];var msg=(h&&typeof h==='object')?((_lang==='sw'&&h.sw)?h.sw:h.en):h;document.getElementById('hintText').textContent=msg;document.querySelector('#hintToast .hint-icon').textContent='💡';var t=document.getElementById('hintToast');t.classList.add('show');setTimeout(function(){t.classList.remove('show');},hintLifetime*1000);};setTimeout(show,2500);hintTimer=setInterval(show,hintInterval*1000);}
+function updateLangUI(){var lbl=(_lang==='sw')?'SW':'EN';var b1=document.getElementById('langToggleBtn'),b2=document.getElementById('mkLangBtn');if(b1)b1.textContent=lbl;if(b2)b2.textContent=lbl;}
+function toggleLang(){setLang(_lang==='sw'?'en':'sw');var arr=_hintList||[];if(arr.length){var h=arr[Math.floor(Math.random()*arr.length)];var msg=(h&&typeof h==='object')?((_lang==='sw'&&h.sw)?h.sw:h.en):h;var t=document.getElementById('hintToast');if(t){document.querySelector('#hintToast .hint-icon').textContent=(_lang==='sw'?'🇹🇿':'🇬🇧');document.getElementById('hintText').textContent=msg;t.classList.add('show');setTimeout(function(){t.classList.remove('show');},(hintLifetime||3)*1000);}}else{showToast(_lang==='sw'?'Lugha ya vidokezo: Kiswahili':'Tips language: English','🌐');}}
+
+/* ==================== DASHBOARD ==================== */
+function loadDashboard(){
+  if(clientIsManager()){
+    google.script.run.withSuccessHandler(function(data){var d=data||{};var html='<div class="stats-row">'+mkStat('sc-blue','🏢','Vendors',d.vendorCount||0,'')+mkStat('sc-green','💰','Today Sales',fmtFull(d.totalSalesToday||0),'TZS')+mkStat('sc-amber','📅','Weekly Sales',fmtFull(d.totalSalesWeek||0),'TZS')+mkStat('sc-rose','📆','Monthly Sales',fmt(d.totalSalesMonth||0),'TZS')+mkStat('sc-purple','📦','Stock Value',fmt(d.totalStockValue||0),'TZS')+'</div>';html+='<div class="section-card"><div class="section-hdr"><span>📊</span><div class="section-hdr-title">Vendor Performance</div></div><div style="padding:0;"><div class="table-wrap"><table class="bo-table"><thead><tr><th>Vendor</th><th>Admin</th><th>Today</th><th>Weekly</th><th>Monthly</th><th>Products</th><th>Sellers</th><th>Stock Value</th></tr></thead><tbody>'+(d.vendorRows||'<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:20px;">No vendors</td></tr>')+'</tbody></table></div></div></div>';document.getElementById('dashboardContent').innerHTML=html;}).getManagerDashboardData();
+  }else{
+    google.script.run.withSuccessHandler(function(data){
+      var d=data||{},cur=d.currency||userCurrency||'TZS';
+      var html='<div class="stats-row">'+mkStat('sc-blue','🌅','Today',fmtFull(d.todayTotal||0),cur,"showDetailModal('Today Sales','today')")+mkStat('sc-green','📅','This Week',fmtFull(d.weekTotal||0),cur,"showDetailModal('Week Sales','week')")+mkStat('sc-amber','📆','This Month',fmt(d.monthTotal||0),cur,"showDetailModal('Month Sales','month')")+mkStat('sc-rose','⚠️','Low Stock',d.lowCount||0,'items',"showDetailModal('Stock Overview','stock')")+mkStat('sc-purple','📦','Stock Value',fmt(d.totalStockVal||0),cur)+'</div>';
+      if(d.chartData&&d.chartData.length)html+='<div class="section-card" style="margin-bottom:20px;"><div class="section-hdr"><span>📈</span><div class="section-hdr-title">Sales Trend – Last 7 Days</div></div><div class="section-body"><div class="chart-wrap"><canvas id="salesChartCanvas"></canvas></div></div></div>';
+      if(clientIsAdmin()){
+        html+='<div class="section-card" style="margin-bottom:20px;"><div class="section-hdr"><span>💹</span><div class="section-hdr-title">Seller Balances Today</div></div><div style="padding:0;"><div class="table-wrap"><table class="bo-table"><thead><tr><th>Seller</th><th>Cash Sales</th><th>Lipa Sales</th><th>Cash Rec</th><th>Cash Due</th><th>Lipa Rec</th><th>Lipa Due</th></tr></thead><tbody>'+(d.sellerRows||'<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px;">No data</td></tr>')+'</tbody></table></div></div></div>';
+        html+='<div class="section-card" style="margin-bottom:20px;"><div class="section-hdr"><span>🗑️</span><div class="section-hdr-title">Recent Sales</div></div><div id="salesHistoryBody" style="padding:16px;color:var(--muted);text-align:center;">Loading…</div></div>';
+      }else if(userRole==='seller'){
+        var s=d.sellerStatsForSelf||{cash:0,lipa:0};
+        html+='<div class="section-card" style="margin-bottom:20px;"><div class="section-hdr"><span>🧑</span><div class="section-hdr-title">My Current Balance</div></div><div class="section-body"><div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;"><div class="stat-card sc-green" style="cursor:default;"><div class="sc-icon">💵</div><div class="sc-label">Cash Sales</div><div class="sc-value">'+(s.cash||0).toLocaleString('en-TZ')+'<span class="sc-unit"> '+cur+'</span></div><div class="sc-accent"></div></div><div class="stat-card sc-blue" style="cursor:default;"><div class="sc-icon">📱</div><div class="sc-label">Lipa Sales</div><div class="sc-value">'+(s.lipa||0).toLocaleString('en-TZ')+'<span class="sc-unit"> '+cur+'</span></div><div class="sc-accent"></div></div></div></div></div>';
+      }
+      html+='<div class="section-card"><div class="section-hdr"><span>📦</span><div class="section-hdr-title">Stock Overview</div></div><div style="padding:0;"><div class="table-wrap" style="max-height:360px;overflow-y:auto;"><table class="bo-table"><thead><tr><th>ID</th><th>Product</th><th>Stock</th><th>Price</th><th>Value</th><th>Status</th></tr></thead><tbody>'+d.productTable+'</tbody></table></div></div></div>';
+      document.getElementById('dashboardContent').innerHTML=html;
+      if(d.chartData&&d.chartData.length)renderChart(d.chartData,cur);
+      if(clientIsAdmin())refreshSalesHistory();
+    }).getDashboardData(userRole,userId,vendor);
+  }
+}
+function mkStat(cls,icon,label,value,unit,onclick){var ca=onclick?' onclick="'+onclick+'"':'';return '<div class="stat-card '+cls+'"'+ca+'><div class="sc-icon">'+icon+'</div><div class="sc-label">'+label+'</div><div class="sc-value">'+value+(unit?'<span class="sc-unit"> '+unit+'</span>':'')+'</div><div class="sc-accent"></div></div>';}
+function renderChart(chartData,cur){var canvas=document.getElementById('salesChartCanvas');if(!canvas)return;if(_salesChart){_salesChart.destroy();_salesChart=null;}var isDark=_currentTheme==='dark',gc=isDark?'rgba(255,255,255,0.05)':'rgba(0,0,0,0.05)',tc='#94A3B8';_salesChart=new Chart(canvas,{type:'bar',data:{labels:chartData.map(function(d){return d.label;}),datasets:[{label:'Sales ('+cur+')',data:chartData.map(function(d){return d.value;}),backgroundColor:isDark?'rgba(37,99,235,0.5)':'rgba(37,99,235,0.6)',borderColor:'#2563EB',borderWidth:2,borderRadius:6,hoverBackgroundColor:'#2563EB'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return ' '+c.parsed.y.toLocaleString('en-TZ')+' '+cur;}}}},scales:{x:{grid:{color:gc},ticks:{color:tc,font:{size:11}}},y:{grid:{color:gc},ticks:{color:tc,font:{size:11},callback:function(v){return fmt(v);}}}}}});}
+function showDetailModal(type,period){var vp=clientIsManager()?'ALL':vendor;google.script.run.withSuccessHandler(function(html){document.getElementById('detailModalTitle').textContent=type+' Details';document.getElementById('detailModalBody').innerHTML=html;new bootstrap.Modal(document.getElementById('detailModal')).show();}).getSalesDetail(period,vp);}
+function refreshSalesHistory(){var el=document.getElementById('salesHistoryBody');if(!el)return;google.script.run.withSuccessHandler(function(sales){if(!sales||!sales.length){el.innerHTML='<div style="color:var(--muted);padding:16px;text-align:center;">No sales records found.</div>';return;}var html='<div class="table-wrap"><table class="bo-table"><thead><tr><th>Sale ID</th><th>Date/Time</th><th>Seller</th><th>Product</th><th>Qty</th><th>Total</th><th>Payment</th><th></th></tr></thead><tbody>';sales.forEach(function(s){html+='<tr><td style="font-family:var(--mono);font-size:.73rem;color:var(--muted);">'+s.saleId+'</td><td style="font-size:.78rem;white-space:nowrap;">'+new Date(s.timestamp).toLocaleString()+'</td><td>'+s.sellerName+'</td><td>'+s.productName+'</td><td>'+s.qty+'</td><td style="font-family:var(--mono);">'+Number(s.total).toLocaleString('en-TZ')+' '+userCurrency+'</td><td>'+s.payment+'</td><td><button class="btn-sm-danger" title="Delete &amp; restore stock" onclick="deleteSaleFromUI(\''+s.saleId+'\')">🗑️</button></td></tr>';});html+='</tbody></table></div>';el.innerHTML=html;}).getSalesForVendor(vendor,30);}
+function deleteSaleFromUI(saleId){if(!confirm('Delete sale '+saleId+'?\n\n• Stock will be restored\n• Seller will be notified\n\nThis cannot be undone.'))return;google.script.run.withSuccessHandler(function(res){if(res.success){refreshSalesHistory();loadDashboard();}else{alert(res.message);}}).deleteSaleRecord(saleId,userId,userName,vendor);}
+
+/* ==================== SELL ==================== */
+function loadSellTab(){var html='<div class="section-card"><div class="section-hdr"><span>🛒</span><div class="section-hdr-title">New Sale</div></div><div class="section-body"><div class="form-group" style="max-width:220px;margin-bottom:16px;"><label class="form-label">Payment Method</label><select id="payMethod" class="form-select"><option value="Cash">💵 Cash</option><option value="Lipa Number">📱 Lipa Number</option></select></div><div class="table-wrap"><table class="sale-tbl"><thead><tr><th>Product</th><th>Qty</th><th>Unit Price</th><th>Total</th><th></th></tr></thead><tbody id="saleItemsBody">'+mkSaleRow()+'</tbody></table></div><div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center;"><button class="btn-secondary" onclick="addSaleRow()">+ Add Item</button><button class="btn-primary" onclick="submitSale()">✅ Record Sale</button></div><div id="saleMsg" style="margin-top:12px;"></div></div></div>';document.getElementById('saleContent').innerHTML=html;loadProductsIntoSelect(document.querySelector('.prodSelect'));}
+function mkSaleRow(){return '<tr class="sale-row"><td><select class="form-select prodSelect" style="min-width:170px;"></select></td><td style="width:80px;"><input type="number" class="form-control qty" value="1" min="1"></td><td style="width:130px;"><input type="number" class="form-control price" value="0"></td><td style="width:110px;"><span class="row-total">0</span></td><td><button class="btn-sm-danger" onclick="this.closest(\'tr\').remove()">✕</button></td></tr>';}
+function loadProductsIntoSelect(sel){if(!sel)return;google.script.run.withSuccessHandler(function(p){sel.innerHTML='<option value="">Select product…</option>';p.forEach(function(x){sel.innerHTML+='<option value="'+x.id+'" data-price="'+x.price+'">'+x.name+' ('+x.id+')</option>';});}).getProducts(vendor);}
+document.addEventListener('change',function(e){if(e.target.classList.contains('prodSelect')){var r=e.target.closest('tr'),s=e.target.options[e.target.selectedIndex];if(s&&s.dataset.price)r.querySelector('.price').value=s.dataset.price;calcRowTotal(r);}});
+document.addEventListener('input',function(e){if(e.target.classList.contains('qty')||e.target.classList.contains('price'))calcRowTotal(e.target.closest('tr'));});
+function calcRowTotal(r){if(!r)return;var q=parseFloat(r.querySelector('.qty').value)||0,p=parseFloat(r.querySelector('.price').value)||0;r.querySelector('.row-total').textContent=(q*p).toFixed(0);}
+function addSaleRow(){var tb=document.getElementById('saleItemsBody'),tr=document.createElement('tr');tr.className='sale-row';tr.innerHTML=mkSaleRow().replace('<tr class="sale-row">','').replace('</tr>','');tb.appendChild(tr);loadProductsIntoSelect(tr.querySelector('.prodSelect'));}
+function submitSale(){
+  var rows=document.querySelectorAll('.sale-row'),items=[],grandTotal=0;
+  for(var i=0;i<rows.length;i++){var prod=rows[i].querySelector('.prodSelect').value,qty=rows[i].querySelector('.qty').value,price=rows[i].querySelector('.price').value;if(!prod||!qty||!price){alert('Fill all rows.');return;}items.push({productId:prod,qty:qty,price:price});grandTotal+=parseInt(qty)*parseFloat(price);}
+  var summary='';items.forEach(function(it,idx){summary+=(idx+1)+'. '+it.productId+' – Qty: '+it.qty+' × '+it.price+'\n';});
+  var pay=document.getElementById('payMethod').value;
+  if(!confirm('Confirm sale?\n\n'+summary+'\nGrand Total: '+grandTotal.toLocaleString('en-TZ')+' '+userCurrency+'\nPayment: '+pay))return;
+  google.script.run.withSuccessHandler(function(res){
+    if(res.success){document.getElementById('saleMsg').innerHTML='<div class="alert-success" style="font-size:.9rem;">✅ '+res.message+'<br><strong>Grand Total: '+grandTotal.toLocaleString('en-TZ')+' '+userCurrency+'</strong></div>';loadDashboard();}
+    else{document.getElementById('saleMsg').innerHTML='<div class="alert-danger">'+res.message+'</div>';}
+  }).recordSale(items,userId,userName,pay,vendor);
+}
+
+/* ==================== LENDINGS ==================== */
+function loadLendingsTab(){
+  var isMgr=clientIsManager();
+  var html='';
+  if(!isMgr){
+    html+='<div class="section-card" style="margin-bottom:18px;"><div class="section-hdr"><span>📋</span><div class="section-hdr-title">Record New Lending</div></div><div class="section-body">'+
+      '<div class="fg3" style="margin-bottom:14px;">'+
+      '<div class="form-group"><label class="form-label">Borrower Name *</label><input class="form-control" id="lendBorrowerName" placeholder="Full name"></div>'+
+      '<div class="form-group"><label class="form-label">Email <span style="color:var(--muted);font-weight:400;">(optional)</span></label><input class="form-control" id="lendBorrowerEmail" type="email" placeholder="email@example.com"></div>'+
+      '<div class="form-group"><label class="form-label">Phone <span style="color:var(--muted);font-weight:400;">(optional)</span></label><input class="form-control" id="lendBorrowerPhone" placeholder="Start with code, e.g. +255"></div>'+
+      '</div>'+
+      '<div class="table-wrap" style="margin-bottom:12px;"><table class="sale-tbl"><thead><tr><th>Product</th><th style="width:80px;">Qty</th><th style="width:120px;">Price Owed</th><th style="width:100px;">Total</th><th style="width:40px;"></th></tr></thead><tbody id="lendItemsBody">'+mkLendRow()+'</tbody></table></div>'+
+      '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;"><button class="btn-secondary" onclick="addLendRow()">+ Add Item</button><button class="btn-primary" onclick="submitLending()">📋 Record Lending</button></div>'+
+      '<div id="lendMsg" style="margin-top:12px;"></div></div></div>';
+  }
+  html+='<div class="section-card" style="margin-bottom:18px;"><div class="section-hdr"><span>⏳</span><div class="section-hdr-title">Active Lendings'+(isMgr?' — All Vendors':'')+'</div>'+
+    (isMgr?'<div style="margin-left:auto;"><button class="btn-sm-primary" onclick="sendAllLendingReminders()">📧 Remind All</button></div>':'')+
+    '</div><div id="activeLendingsBody" style="padding:16px;color:var(--muted);text-align:center;">Loading…</div></div>';
+  html+='<div class="section-card"><div class="section-hdr"><span>✅</span><div class="section-hdr-title">Returned Lendings (History)</div></div><div id="returnedLendingsBody" style="padding:16px;color:var(--muted);text-align:center;">Loading…</div></div>';
+  document.getElementById('lendingsContent').innerHTML=html;
+  if(!isMgr){var fs=document.querySelector('.lendProdSelect');if(fs)loadProductsIntoLendSelect(fs);}
+  refreshActiveLendings();refreshReturnedLendings();
+}
+function mkLendRow(){return '<tr class="lend-row"><td><select class="form-select lendProdSelect" style="min-width:160px;"></select></td><td><input type="number" class="form-control lend-qty" value="1" min="1" oninput="calcLendTotal(this.closest(\'tr\'))"></td><td><input type="number" class="form-control lend-price" value="0" oninput="calcLendTotal(this.closest(\'tr\'))"></td><td><span class="row-total lend-total" style="font-family:var(--mono);font-weight:600;color:var(--accent2);">0</span></td><td><button class="btn-sm-danger" onclick="this.closest(\'tr\').remove()">✕</button></td></tr>';}
+function calcLendTotal(r){if(!r)return;var q=parseFloat(r.querySelector('.lend-qty').value)||0,p=parseFloat(r.querySelector('.lend-price').value)||0;r.querySelector('.lend-total').textContent=(q*p).toFixed(0);}
+function loadProductsIntoLendSelect(sel){if(!sel)return;google.script.run.withSuccessHandler(function(p){sel.innerHTML='<option value="">Select product…</option>';p.forEach(function(x){sel.innerHTML+='<option value="'+x.id+'">'+x.name+' – stock: '+x.stock+'</option>';});}).getProducts(vendor);}
+function addLendRow(){var tb=document.getElementById('lendItemsBody'),tr=document.createElement('tr');tr.className='lend-row';tr.innerHTML=mkLendRow().replace('<tr class="lend-row">','').replace('</tr>','');tb.appendChild(tr);loadProductsIntoLendSelect(tr.querySelector('.lendProdSelect'));}
+function submitLending(){
+  var name=document.getElementById('lendBorrowerName').value.trim(),email=document.getElementById('lendBorrowerEmail').value.trim(),phone=document.getElementById('lendBorrowerPhone').value.trim();
+  if(!name){alert('Enter the borrower\'s name.');return;}
+  var rows=document.querySelectorAll('.lend-row'),items=[],grandTotal=0;
+  for(var i=0;i<rows.length;i++){var pid=rows[i].querySelector('.lendProdSelect').value,qty=rows[i].querySelector('.lend-qty').value,price=rows[i].querySelector('.lend-price').value||0;if(!pid||!qty){alert('Select a product and qty for every row.');return;}items.push({productId:pid,qty:parseInt(qty),price:parseFloat(price)||0});grandTotal+=parseInt(qty)*(parseFloat(price)||0);}
+  if(!items.length){alert('Add at least one product.');return;}
+  var cm='Record lending to '+name+'?\n'+items.length+' item(s)'+(grandTotal>0?'\nTotal owed: '+grandTotal.toLocaleString('en-TZ')+' '+userCurrency:'');if(email)cm+='\nConfirmation → '+email;
+  if(!confirm(cm))return;
+  google.script.run.withSuccessHandler(function(res){var el=document.getElementById('lendMsg');el.innerHTML=res.success?'<div class="alert-success">'+res.message+'</div>':'<div class="alert-danger">'+res.message+'</div>';if(res.success){document.getElementById('lendBorrowerName').value='';document.getElementById('lendBorrowerEmail').value='';document.getElementById('lendBorrowerPhone').value='';document.getElementById('lendItemsBody').innerHTML=mkLendRow();loadProductsIntoLendSelect(document.querySelector('.lendProdSelect'));refreshActiveLendings();loadDashboard();}}).recordLending(items,name,email,phone,userId,userName,vendor);
+}
+function refreshActiveLendings(){
+  var lv=clientIsManager()?'ALL':vendor,isMgr=clientIsManager(),canManage=clientIsAdmin()||isMgr,canRemind=isMgr;
+  google.script.run.withSuccessHandler(function(list){
+    var el=document.getElementById('activeLendingsBody');if(!el)return;
+    if(!list||!list.length){el.innerHTML='<div style="text-align:center;padding:20px;color:var(--muted);">No active lendings.</div>';return;}
+    var html='<div class="table-wrap"><table class="bo-table"><thead><tr><th>Date</th>'+(isMgr?'<th>Vendor</th>':'')+'<th>Borrower</th><th>Contact</th><th>Items</th><th style="color:var(--rose);">Total Owed</th><th>By</th><th>Actions</th></tr></thead><tbody>';
+    list.forEach(function(l){
+      var itemsText=l.items.map(function(it){return it.qty+'× '+it.productName;}).join(', ');
+      var contact=[];if(l.borrowerEmail)contact.push('<a href="mailto:'+l.borrowerEmail+'" style="color:var(--accent);font-size:.77rem;">'+l.borrowerEmail+'</a>');if(l.borrowerPhone)contact.push('<span style="font-size:.77rem;color:var(--text2);">'+l.borrowerPhone+'</span>');
+      var totalStr=l.grandTotal>0?'<span style="font-family:var(--mono);color:var(--rose);font-weight:600;">'+l.grandTotal.toLocaleString('en-TZ')+'</span>':'<span style="color:var(--muted);">–</span>';
+      var actions='';if(canManage){actions+='<button class="btn-sm-success" title="Mark returned" onclick="markLendingReturned(\''+l.lendingId+'\')">✅</button> <button class="btn-sm-danger" title="Delete lending" onclick="deleteLendingRecordFromUI(\''+l.lendingId+'\')">🗑️</button>';}if(canRemind&&l.borrowerEmail)actions+=' <button class="btn-sm-primary" title="Send reminder" onclick="sendSingleReminder(\''+l.lendingId+'\')">📧</button>';
+      html+='<tr><td style="white-space:nowrap;font-size:.78rem;">'+new Date(l.timestamp).toLocaleDateString()+'<br><span style="color:var(--muted);">'+new Date(l.timestamp).toLocaleTimeString()+'</span></td>'+(isMgr?'<td style="font-size:.78rem;color:var(--accent);">'+l.vendor+'</td>':'')+'<td><strong>'+l.borrowerName+'</strong></td><td>'+(contact.join('<br>')||'<span style="color:var(--muted);">–</span>')+'</td><td style="font-size:.82rem;max-width:200px;">'+itemsText+'</td><td>'+totalStr+'</td><td style="font-size:.78rem;color:var(--muted);">'+l.adminName+'</td><td style="white-space:nowrap;">'+actions+'</td></tr>';
+    });
+    html+='</tbody></table></div>';el.innerHTML=html;
+  }).getLendings(lv,'Active');
+}
+function refreshReturnedLendings(){
+  var lv=clientIsManager()?'ALL':vendor,isMgr=clientIsManager();
+  google.script.run.withSuccessHandler(function(list){var el=document.getElementById('returnedLendingsBody');if(!el)return;if(!list||!list.length){el.innerHTML='<div style="text-align:center;padding:20px;color:var(--muted);">No returned lendings yet.</div>';return;}var html='<div class="table-wrap"><table class="bo-table"><thead><tr><th>Lent On</th>'+(isMgr?'<th>Vendor</th>':'')+'<th>Borrower</th><th>Items</th><th>Total</th><th>Returned On</th></tr></thead><tbody>';list.slice(0,40).forEach(function(l){var itemsText=l.items.map(function(it){return it.qty+'× '+it.productName;}).join(', ');html+='<tr><td style="font-size:.78rem;">'+new Date(l.timestamp).toLocaleDateString()+'</td>'+(isMgr?'<td style="font-size:.78rem;color:var(--accent);">'+l.vendor+'</td>':'')+'<td>'+l.borrowerName+'</td><td style="font-size:.82rem;">'+itemsText+'</td><td style="font-family:var(--mono);font-size:.82rem;">'+(l.grandTotal>0?l.grandTotal.toLocaleString('en-TZ'):'–')+'</td><td style="font-size:.78rem;color:var(--accent2);">'+(l.returnDate?new Date(l.returnDate).toLocaleDateString():'–')+'</td></tr>';});html+='</tbody></table></div>';el.innerHTML=html;}).getLendings(lv,'Returned');
+}
+function markLendingReturned(lendingId){if(!confirm('Mark as returned? Stock will be restored.'))return;google.script.run.withSuccessHandler(function(res){alert(res.message);if(res.success){refreshActiveLendings();refreshReturnedLendings();loadDashboard();}}).markLendingReturned(lendingId,clientIsManager()?'ALL':vendor);}
+function deleteLendingRecordFromUI(lendingId){if(!confirm('Delete this lending record?\n\nIf still active, stock will be restored.\nThis cannot be undone.'))return;google.script.run.withSuccessHandler(function(res){alert(res.message);if(res.success){refreshActiveLendings();refreshReturnedLendings();loadDashboard();}}).deleteLendingRecord(lendingId,userId,userName,clientIsManager()?'ALL':vendor);}
+function sendSingleReminder(lendingId){google.script.run.withSuccessHandler(function(res){alert(res.message);}).sendSingleLendingReminder(lendingId,clientIsManager()?'ALL':vendor);}
+function sendAllLendingReminders(){if(!confirm('Send email reminders to ALL active borrowers with an email address on record?'))return;google.script.run.withSuccessHandler(function(res){alert(res.message);}).sendLendingReminders(clientIsManager()?'ALL':vendor);}
+
+/* ==================== PRODUCTS ==================== */
+function loadProductsTab(){google.script.run.withSuccessHandler(function(products){
+  var html='<div class="section-card" style="margin-bottom:18px;"><div class="section-hdr"><span>➕</span><div class="section-hdr-title">Add New Product</div></div><div class="section-body"><div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr auto;gap:10px;align-items:end;flex-wrap:wrap;"><div class="form-group"><label class="form-label">Name</label><input class="form-control" id="newProdName"></div><div class="form-group"><label class="form-label">Category</label><input class="form-control" id="newProdCat"></div><div class="form-group"><label class="form-label">Price</label><input class="form-control" type="number" id="newProdPrice"></div><div class="form-group"><label class="form-label">Stock</label><input class="form-control" type="number" id="newProdStock"></div><div class="form-group"><label class="form-label">Reorder Pt</label><input class="form-control" type="number" id="newProdReorder" value="20"></div><div class="form-group"><label class="form-label">Type</label><select class="form-select" id="newProdType"><option value="Sale">For Sale</option><option value="Rent">For Rent</option></select></div><div class="form-group"><label class="form-label">Price Unit (rent)</label><select class="form-select" id="newProdUnit"><option value="">—</option><option value="per day">per day</option><option value="per week">per week</option><option value="per month">per month</option><option value="per event">per event</option></select></div><div class="form-group"><label class="form-label">Location (optional)</label><input class="form-control" id="newProdLoc" placeholder="e.g. Kariakoo, Dar"></div><button class="btn-primary" onclick="addProduct()">+ Add</button></div><div style="font-size:.76rem;color:var(--muted);margin-top:8px;">💡 After adding, tap <strong>Edit</strong> on the product to upload 1–2 marketplace photos.</div></div></div>';
+  html+='<div class="section-card" style="margin-bottom:18px;"><div class="section-hdr"><span>📦</span><div class="section-hdr-title">All Products</div><div style="margin-left:auto;font-size:.74rem;color:var(--muted);">Inactive shown — reactivate anytime</div></div><div style="padding:0;"><div class="table-wrap"><table class="bo-table"><thead><tr><th>Photo</th><th>ID</th><th>Name</th><th>Category</th><th>Price</th><th>Stock</th><th>Reorder</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
+  products.forEach(function(p){
+    var isA=p.active!=='No',sb=isA?'<span class="badge badge-active">Active</span>':'<span class="badge badge-inactive">Inactive</span>';
+    var thumb=p.image1?'<img src="'+esc(p.image1)+'" style="width:34px;height:34px;border-radius:7px;object-fit:cover;" onerror="this.style.display=\'none\'">':'<div style="width:34px;height:34px;border-radius:7px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:.9rem;color:var(--muted);">🛍️</div>';
+    var pj=JSON.stringify(p).replace(/"/g,'&quot;');
+    html+='<tr style="opacity:'+(isA?'1':'0.6')+'"><td>'+thumb+'</td><td style="font-family:var(--mono);font-size:.78rem;color:var(--muted);">'+p.id+'</td><td style="font-weight:600;">'+esc(p.name)+(p.listingType==='Rent'?' <span class="badge badge-low">Rent</span>':'')+'</td><td style="color:var(--text2);">'+esc(p.cat)+'</td><td>'+fmtFull(p.price)+'</td><td>'+p.stock+'</td><td>'+p.reorder+'</td><td>'+sb+'</td><td style="white-space:nowrap;">'+(isA?'<button class="btn-sm-primary" onclick="openEditProduct('+pj+')">Edit</button> ':'')+' <button class="btn-sm-'+(isA?'warning':'success')+'" onclick="toggleProduct('+p.row+',\''+(isA?'No':'Yes')+'\')">'+(isA?'Deactivate':'Activate')+'</button></td></tr>';
+  });
+  html+='</tbody></table></div></div></div>';
+  html+='<div class="section-card"><div class="section-hdr"><span>🔄</span><div class="section-hdr-title">Add Stock to Existing Product</div></div><div class="section-body"><div style="display:grid;grid-template-columns:2fr 1fr auto;gap:10px;align-items:end;"><div class="form-group"><label class="form-label">Product</label><select id="restockProd" class="form-select"><option value="">Select…</option>';
+  products.filter(function(p){return p.active!=='No';}).forEach(function(p){html+='<option value="'+p.id+'">'+esc(p.name)+'</option>';});
+  html+='</select></div><div class="form-group"><label class="form-label">Qty to Add</label><input class="form-control" type="number" id="restockQty"></div><button class="btn-primary" onclick="addStock()">Add Stock</button></div></div></div>';
+  document.getElementById('productsContent').innerHTML=html;
+}).getProductsWithRows(vendor);}
+function addProduct(){var n=document.getElementById('newProdName').value.trim(),c=document.getElementById('newProdCat').value.trim(),p=document.getElementById('newProdPrice').value,s=document.getElementById('newProdStock').value,r=document.getElementById('newProdReorder').value;if(!n||!c||!p||!s){alert('Fill all fields.');return;}if(!confirm('Add "'+n+'" with '+s+' units?'))return;google.script.run.withSuccessHandler(function(id){alert('Product '+id+' added! Tap Edit to add photos.');loadProductsTab();}).addNewProduct(n,c,p,s,'',r,vendor,document.getElementById('newProdType').value,document.getElementById('newProdUnit').value,document.getElementById('newProdLoc').value.trim());}
+function addStock(){var pid=document.getElementById('restockProd').value,qty=document.getElementById('restockQty').value;if(!pid||!qty){alert('Select product and enter quantity.');return;}var pname=document.getElementById('restockProd').selectedOptions[0].text;if(!confirm('Add '+qty+' units to '+pname+'?'))return;google.script.run.withSuccessHandler(function(msg){alert(msg);loadProductsTab();}).addStockToProduct(pid,qty,vendor);}
+function openEditProduct(p){
+  document.getElementById('editProdRow').value=p.row;document.getElementById('editProdId').value=p.id;
+  document.getElementById('editProdName').value=p.name;document.getElementById('editProdCat').value=p.cat;document.getElementById('editProdPrice').value=p.price;document.getElementById('editProdStock').value=p.stock;document.getElementById('editProdReorder').value=p.reorder;document.getElementById('editProdType').value=(p.listingType==='Rent'?'Rent':'Sale');document.getElementById('editProdUnit').value=p.priceUnit||'';document.getElementById('editProdLoc').value=p.location||'';
+  _pendingProdImg1Base64=null;_pendingProdImg1Mime=null;_pendingProdImg2Base64=null;_pendingProdImg2Mime=null;
+  document.getElementById('prodImgMsg').textContent='';
+  setProdImgPreview(1,p.image1);
+  new bootstrap.Modal(document.getElementById('editProductModal')).show();
+}
+function setProdImgPreview(slot,url){var img=document.getElementById('prodImg'+slot+'Preview'),ph=document.getElementById('prodImg'+slot+'Ph');if(url){img.src=url;img.style.display='block';ph.style.display='none';}else{img.style.display='none';ph.style.display='';}}
+function previewProdImage(input,slot){if(!input.files||!input.files[0])return;var f=input.files[0],r=new FileReader();r.onload=function(e){var b64=e.target.result.split(',')[1];if(slot===1){_pendingProdImg1Base64=b64;_pendingProdImg1Mime=f.type;}else{_pendingProdImg2Base64=b64;_pendingProdImg2Mime=f.type;}var img=document.getElementById('prodImg'+slot+'Preview'),ph=document.getElementById('prodImg'+slot+'Ph');img.src=e.target.result;img.style.display='block';ph.style.display='none';};r.readAsDataURL(f);}
+function saveProduct(){
+  var row=document.getElementById('editProdRow').value,pid=document.getElementById('editProdId').value;
+  var doUpdate=function(){google.script.run.withSuccessHandler(function(msg){var pend=[];if(_pendingProdImg1Base64)pend.push(1);if(!pend.length){loadProductsTab();bootstrap.Modal.getInstance(document.getElementById('editProductModal')).hide();return;}document.getElementById('prodImgMsg').textContent='Uploading photo(s)…';var done=0;var after=function(){done++;if(done>=pend.length){loadProductsTab();bootstrap.Modal.getInstance(document.getElementById('editProductModal')).hide();}};if(_pendingProdImg1Base64)google.script.run.withSuccessHandler(after).uploadProductImage(_pendingProdImg1Base64,_pendingProdImg1Mime,'p'+pid+'_1',pid,1,vendor);}).updateProduct(row,document.getElementById('editProdName').value,document.getElementById('editProdCat').value,document.getElementById('editProdPrice').value,document.getElementById('editProdStock').value,document.getElementById('editProdReorder').value,document.getElementById('editProdType').value,document.getElementById('editProdUnit').value,document.getElementById('editProdLoc').value.trim());};
+  doUpdate();
+}
+function toggleProduct(row,status){google.script.run.withSuccessHandler(function(msg){loadProductsTab();}).toggleProductActive(row,status);}
+
+/* ==================== USERS ==================== */
+function loadUsersList(){
+  var addForm='';
+  if(!clientIsManager()){addForm='<div class="section-card" style="margin-bottom:18px;"><div class="section-hdr"><span>➕</span><div class="section-hdr-title">Add New User</div></div><div class="section-body"><div style="display:grid;grid-template-columns:2fr 2fr 1fr 1fr 1fr auto;gap:10px;align-items:end;flex-wrap:wrap;"><div class="form-group"><label class="form-label">Email</label><input class="form-control" id="newUserEmail" placeholder="email@example.com"></div><div class="form-group"><label class="form-label">Full Name</label><input class="form-control" id="newUserName"></div><div class="form-group"><label class="form-label">Role</label><select class="form-select" id="newUserRole"><option value="seller">Seller</option><option value="admin">Admin</option><option value="assistant-admin">Asst. Admin</option></select></div><div class="form-group"><label class="form-label">User ID</label><input class="form-control" id="newUserId"></div><div class="form-group"><label class="form-label">Password</label><input class="form-control" id="newUserPwd"></div><button class="btn-primary" onclick="addUser()">+ Add</button></div></div></div>';}
+  var bizForm='';
+  if(userRole==='admin'){bizForm='<div class="section-card" style="margin-bottom:18px;"><div class="section-hdr"><span>🏷️</span><div class="section-hdr-title">Business Profile &amp; Marketplace Listing</div></div><div class="section-body"><div class="fg3" style="align-items:end;"><div class="form-group"><label class="form-label">Business Type</label><input type="text" class="form-control" id="myBusinessType" placeholder="e.g. Groceries"></div><div class="form-group"><label class="form-label">Contact Phone (WhatsApp)</label><input type="text" class="form-control" id="myBusinessPhone" placeholder="Start with code, e.g. +255"></div><div class="form-group"><label class="form-label">Currency</label><input type="text" class="form-control" id="myCurrencyInput" value="'+userCurrency+'" style="text-transform:uppercase;font-family:var(--mono);"></div></div><div class="form-group" style="margin-top:12px;"><label class="form-label">Business Address / Location</label><input type="text" class="form-control" id="myBusinessAddress" placeholder="e.g. Kariakoo, Dar es Salaam"></div><div style="margin-top:12px;display:flex;gap:10px;align-items:center;"><button class="btn-primary" onclick="saveBusinessProfile()">Save Profile</button><button class="btn-secondary" onclick="openLogoModal(\''+esc(vendor).replace(/'/g,"\\'")+'\')">🖼️ Upload Logo</button><span id="bizProfileMsg" style="font-size:.8rem;color:var(--muted);"></span></div><div style="margin-top:8px;font-size:.76rem;color:var(--muted);">This appears on your marketplace storefront so customers can reach you.</div></div></div>';}
+  document.getElementById('addUserSection').innerHTML=addForm+bizForm;
+  if(userRole==='admin'){google.script.run.withSuccessHandler(function(bp){var bt=document.getElementById('myBusinessType'),ph=document.getElementById('myBusinessPhone');if(bt)bt.value=bp.businessType||'';if(ph)ph.value=bp.phone||'';var ad=document.getElementById('myBusinessAddress');if(ad)ad.value=bp.address||'';}).getBusinessProfile(userId);}
+  doSearch();
+}
+function doSearch(){var sw=document.getElementById('userSearch');if(!sw)return;var q=sw.value,fv=clientIsManager()?'ALL':vendor;google.script.run.withSuccessHandler(renderUserTable).searchUsers(fv,q);}
+function renderUserTable(users){if(!users||!users.length){document.getElementById('usersTable').innerHTML='<div class="alert-info">No users found.</div>';return;}var html='<div class="section-card"><div style="padding:0;"><div class="table-wrap"><table class="bo-table"><thead><tr><th></th><th>Name</th><th>Role</th><th>User ID</th><th>Vendor</th><th>Status</th><th>Actions</th></tr></thead><tbody>';users.forEach(function(u){var uj=JSON.stringify(u).replace(/"/g,'&quot;');var av=u.profilePhoto?'<img src="'+u.profilePhoto+'" style="width:30px;height:30px;border-radius:50%;object-fit:cover;" onerror="this.style.display=\'none\'">':'<div class="avatar-placeholder" style="width:30px;height:30px;font-size:.65rem;">'+((u.name||'U')[0]).toUpperCase()+'</div>';var rb='<span class="badge badge-'+u.role.replace(/[^a-zA-Z-]/g,'')+'">'+u.role+'</span>';html+='<tr><td style="width:40px;">'+av+'</td><td style="font-weight:500;">'+esc(u.name)+'</td><td>'+rb+'</td><td style="font-family:var(--mono);font-size:.8rem;color:var(--accent);">'+u.userId+'</td><td style="color:var(--text2);">'+(u.vendor||'–')+'</td><td><span class="badge badge-'+(u.active==='Yes'?'active':'inactive')+'">'+(u.active==='Yes'?'Active':'Inactive')+'</span></td><td style="white-space:nowrap;"><button class="btn-sm-primary" onclick="openEditModal('+uj+')">Edit</button> '+(clientIsManager()?'<button class="btn-sm-danger" onclick="deleteUser('+u.row+')">Del</button> ':'')+'<button class="btn-sm-'+(u.active==='Yes'?'warning':'success')+'" onclick="toggleUser('+u.row+',\''+(u.active==='Yes'?'No':'Yes')+'\')">'+(u.active==='Yes'?'Deactivate':'Activate')+'</button></td></tr>';});html+='</tbody></table></div></div></div>';document.getElementById('usersTable').innerHTML=html;}
+function openEditModal(u){document.getElementById('editUserRow').value=u.row;document.getElementById('editUserEmail').value=u.email;document.getElementById('editUserName').value=u.name;document.getElementById('editUserRole').value=u.role;document.getElementById('editUserId').value=u.userId;document.getElementById('editUserActive').value=u.active;document.getElementById('editUserVendorHidden').value=u.userId;var pwdGroup=document.getElementById('editUserPwdGroup');if(clientIsManager()){pwdGroup.style.display='';document.getElementById('editUserPwd').value=u.password;}else{pwdGroup.style.display='none';document.getElementById('editUserPwd').value='';}_pendingPhotoBase64=null;_pendingPhotoMime=null;var prev=document.getElementById('photoPreview'),ph=document.getElementById('photoPlaceholder');if(u.profilePhoto){prev.src=u.profilePhoto;prev.style.display='block';ph.style.display='none';}else{prev.style.display='none';ph.style.display='';}new bootstrap.Modal(document.getElementById('editUserModal')).show();}
+function saveUser(){var row=document.getElementById('editUserRow').value,uid=document.getElementById('editUserId').value;var saveAndClose=function(){google.script.run.withSuccessHandler(function(msg){doSearch();bootstrap.Modal.getInstance(document.getElementById('editUserModal')).hide();}).updateUser(row,document.getElementById('editUserEmail').value,document.getElementById('editUserName').value,document.getElementById('editUserRole').value,uid,document.getElementById('editUserPwd').value,document.getElementById('editUserActive').value);};if(_pendingPhotoBase64){google.script.run.withSuccessHandler(function(res){if(res.success&&userId===uid){document.getElementById('topbarAvatar').innerHTML='<img src="'+res.url+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">';}saveAndClose();}).uploadProfilePhoto(_pendingPhotoBase64,_pendingPhotoMime,'photo_'+uid,uid);}else{saveAndClose();}}
+function addUser(){google.script.run.withSuccessHandler(function(msg){alert(msg);doSearch();}).addUser(document.getElementById('newUserEmail').value,document.getElementById('newUserName').value,document.getElementById('newUserRole').value,document.getElementById('newUserId').value,document.getElementById('newUserPwd').value,'Yes',vendor);}
+function toggleUser(row,status){google.script.run.withSuccessHandler(function(){doSearch();}).toggleUserActive(row,status);}
+function deleteUser(row){if(confirm('Delete this user?'))google.script.run.withSuccessHandler(function(){doSearch();}).deleteUser(row);}
+function saveBusinessProfile(){var bt=document.getElementById('myBusinessType').value.trim(),ph=document.getElementById('myBusinessPhone').value.trim(),ad=document.getElementById('myBusinessAddress').value.trim(),c=document.getElementById('myCurrencyInput').value.trim().toUpperCase();var msgEl=document.getElementById('bizProfileMsg');msgEl.textContent='Saving…';google.script.run.withSuccessHandler(function(){if(c){google.script.run.withSuccessHandler(function(){userCurrency=c;storeSession();}).setVendorCurrency(vendor,c);}msgEl.textContent='✅ Saved';setTimeout(function(){msgEl.textContent='';},2500);}).setBusinessProfile(userId,bt,ph,ad);}
+function previewPhoto(input){if(!input.files||!input.files[0])return;var f=input.files[0],r=new FileReader();r.onload=function(e){var b64=e.target.result.split(',')[1];_pendingPhotoBase64=b64;_pendingPhotoMime=f.type;document.getElementById('photoPreview').src=e.target.result;document.getElementById('photoPreview').style.display='block';document.getElementById('photoPlaceholder').style.display='none';};r.readAsDataURL(f);}
+
+/* ==================== CASH ==================== */
+function loadCashTab(){document.getElementById('cashContent').innerHTML='<div class="section-card"><div class="section-hdr"><span>💰</span><div class="section-hdr-title">Record Cash Received</div></div><div class="section-body"><div style="display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:12px;align-items:end;flex-wrap:wrap;"><div class="form-group"><label class="form-label">Seller</label><select id="sellerSelectCash" class="form-select"></select></div><div class="form-group"><label class="form-label">Cash Amount</label><input class="form-control" type="number" id="cashAmount" placeholder="0"></div><div class="form-group"><label class="form-label">Lipa Amount</label><input class="form-control" type="number" id="lipaAmount" placeholder="0"></div><button class="btn-primary" onclick="recordCash()">Record</button></div><div id="cashMsg" style="margin-top:12px;"></div></div></div>';populateSellerDropdown();}
+function populateSellerDropdown(){google.script.run.withSuccessHandler(function(u){var s=document.getElementById('sellerSelectCash');if(!s)return;s.innerHTML='';u.forEach(function(x){if(x.role==='seller'&&x.active==='Yes')s.innerHTML+='<option value="'+x.userId+'">'+esc(x.name)+'</option>';});}).getUsersList(vendor);}
+function recordCash(){var seller=document.getElementById('sellerSelectCash').value,cash=document.getElementById('cashAmount').value||0,lipa=document.getElementById('lipaAmount').value||0,sname=document.getElementById('sellerSelectCash').selectedOptions[0].text;if(!confirm('Record from '+sname+'?\nCash: '+cash+', Lipa: '+lipa))return;google.script.run.withSuccessHandler(function(msg){document.getElementById('cashMsg').innerHTML='<div class="alert-success">'+msg+'</div>';document.getElementById('cashAmount').value='';document.getElementById('lipaAmount').value='';}).recordCashReceived(seller,cash,lipa,vendor);}
+
+/* ==================== ADMIN REPORTS ==================== */
+function loadReportsTab(){var vSel=clientIsManager()?'<div class="form-group"><label class="form-label">Vendor</label><select id="repVendor" class="form-select"><option value="ALL">All Vendors</option></select></div>':'';document.getElementById('reportsContent').innerHTML='<div class="section-card" style="margin-bottom:18px;"><div class="section-hdr"><span>📅</span><div class="section-hdr-title">Date Range</div></div><div class="section-body"><div style="display:grid;grid-template-columns:1fr 1fr '+(clientIsManager()?'1fr':'')+';gap:12px;"><div class="form-group"><label class="form-label">Start Date</label><input type="date" id="repStart" class="form-control"></div><div class="form-group"><label class="form-label">End Date</label><input type="date" id="repEnd" class="form-control"></div>'+vSel+'</div></div></div><div class="report-grid"><a href="#" onclick="dlSalesXls();return false;" class="report-card"><span class="rc-icon">📊</span><div><div class="rc-title">Sales Report</div><div class="rc-sub">Excel (.xlsx)</div></div></a><a href="#" onclick="dlSalesPDF();return false;" class="report-card"><span class="rc-icon">📄</span><div><div class="rc-title">Sales Report</div><div class="rc-sub">PDF format</div></div></a><a href="#" onclick="dlStockPDF();return false;" class="report-card"><span class="rc-icon">📦</span><div><div class="rc-title">Stock Report</div><div class="rc-sub">PDF format</div></div></a><a href="#" onclick="dlCashPDF();return false;" class="report-card"><span class="rc-icon">💰</span><div><div class="rc-title">Cash Due Report</div><div class="rc-sub">PDF format</div></div></a></div>';var td=new Date().toISOString().slice(0,10);document.getElementById('repStart').value=td;document.getElementById('repEnd').value=td;if(clientIsManager()){google.script.run.withSuccessHandler(function(vs){var s=document.getElementById('repVendor');vs.forEach(function(v){s.innerHTML+='<option value="'+v+'">'+v+'</option>';});}).getVendorList();}}
+function getRepDates(){var s=document.getElementById('repStart').value,e=document.getElementById('repEnd').value;if(!s||!e){alert('Pick both dates.');return null;}return{start:s,end:e};}
+function getRepVendor(){return clientIsManager()&&document.getElementById('repVendor')?document.getElementById('repVendor').value:vendor;}
+function dlSalesXls(){var d=getRepDates();if(!d)return;google.script.run.withSuccessHandler(function(r){window.open(r.url,'_blank');}).generateSalesReport(d.start,d.end,'excel',getRepVendor());}
+function dlSalesPDF(){var d=getRepDates();if(!d)return;google.script.run.withSuccessHandler(function(r){window.open(r.url,'_blank');}).generateSalesReport(d.start,d.end,'pdf',getRepVendor());}
+function dlStockPDF(){google.script.run.withSuccessHandler(function(r){window.open(r.url,'_blank');}).generateStockPDF(getRepVendor());}
+function dlCashPDF(){google.script.run.withSuccessHandler(function(r){window.open(r.url,'_blank');}).generateCashDuePDF(getRepVendor());}
+
+/* ==================== MANAGER PANEL ==================== */
+function loadManagerPanel(){
+  google.script.run.withSuccessHandler(function(summary){
+    if(!Array.isArray(summary)){document.getElementById('managerContent').innerHTML='<div class="alert-info">No vendor data.</div>';return;}
+    if(summary.length&&summary[0].name==='Error'){document.getElementById('managerContent').innerHTML='<div class="alert-danger">Error: '+summary[0].admin+'</div>';return;}
+    var html='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-bottom:20px;">'+
+      '<div class="section-card" style="margin:0;"><div class="section-hdr"><span>🔓</span><div class="section-hdr-title">Free Registration</div></div><div class="section-body"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="freeRegSwitch" onchange="toggleFreeReg()" style="margin-right:10px;"><label class="form-check-label" for="freeRegSwitch">Allow new vendors to self-register</label></div></div></div>'+
+      '<div class="section-card" style="margin:0;"><div class="section-hdr"><span>💼</span><div class="section-hdr-title">Commission Rate</div></div><div class="section-body"><div style="display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end;"><div class="form-group"><label class="form-label">% of each vendor\'s sales</label><input type="number" class="form-control" id="commRate" step="0.1" min="0" placeholder="0.5"></div><button class="btn-primary" onclick="saveCommission()">Save</button></div></div></div>'+
+      '<div class="section-card" style="margin:0;"><div class="section-hdr"><span>&#127873;</span><div class="section-hdr-title">Free Trial Length</div></div><div class="section-body"><div style="display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end;"><div class="form-group"><label class="form-label">Trial days for new / reactivated vendors</label><input type="number" class="form-control" id="trialDaysSetting" min="0" placeholder="60"></div><button class="btn-primary" onclick="saveTrialDays()">Save</button></div></div></div>'+
+      '</div>';
+    html+='<div class="section-card" style="margin-bottom:20px;"><div class="section-hdr"><span>🏢</span><div class="section-hdr-title">Registered Businesses &amp; Admins</div><div style="margin-left:auto;font-size:.75rem;color:var(--muted);">Edit name, role, status · upload logo</div></div><div id="adminsVendorWrap" style="padding:16px;color:var(--muted);text-align:center;">Loading…</div></div>';
+    /* MESSAGES & REMINDERS (editable templates) */
+    html+='<div class="section-card" style="margin-bottom:20px;"><div class="section-hdr"><span>✉️</span><div class="section-hdr-title">Messages &amp; Reminders</div><div style="margin-left:auto;font-size:.74rem;color:var(--muted);">Used in the payment banner &amp; reminder emails</div></div><div class="section-body"><div class="form-group" style="margin-bottom:14px;"><label class="form-label">Payment / restriction message</label><textarea class="form-control" id="paymentReminderBox" rows="3" style="resize:vertical;"></textarea><div style="font-size:.73rem;color:var(--muted);margin-top:5px;">Placeholders: {vendor} {admin} {amount} {currency}</div><div style="margin-top:8px;"><button class="btn-primary" onclick="savePaymentReminderText()">Save Payment Message</button></div></div><div class="form-group"><label class="form-label">Lending reminder message</label><textarea class="form-control" id="lendingReminderBox" rows="3" style="resize:vertical;"></textarea><div style="font-size:.73rem;color:var(--muted);margin-top:5px;">Placeholders: {borrowerName} {vendor} {items} {total} {currency} {days}</div><div style="margin-top:8px;"><button class="btn-primary" onclick="saveLendingReminderText()">Save Lending Message</button></div></div></div></div>';
+    /* EMAIL CENTER (manager-only manual triggers) */
+    html+='<div class="section-card" style="margin-bottom:20px;"><div class="section-hdr"><span>📧</span><div class="section-hdr-title">Email Center — send on demand</div><div style="margin-left:auto;font-size:.74rem;color:var(--muted);">You control all emails (Gmail quota friendly)</div></div><div class="section-body"><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px;">'+
+      emailBtn('mgrSendDailyNow','📊','Send Daily Reports','To eligible admins & sellers')+
+      emailBtn('mgrSendWeeklyNow','📅','Send Weekly Reports','To eligible admins')+
+      emailBtn('mgrSendMonthlyNow','📆','Send Monthly Reports','To eligible admins')+
+      emailBtn('mgrSendCommissionNow','💼','Send Commission Demands','Invoices for current month')+
+      emailBtn('mgrSendPaymentRemindersNow','🔒','Send Payment Reminders','To restricted accounts only')+
+      emailBtn('mgrSendLendingRemindersNow','⏰','Send Lending Reminders','All active borrowers, all vendors')+
+      emailBtn('mgrSendManagerSummaryNow','🧾','Email Me Vendor Summary','Daily summary to manager inbox')+
+      '</div><div id="emailCenterMsg" style="margin-top:12px;font-size:.84rem;"></div></div></div>';
+    /* ANALYTICS */
+    html+='<div class="section-card"><div class="section-hdr"><span>📈</span><div class="section-hdr-title">Marketplace Analytics</div><div style="margin-left:auto;"><button class="btn-sm-primary" onclick="loadAnalytics()">↻ Refresh</button></div></div><div class="section-body" id="analyticsWrap"><div style="color:var(--muted);">Loading…</div></div></div>';
+    document.getElementById('managerContent').innerHTML=html;
+    google.script.run.withSuccessHandler(function(val){var el=document.getElementById('freeRegSwitch');if(el)el.checked=val==='Yes';}).getSetting('FreeRegistration');
+    google.script.run.withSuccessHandler(function(r){var el=document.getElementById('commRate');if(el)el.value=r||0;}).getSetting('commissionRate');
+    google.script.run.withSuccessHandler(function(d){var el=document.getElementById('trialDaysSetting');if(el)el.value=(d===''||d===null||d===undefined)?60:d;}).getTrialDays();
+    google.script.run.withSuccessHandler(function(t){var el=document.getElementById('paymentReminderBox');if(el)el.value=t||'';}).getPaymentReminderText();
+    google.script.run.withSuccessHandler(function(t){var el=document.getElementById('lendingReminderBox');if(el)el.value=t||'';}).getLendingReminderText();
+    loadAdminsWithStats();loadAnalytics();
+  }).getManagerSummary();
+}
+function emailBtn(fn,icon,title,sub){return '<button class="email-btn" onclick="runEmailAction(\''+fn+'\',\''+title.replace(/'/g,"\\'")+'\')"><span class="eb-ico">'+icon+'</span><span><span class="eb-t">'+title+'</span><span class="eb-s">'+sub+'</span></span></button>';}
+function runEmailAction(fn,title){
+  if(!confirm('Send now: '+title+'?\n\nThis will use your Gmail quota.'))return;
+  var msgEl=document.getElementById('emailCenterMsg');msgEl.innerHTML='<span style="color:var(--muted);">⏳ Sending: '+title+'…</span>';
+  google.script.run.withSuccessHandler(function(res){var ok=res&&res.success!==false;msgEl.innerHTML='<div class="'+(ok?'alert-success':'alert-danger')+'">'+(res&&res.message?res.message:(ok?'Done.':'Failed.'))+'</div>';}).withFailureHandler(function(e){msgEl.innerHTML='<div class="alert-danger">Error: '+e.message+'</div>';})[fn]();
+}
+function loadAnalytics(){
+  var el=document.getElementById('analyticsWrap');if(!el)return;el.innerHTML='<div style="color:var(--muted);">Loading…</div>';
+  google.script.run.withSuccessHandler(function(a){
+    a=a||{};
+    var tv=a.totalViews||0;
+    var h='<div style="margin-bottom:14px;"><span class="badge badge-seller" style="font-size:.8rem;">👁️ '+tv+' total product views tracked</span></div>';
+    h+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;">';
+    /* Most viewed */
+    h+='<div><div style="font-size:.78rem;font-weight:700;color:var(--text);margin-bottom:8px;">🔥 Most Viewed Products</div>';
+    if(a.topViewed&&a.topViewed.length){h+='<div class="table-wrap"><table class="bo-table"><thead><tr><th>Product</th><th>Vendor</th><th>Views</th></tr></thead><tbody>';a.topViewed.forEach(function(p){h+='<tr><td>'+esc(p.name)+(p.hot?' 🔥':'')+'</td><td style="font-size:.78rem;color:var(--accent);">'+esc(p.vendor)+'</td><td style="font-family:var(--mono);">'+p.count+'</td></tr>';});h+='</tbody></table></div>';}else{h+='<div style="color:var(--muted);font-size:.82rem;">No views yet.</div>';}
+    h+='</div>';
+    /* Best selling */
+    h+='<div><div style="font-size:.78rem;font-weight:700;color:var(--text);margin-bottom:8px;">🏆 Best Selling (by qty)</div>';
+    if(a.topSelling&&a.topSelling.length){h+='<div class="table-wrap"><table class="bo-table"><thead><tr><th>Product</th><th>Vendor</th><th>Qty</th></tr></thead><tbody>';a.topSelling.forEach(function(p){h+='<tr><td>'+esc(p.name)+'</td><td style="font-size:.78rem;color:var(--accent);">'+esc(p.vendor)+'</td><td style="font-family:var(--mono);">'+p.qty+'</td></tr>';});h+='</tbody></table></div>';}else{h+='<div style="color:var(--muted);font-size:.82rem;">No sales yet.</div>';}
+    h+='</div>';
+    /* Most active businesses */
+    h+='<div><div style="font-size:.78rem;font-weight:700;color:var(--text);margin-bottom:8px;">🏢 Most Viewed Businesses</div>';
+    if(a.topVendorViews&&a.topVendorViews.length){h+='<div class="table-wrap"><table class="bo-table"><thead><tr><th>Business</th><th>Views</th></tr></thead><tbody>';a.topVendorViews.forEach(function(v){h+='<tr><td>'+esc(v.vendor)+'</td><td style="font-family:var(--mono);">'+v.count+'</td></tr>';});h+='</tbody></table></div>';}else{h+='<div style="color:var(--muted);font-size:.82rem;">No data yet.</div>';}
+    h+='</div></div>';
+    el.innerHTML=h;
+  }).getAnalyticsSummary();
+}
+function loadAdminsWithStats(){
+  google.script.run.withSuccessHandler(function(admins){
+    var el=document.getElementById('adminsVendorWrap');if(!el)return;
+    if(!admins||!admins.length){el.innerHTML='<div class="alert-info">No admin users found.</div>';return;}
+    var html='<div class="table-wrap"><table class="bo-table"><thead><tr><th>Logo</th><th>Business</th><th>Type</th><th>Admin</th><th>Email</th><th>Role</th><th>Today Sales</th><th>Stock Value</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
+    admins.forEach(function(u){
+      var uj=JSON.stringify(u).replace(/"/g,'&quot;');
+      var logo=u.logo?'<img src="'+esc(u.logo)+'" style="max-height:24px;max-width:60px;object-fit:contain;border-radius:4px;" onerror="this.style.display=\'none\'">':'<span style="color:var(--muted);font-size:.75rem;">–</span>';
+      html+='<tr><td>'+logo+'</td><td><strong>'+esc(u.vendor)+'</strong></td><td style="font-size:.78rem;color:var(--text2);">'+(esc(u.businessType)||'–')+'</td><td>'+esc(u.name)+'<br><span style="font-family:var(--mono);font-size:.72rem;color:var(--accent);">'+u.userId+'</span></td><td style="font-size:.78rem;color:var(--text2);">'+esc(u.email)+'</td><td><span class="badge badge-admin">'+u.role+'</span></td><td style="font-family:var(--mono);font-size:.82rem;">'+(u.todaySales||0).toLocaleString('en-TZ')+' '+u.currency+'</td><td style="font-family:var(--mono);font-size:.82rem;">'+(u.stockValue||0).toLocaleString('en-TZ')+' '+u.currency+'</td><td><span class="badge badge-'+(u.active==='Yes'?'active':'inactive')+'">'+(u.active==='Yes'?'Active':'Inactive')+'</span>'+(u.restricted==='Yes'?' <span class="badge badge-out">🔒 Restricted</span>':(u.trialDaysLeft===null||u.trialDaysLeft===undefined?'':(u.trialDaysLeft>0?' <span class="badge badge-low">Trial: '+u.trialDaysLeft+'d</span>':' <span class="badge badge-admin">Trial ended</span>')))+'</td><td style="white-space:nowrap;"><button class="btn-sm-primary" onclick="openAdminEdit('+uj+')">Edit</button> <button class="btn-sm-'+(u.active==='Yes'?'warning':'success')+'" onclick="quickToggleAdmin('+u.row+',\''+(u.active==='Yes'?'No':'Yes')+'\')">'+(u.active==='Yes'?'Deactivate':'Activate')+'</button> <button class="btn-sm-'+(u.restricted==='Yes'?'success':'danger')+'" onclick="toggleVendorRestriction(\''+esc(u.vendor).replace(/'/g,"\\'")+'\','+(u.restricted==='Yes'?'false':'true')+')">'+(u.restricted==='Yes'?'Reactivate':'Restrict')+'</button> <button class="btn-sm-primary" onclick="openLogoModal(\''+esc(u.vendor).replace(/'/g,"\\'")+'\')">Logo</button></td></tr>';
+    });
+    html+='</tbody></table></div>';el.innerHTML=html;
+  }).getAdminsWithVendorStats();
+}
+function openAdminEdit(u){document.getElementById('adminEditRow').value=u.row;document.getElementById('adminEditEmailHidden').value=u.email;document.getElementById('adminEditUserIdHidden').value=u.userId;document.getElementById('adminEditEmailDisp').textContent=u.email;document.getElementById('adminEditUserIdDisp').textContent=u.userId;document.getElementById('adminEditVendorDisp').textContent=u.vendor;document.getElementById('adminEditTypeDisp').textContent=u.businessType||'–';document.getElementById('adminEditPhoneDisp').textContent=u.phone||'–';document.getElementById('adminEditNameInput').value=u.name;document.getElementById('adminEditRole').value=u.role;document.getElementById('adminEditActive').value=u.active;new bootstrap.Modal(document.getElementById('adminEditModal')).show();}
+function saveAdminEdit(){var row=document.getElementById('adminEditRow').value,email=document.getElementById('adminEditEmailHidden').value,userId2=document.getElementById('adminEditUserIdHidden').value,name=document.getElementById('adminEditNameInput').value.trim(),role=document.getElementById('adminEditRole').value,active=document.getElementById('adminEditActive').value;if(!name){alert('Name cannot be empty.');return;}google.script.run.withSuccessHandler(function(msg){bootstrap.Modal.getInstance(document.getElementById('adminEditModal')).hide();loadManagerPanel();}).updateUser(row,email,name,role,userId2,'',active);}
+function quickToggleAdmin(row,status){google.script.run.withSuccessHandler(function(){loadManagerPanel();}).updateAdminRole(row,'null',status);}
+function toggleFreeReg(){google.script.run.setSetting('FreeRegistration',document.getElementById('freeRegSwitch').checked?'Yes':'No');}
+function saveCommission(){var r=document.getElementById('commRate').value;google.script.run.withSuccessHandler(function(){showToast('Commission rate saved: '+r+'%');}).setCommissionRate(r);}
+var _currentLogoVendor='';
+function openLogoModal(vn){_currentLogoVendor=vn;document.getElementById('logoPreview').style.display='none';document.getElementById('logoPlaceholder').style.display='';document.getElementById('logoUploadResult').innerHTML='';_pendingLogoBase64=null;new bootstrap.Modal(document.getElementById('logoModal')).show();}
+function previewLogo(input){if(!input.files||!input.files[0])return;var f=input.files[0],r=new FileReader();r.onload=function(e){_pendingLogoBase64=e.target.result.split(',')[1];_pendingLogoMime=f.type;document.getElementById('logoPreview').src=e.target.result;document.getElementById('logoPreview').style.display='block';document.getElementById('logoPlaceholder').style.display='none';};r.readAsDataURL(f);}
+function uploadLogo(){if(!_pendingLogoBase64){alert('Select an image first.');return;}google.script.run.withSuccessHandler(function(res){if(res.success){document.getElementById('logoUploadResult').innerHTML='<div class="alert-success">Logo uploaded!</div>';if(clientIsManager())loadManagerPanel();}else{document.getElementById('logoUploadResult').innerHTML='<div class="alert-danger">'+res.message+'</div>';}}).uploadBusinessLogo(_pendingLogoBase64,_pendingLogoMime,'logo_'+_currentLogoVendor,_currentLogoVendor);}
+
+/* ==================== MANAGER REPORTS ==================== */
+function loadManagerReportsTab(){var html='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px;">'+mkMRC('sales','📊','Sales Report','Excel or PDF · by vendor · date range')+mkMRC('lending','📋','Lending Report','Active, returned or all · by vendor')+mkMRC('stock','📦','Stock Report','Current inventory by vendor')+mkMRC('commission','💼','Commission Report','Commission due by vendor & period')+'</div><div id="mgrRepOptionsWrap"></div>';document.getElementById('mgrReportsContent').innerHTML=html;google.script.run.withSuccessHandler(function(vs){_mgrVendorList=vs||[];}).getVendorList();}
+function mkMRC(t,icon,title,sub){return '<div class="mgr-report-card" id="mrc_'+t+'" onclick="selectMgrReport(\''+t+'\')"><div class="mrc-icon">'+icon+'</div><div class="mrc-title">'+title+'</div><div class="mrc-sub">'+sub+'</div></div>';}
+var _selectedMgrReport='';
+function selectMgrReport(type){_selectedMgrReport=type;document.querySelectorAll('.mgr-report-card').forEach(function(c){c.classList.remove('selected');});var card=document.getElementById('mrc_'+type);if(card)card.classList.add('selected');var icons={sales:'📊',lending:'📋',stock:'📦',commission:'💼'};var vendorOpts='<option value="ALL">All Vendors</option>'+_mgrVendorList.map(function(v){return'<option value="'+v+'">'+v+'</option>';}).join('');var td=new Date().toISOString().slice(0,10);var el=document.getElementById('mgrRepOptionsWrap'),html='';html+='<div class="section-card"><div class="section-hdr"><span>'+icons[type]+'</span><div class="section-hdr-title">Report Options</div></div><div class="section-body">';if(type==='sales'){html+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;align-items:end;"><div class="form-group"><label class="form-label">Vendor</label><select id="mgrRepVendor" class="form-select">'+vendorOpts+'</select></div><div class="form-group"><label class="form-label">Start Date</label><input type="date" id="mgrRepStart" class="form-control" value="'+td+'"></div><div class="form-group"><label class="form-label">End Date</label><input type="date" id="mgrRepEnd" class="form-control" value="'+td+'"></div><div class="form-group"><label class="form-label">Format</label><select id="mgrRepFormat" class="form-select"><option value="pdf">PDF</option><option value="excel">Excel (.xlsx)</option></select></div></div>';}else if(type==='lending'){html+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;align-items:end;"><div class="form-group"><label class="form-label">Vendor</label><select id="mgrRepVendor" class="form-select">'+vendorOpts+'</select></div><div class="form-group"><label class="form-label">Status</label><select id="mgrRepLendStatus" class="form-select"><option value="ALL">All</option><option value="Active">Active Only</option><option value="Returned">Returned Only</option></select></div><div class="form-group"><label class="form-label">Start Date</label><input type="date" id="mgrRepStart" class="form-control" value="'+td+'"></div><div class="form-group"><label class="form-label">End Date</label><input type="date" id="mgrRepEnd" class="form-control" value="'+td+'"></div></div>';}else if(type==='stock'){html+='<div style="max-width:280px;"><div class="form-group"><label class="form-label">Vendor</label><select id="mgrRepVendor" class="form-select">'+vendorOpts+'</select></div></div>';}else if(type==='commission'){html+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;align-items:end;"><div class="form-group"><label class="form-label">Vendor</label><select id="mgrRepVendor" class="form-select">'+vendorOpts+'</select></div><div class="form-group"><label class="form-label">Start Date</label><input type="date" id="mgrRepStart" class="form-control" value="'+td+'"></div><div class="form-group"><label class="form-label">End Date</label><input type="date" id="mgrRepEnd" class="form-control" value="'+td+'"></div></div>';}html+='<div style="margin-top:16px;display:flex;gap:10px;align-items:center;"><button class="btn-primary" onclick="downloadMgrReport()">📥 Download Report</button><span id="mgrRepStatus" style="font-size:.82rem;color:var(--muted);"></span></div>';html+='</div></div>';el.innerHTML=html;}
+function downloadMgrReport(){if(!_selectedMgrReport){alert('Select a report type first.');return;}var statusEl=document.getElementById('mgrRepStatus');if(statusEl)statusEl.textContent='Generating… please wait.';var v=document.getElementById('mgrRepVendor')?document.getElementById('mgrRepVendor').value:'ALL';var s=document.getElementById('mgrRepStart')?document.getElementById('mgrRepStart').value:'';var e=document.getElementById('mgrRepEnd')?document.getElementById('mgrRepEnd').value:'';var done=function(){if(statusEl)statusEl.textContent='';};switch(_selectedMgrReport){case 'sales':if(!s||!e){alert('Pick both dates.');return;}var fmt=document.getElementById('mgrRepFormat')?document.getElementById('mgrRepFormat').value:'pdf';google.script.run.withSuccessHandler(function(r){done();window.open(r.url,'_blank');}).generateSalesReport(s,e,fmt,v);break;case 'lending':if(!s||!e){alert('Pick both dates.');return;}var st=document.getElementById('mgrRepLendStatus')?document.getElementById('mgrRepLendStatus').value:'ALL';google.script.run.withSuccessHandler(function(r){done();window.open(r.url,'_blank');}).generateLendingReport(s,e,st,v);break;case 'stock':google.script.run.withSuccessHandler(function(r){done();window.open(r.url,'_blank');}).generateStockPDF(v);break;case 'commission':if(!s||!e){alert('Pick both dates.');return;}google.script.run.withSuccessHandler(function(r){done();window.open(r.url,'_blank');}).generateCommissionReport(s,e,v);break;}}
+
+/* ==================== SETTINGS ==================== */
+function loadSettingsTab(){document.getElementById('settingsContent').innerHTML=buildSettingsHTML();loadPermissionsSection();google.script.run.withSuccessHandler(function(s){var hl=document.getElementById('hintLifetime'),hi=document.getElementById('hintInterval');if(hl)hl.value=s.lifetime||5;if(hi)hi.value=s.interval||300;google.script.run.withSuccessHandler(function(){refreshHintsTable();}).ensureDefaultHints();}).getHintTimings();google.script.run.withSuccessHandler(function(lt){var el=document.getElementById('loadTimeSetting');if(el)el.value=lt||2;}).getLoadingTime();google.script.run.withSuccessHandler(function(sec){var el=document.getElementById('autoSyncSetting');if(el)el.value=sec||0;}).getAutoSyncSeconds();google.script.run.withSuccessHandler(function(m){var el=document.getElementById('sessionTimeoutSetting');if(el)el.value=m||0;}).getSessionTimeoutMinutes();}
+function buildSettingsHTML(){return '<div class="section-card" style="margin-bottom:18px;"><div class="section-hdr"><span>⏱️</span><div class="section-hdr-title">Loading Screen Duration</div></div><div class="section-body"><div style="display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end;max-width:300px;"><div class="form-group"><label class="form-label">Seconds</label><input type="number" class="form-control" id="loadTimeSetting" min="1" max="10" value="2"></div><button class="btn-primary" onclick="saveLoadTime()">Save</button></div></div></div>'+
+    '<div class="section-card" style="margin-bottom:18px;"><div class="section-hdr"><span>🔁</span><div class="section-hdr-title">Auto-Sync Interval</div></div><div class="section-body"><div style="display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end;max-width:340px;"><div class="form-group"><label class="form-label">Seconds (0 = off, min 5)</label><input type="number" class="form-control" id="autoSyncSetting" min="0" value="0"></div><button class="btn-primary" onclick="saveAutoSync()">Save</button></div><div style="margin-top:8px;font-size:.76rem;color:var(--muted);">All logged-in users silently re-sync data this often. The ↻ button does a full reload.</div></div></div>'+
+    '<div class="section-card" style="margin-bottom:18px;"><div class="section-hdr"><span>🔒</span><div class="section-hdr-title">Session Timeout (auto-logout)</div></div><div class="section-body"><div style="display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end;max-width:340px;"><div class="form-group"><label class="form-label">Minutes idle (0 = never)</label><input type="number" class="form-control" id="sessionTimeoutSetting" min="0" value="0"></div><button class="btn-primary" onclick="saveSessionTimeout()">Save</button></div><div style="margin-top:8px;font-size:.76rem;color:var(--muted);">Logs a user out after this many minutes with no activity. Applies on their next login.</div></div></div>'+
+    
+  '<div class="section-card" style="margin-bottom:18px;"><div class="section-hdr"><span>🔒</span><div class="section-hdr-title">Vendor Permission Profiles</div><div style="margin-left:auto;font-size:.75rem;color:var(--muted);">One click applies to all vendors</div></div><div class="section-body" id="permissionsSection"><div style="color:var(--muted);">Loading…</div></div></div>'+
+  '<div class="section-card" style="margin-bottom:18px;"><div class="section-hdr"><span>💡</span><div class="section-hdr-title">Hint Popup Timing</div></div><div class="section-body"><div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end;"><div class="form-group"><label class="form-label">Lifetime (s)</label><input type="number" class="form-control" id="hintLifetime" min="1" value="5"></div><div class="form-group"><label class="form-label">Interval (s)</label><input type="number" class="form-control" id="hintInterval" min="10" value="300"></div><button class="btn-primary" onclick="saveHintTimings()">Save</button></div></div></div>'+
+  '<div class="section-card"><div class="section-hdr"><span>📝</span><div class="section-hdr-title">Manage Hints</div></div><div class="section-body"><h6 style="margin-bottom:10px;color:var(--text);">Add Multiple Hints</h6><div class="table-wrap"><table class="bo-table" id="bulkHintTable"><thead><tr><th style="width:120px;">Role</th><th>Message</th><th style="width:60px;"></th></tr></thead><tbody><tr class="bulk-hint-row"><td><select class="form-select hint-role" style="width:110px;"><option value="seller">Seller</option><option value="admin">Admin</option><option value="all">All</option><option value="marketplace">Marketplace</option></select></td><td><input type="text" class="form-control hint-msg" placeholder="Hint message…"></td><td><button class="btn-sm-danger" onclick="this.closest(\'tr\').remove()">✕</button></td></tr></tbody></table></div><div style="margin-top:10px;display:flex;gap:8px;"><button class="btn-secondary" onclick="addBulkHintRow()">+ Add Row</button><button class="btn-primary" onclick="saveBulkHints()">Save All</button></div><hr style="margin:16px 0;border-color:var(--border);"><h6 style="margin-bottom:10px;color:var(--text);">Existing Hints</h6><div id="hintsTable"></div></div></div>';}
+function loadPermissionsSection(){var el=document.getElementById('permissionsSection');if(!el)return;google.script.run.withSuccessHandler(function(allPerms){var ref=allPerms.length>0?allPerms[0].permissions:{};var vendorNames=allPerms.map(function(v){return v.name;}).join(', ');var perms=[['adminReceivesDaily','Admin Daily Email','Admin gets daily sales report',ref.adminReceivesDaily!==false&&ref.adminReceivesDaily!==undefined?!!ref.adminReceivesDaily:true],['adminReceivesWeekly','Admin Weekly Email','Admin gets weekly sales report',!!ref.adminReceivesWeekly],['adminReceivesMonthly','Admin Monthly Email','Admin gets monthly report',!!ref.adminReceivesMonthly],['sellerCanDownloadReport','Seller Download Reports','Sellers can download their own reports',!!ref.sellerCanDownloadReport],['sellerReceivesEmail','Seller Email Reports','Sellers receive email reports',!!ref.sellerReceivesEmail],['sellerReceivesDaily','Seller Daily Email','Sellers get daily email summary',!!ref.sellerReceivesDaily],['dashboardVisible','Dashboard Visible','Dashboard visible to sellers',ref.dashboardVisible!==false]];var html='<div style="font-size:.82rem;color:var(--text2);margin-bottom:14px;padding:10px;background:var(--surface2);border-radius:var(--radius-sm);">Configure once and click <strong>Apply to All Vendors</strong>. Current vendors: <em>'+(vendorNames||'none yet')+'</em>.</div>';html+='<div class="perm-grid">';perms.forEach(function(p){html+='<div class="perm-item"><div><div class="perm-label">'+p[1]+'</div><div class="perm-sub">'+p[2]+'</div></div><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="gperm_'+p[0]+'"'+(p[3]?' checked':'')+'></div></div>';});html+='</div>';html+='<div style="margin-top:16px;display:flex;gap:10px;align-items:center;"><button class="btn-primary" onclick="applyPermsToAll()">✅ Apply to All Vendors</button><span style="font-size:.78rem;color:var(--muted);">Overwrites permissions for all '+allPerms.length+' vendor(s)</span></div>';el.innerHTML=html;}).getAllVendorPermissions();}
+function applyPermsToAll(){var keys=['adminReceivesDaily','adminReceivesWeekly','adminReceivesMonthly','sellerCanDownloadReport','sellerReceivesEmail','sellerReceivesDaily','dashboardVisible'];var profile={};keys.forEach(function(k){var el=document.getElementById('gperm_'+k);profile[k]=el?el.checked:false;});if(!confirm('Apply these permission settings to ALL vendors? This will overwrite their individual settings.'))return;google.script.run.withSuccessHandler(function(msg){showToast(msg);}).setAllVendorPermissions(profile);}
+function saveLoadTime(){var v=document.getElementById('loadTimeSetting').value;_loadingMs=(parseInt(v)||2)*1000;google.script.run.withSuccessHandler(function(){showToast('Loading time saved.');}).setLoadingTime(v);}
+function saveAutoSync(){var v=document.getElementById('autoSyncSetting').value;google.script.run.withSuccessHandler(function(){showToast('Auto-sync saved.');google.script.run.withSuccessHandler(function(sec){startAutoSync(sec);}).getAutoSyncSeconds();}).setAutoSyncSeconds(v);}
+function saveSessionTimeout(){var v=document.getElementById('sessionTimeoutSetting').value;google.script.run.withSuccessHandler(function(){showToast('Session timeout saved.');startIdleTimer(v);}).setSessionTimeoutMinutes(v);}
+function saveHintTimings(){google.script.run.withSuccessHandler(function(){showToast('Saved.');loadSettingsAndStartHints();}).saveHintTimings(document.getElementById('hintLifetime').value,document.getElementById('hintInterval').value);}
+function refreshHintsTable(){google.script.run.withSuccessHandler(function(list){var html='<div class="table-wrap"><table class="bo-table"><thead><tr><th>Role</th><th>Message (EN)</th><th>Kiswahili (SW)</th><th>Actions</th></tr></thead><tbody>';list.forEach(function(h){html+='<tr><td><span class="badge badge-seller">'+h.role+'</span></td><td style="color:var(--text2);">'+esc(h.message)+'</td><td style="color:var(--text2);">'+(h.sw?esc(h.sw):'<span style="color:var(--muted);">&mdash;</span>')+'</td><td style="white-space:nowrap;"><button class="btn-sm-primary" onclick="editHint('+h.row+',\''+h.role+'\',\''+h.message.replace(/'/g,"\\'")+'\',\''+(h.sw||'').replace(/'/g,"\\'")+'\')">Edit</button> <button class="btn-sm-danger" onclick="deleteHint('+h.row+')">Del</button></td></tr>';});html+='</tbody></table></div>';document.getElementById('hintsTable').innerHTML=html;}).getHints();}
+function addBulkHintRow(){var tb=document.querySelector('#bulkHintTable tbody'),tr=document.createElement('tr');tr.className='bulk-hint-row';tr.innerHTML='<td><select class="form-select hint-role" style="width:110px;"><option value="seller">Seller</option><option value="admin">Admin</option><option value="all">All</option><option value="marketplace">Marketplace</option></select></td><td><input type="text" class="form-control hint-msg" placeholder="Hint message…"></td><td><button class="btn-sm-danger" onclick="this.closest(\'tr\').remove()">✕</button></td>';tb.appendChild(tr);}
+function saveBulkHints(){var rows=document.querySelectorAll('.bulk-hint-row'),data=[];rows.forEach(function(row){var role=row.querySelector('.hint-role').value,msg=row.querySelector('.hint-msg').value.trim();if(msg!=='')data.push({role:role,message:msg});});if(data.length===0){alert('Enter at least one hint message.');return;}google.script.run.withSuccessHandler(function(result){showToast(result);var tb=document.querySelector('#bulkHintTable tbody');tb.innerHTML='<tr class="bulk-hint-row"><td><select class="form-select hint-role" style="width:110px;"><option value="seller">Seller</option><option value="admin">Admin</option><option value="all">All</option><option value="marketplace">Marketplace</option></select></td><td><input type="text" class="form-control hint-msg" placeholder="Hint message…"></td><td><button class="btn-sm-danger" onclick="this.closest(\'tr\').remove()">✕</button></td></tr>';refreshHintsTable();}).addHintsBulk(data);}
+function editHint(row,role,msg,sw){var nr=prompt('Role',role);if(!nr)return;var nm=prompt('Message (English)',msg);if(!nm)return;var ns=prompt('Ujumbe kwa Kiswahili (acha wazi kama hutaki)',sw||'');if(ns===null)ns=(sw||'');google.script.run.withSuccessHandler(function(){refreshHintsTable();}).updateHint(row,nr,nm,ns);}
+function deleteHint(row){if(confirm('Delete this hint?'))google.script.run.withSuccessHandler(function(){refreshHintsTable();}).deleteHint(row);}
+
+/* ==================== FEEDBACK → WHATSAPP ==================== */
+function showSuggestionBox(){document.getElementById('suggestionMsg').value='';new bootstrap.Modal(document.getElementById('suggestionModal')).show();}
+function sendSuggestionWhatsApp(){var msg=document.getElementById('suggestionMsg').value.trim(),cat=document.getElementById('suggestionCat').value;if(!msg){alert('Type a message first.');return;}var who=userName?(userName+(vendor?(' ('+vendor+')'):'')):'A visitor';var text='*Business Operator Feedback*\nFrom: '+who+'\nTopic: '+cat+'\n\n'+msg;window.open('https://wa.me/'+WA_NUMBER+'?text='+encodeURIComponent(text),'_blank');try{bootstrap.Modal.getInstance(document.getElementById('suggestionModal')).hide();}catch(e){}showToast('Opening WhatsApp…','📲');}
+
+/* ==================== VENDOR REGISTRATION ==================== */
+function toggleRegForm(){var f=document.getElementById('regForm'),l=document.getElementById('regLink');if(f.style.display==='none'){f.style.display='block';l.textContent='– Hide';}else{f.style.display='none';l.textContent='+ Register New Business';}}
+function submitVendorRegistration(){if(!document.getElementById('agreeTerms').checked){showRegMsg('You must agree to the Terms & Conditions.','var(--rose)');return;}var vn=document.getElementById('regVendorName').value.trim(),bt=document.getElementById('regBusinessType').value.trim(),bp=document.getElementById('regBusinessPhone').value.trim(),ba=document.getElementById('regBusinessAddress').value.trim(),ae=document.getElementById('regAdminEmail').value.trim(),an=document.getElementById('regAdminName').value.trim(),au=document.getElementById('regAdminUserId').value.trim(),ap=document.getElementById('regAdminPwd').value.trim();if(!vn||!ae||!an||!au||!ap){showRegMsg('Business name, email, name, user ID and password are required.','var(--rose)');return;}showRegMsg('Submitting…','var(--muted)');google.script.run.withSuccessHandler(function(msg){var isErr=msg.toLowerCase().indexOf('already exists')!==-1||msg.toLowerCase().indexOf('error')!==-1||msg.toLowerCase().indexOf('not found')!==-1;showRegMsg(msg,isErr?'var(--rose)':'var(--accent2)');}).registerVendor(vn,ae,an,au,ap,bt,bp,ba);}
+function showRegMsg(msg,color){var el=document.getElementById('regMsg');if(!el)return;el.style.color=color||'var(--text2)';el.textContent=msg;}
+function showTerms(){document.getElementById('currentYear').textContent=new Date().getFullYear();new bootstrap.Modal(document.getElementById('termsModal')).show();}
+
+/* ==================== MOBILE SIDEBAR ==================== */
+function toggleMobileSidebar(){
+  if(document.body.classList.contains('bo-restricted'))return;
+  var sidebar = document.getElementById('sidebar');
+  var overlay = document.getElementById('sidebarOverlay');
+  sidebar.classList.toggle('open');
+  overlay.classList.toggle('show');
+}
+function closeMobileSidebar(){
+  var sidebar = document.getElementById('sidebar');
+  var overlay = document.getElementById('sidebarOverlay');
+  sidebar.classList.remove('open');
+  overlay.classList.remove('show');
+}
+
+/* ==================== PAYMENT RESTRICTION ==================== */
+function applyRestrictionUI(info){
+  var on=info&&info.restricted;
+  document.body.classList.toggle('bo-restricted',!!on);
+  var bt=document.getElementById('restrictionBannerText');
+  if(bt&&on&&info.notice)bt.innerHTML=info.notice;
+}
+function checkRestriction(){
+  if(clientIsManager()){document.body.classList.remove('bo-restricted');return;}
+  google.script.run.withSuccessHandler(applyRestrictionUI).withFailureHandler(function(){}).getRestrictionInfo(vendor||'');
+}
+function saveTrialDays(){var v=document.getElementById('trialDaysSetting').value;google.script.run.withSuccessHandler(function(){showToast('Free trial length saved.');}).setTrialDays(v);}
+function savePaymentReminderText(){var v=document.getElementById('paymentReminderBox').value;google.script.run.withSuccessHandler(function(){showToast('Payment message saved.');}).setPaymentReminderText(v);}
+function saveLendingReminderText(){var v=document.getElementById('lendingReminderBox').value;google.script.run.withSuccessHandler(function(){showToast('Lending message saved.');}).setLendingReminderText(v);}
+function toggleVendorRestriction(vn,toRestrict){
+  var msg=toRestrict?('Restrict "'+vn+'"?\n\nThe owner and their sellers will see a payment notice and the app becomes read-only for them until you reactivate.'):('Reactivate "'+vn+'"?\n\nFull access will be restored.');
+  if(!confirm(msg))return;
+  google.script.run.withSuccessHandler(function(){showToast(toRestrict?'Business restricted.':'Business reactivated.');loadManagerPanel();}).setVendorRestricted(vn,toRestrict?'Yes':'No');
+}
+
+/* ==================== SESSION TIMEOUT (inactivity auto-logout) ==================== */
+function startIdleTimer(mins){_idleMs=(parseInt(mins)||0)*60000;resetIdle();}
+function resetIdle(){if(!_idleMs){if(_idleTimer){clearTimeout(_idleTimer);_idleTimer=null;}return;}clearTimeout(_idleTimer);_idleTimer=setTimeout(function(){if(_screen==='app'){showToast('Signed out due to inactivity.','🔒');logout();}},_idleMs);}
+function stopIdleTimer(){if(_idleTimer){clearTimeout(_idleTimer);_idleTimer=null;}_idleMs=0;}
+['click','keydown','mousemove','touchstart','scroll'].forEach(function(ev){document.addEventListener(ev,function(){if(_screen==='app'&&_idleMs)resetIdle();},{passive:true});});
+
+/* ==================== INIT ==================== */
+setLang(_lang);
+document.getElementById('loginYear').textContent=new Date().getFullYear();
+document.getElementById('footerYear').textContent=new Date().getFullYear();
+document.getElementById('mkFootYear').textContent=new Date().getFullYear();
+updateViewUI();
+var _viewReloading=false;
+(function(){var sv='mobile';try{sv=localStorage.getItem('boView')||'mobile';}catch(e){}if(!(_serverResetToken&&_serverResetToken!=='')&&sv!==currentView()){_viewReloading=true;reloadWithView(sv);}})();
+if(!_viewReloading)showLoader(2000);
+setTimeout(function(){
+  if(_viewReloading)return;
+  if(_serverResetToken&&_serverResetToken!==''){showLogin(false);return;}
+  if(!restoreSession()){showLanding();loadMarketplace();}
+},800);
+</script>
+</body>
+</html>

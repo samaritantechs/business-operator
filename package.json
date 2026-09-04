@@ -1,0 +1,20 @@
+{
+  "name": "business-operator",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Business Operator — multi-vendor retail management + public marketplace, on Supabase + Vercel (Samaritan Techs)",
+  "engines": {
+    "node": "22.x"
+  },
+  "scripts": {
+    "migrate": "node migrate/run.js",
+    "dev": "node tools/dev-server.mjs",
+    "test": "node --test \"test/**/*.test.mjs\""
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "csv-parse": "^5.5.6",
+    "pdf-lib": "^1.17.1"
+  }
+}

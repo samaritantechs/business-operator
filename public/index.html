@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script>(function(){try{var t=localStorage.getItem('boTheme')||'dark';document.documentElement.setAttribute('data-theme',t);if(localStorage.getItem('boView')==='desktop')document.documentElement.className+=' bo-desktop';}catch(e){document.documentElement.setAttribute('data-theme','dark');}})();</script>
+  <meta charset="UTF-8"><meta name="viewport" id="viewportMeta" content="width=device-width, initial-scale=1, maximum-scale=5">
+  <title>Samaritan Industrial – Samaritan Techs</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 34 34'%3E%3Crect width='34' height='34' rx='8' fill='%232563EB'/%3E%3Cpath d='M6 24V13L17 5L28 13V24H6Z' fill='white'/%3E%3Crect x='13' y='16' width='8' height='8' rx='1' fill='%231E3A8A'/%3E%3Ccircle cx='17' cy='8' r='2.5' fill='%23FCD34D'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+:root{--bg:#F4F6FB;--surface:#FFFFFF;--surface2:#F0F2F8;--border:#E2E8F0;--accent:#2563EB;--accent-lt:#EEF4FF;--accent2:#059669;--accent2-lt:#ECFDF5;--amber:#D97706;--amber-lt:#FFFBEB;--rose:#E11D48;--rose-lt:#FFF1F2;--purple:#7C3AED;--purple-lt:#F5F3FF;--text:#0F172A;--text2:#475569;--muted:#94A3B8;--sidebar-w:240px;--topbar-h:60px;--radius:12px;--radius-sm:8px;--shadow:0 1px 3px rgba(0,0,0,0.06),0 4px 16px rgba(0,0,0,0.04);--shadow-md:0 4px 12px rgba(0,0,0,0.08),0 12px 40px rgba(0,0,0,0.06);--font:'Plus Jakarta Sans',sans-serif;--mono:'JetBrains Mono',monospace;}
+[data-theme="dark"]{--bg:#0D1117;--surface:#161B22;--surface2:#1E2631;--border:rgba(255,255,255,0.08);--accent-lt:rgba(37,99,235,0.15);--accent2-lt:rgba(5,150,105,0.12);--amber-lt:rgba(217,119,6,0.12);--rose-lt:rgba(225,29,72,0.12);--purple-lt:rgba(124,58,237,0.12);--text:#E2E8F0;--text2:#94A3B8;--muted:#4B5563;--shadow:0 1px 3px rgba(0,0,0,0.3),0 4px 16px rgba(0,0,0,0.2);--shadow-md:0 4px 16px rgba(0,0,0,0.4);}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}html{scroll-behavior:smooth;-webkit-text-size-adjust:100%;text-size-adjust:100%;}body{font-family:var(--font);background:var(--bg);color:var(--text);font-size:14px;transition:background .3s,color .3s;}.hidden{display:none !important;}a{text-decoration:none;}::-webkit-scrollbar{width:6px;height:6px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:var(--border);border-radius:99px;}
+#loadingScreen{position:fixed;inset:0;z-index:9999;background:var(--surface);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;transition:opacity .5s ease;}#loadingScreen.fade-out{opacity:0;pointer-events:none;}
+.loader-logo{width:64px;height:64px;background:linear-gradient(135deg,#2563EB,#7C3AED);border-radius:18px;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 32px rgba(37,99,235,.35);animation:logoPulse 1.5s ease-in-out infinite;}@keyframes logoPulse{0%,100%{transform:scale(1);}50%{transform:scale(1.06);}}
+.loader-logo svg{width:34px;height:34px;}.loader-brand{font-size:1.2rem;font-weight:800;color:var(--text);}.loader-sub{font-size:.78rem;color:var(--muted);}.loader-bar{width:200px;height:3px;background:var(--border);border-radius:99px;overflow:hidden;}.loader-bar-fill{height:100%;background:linear-gradient(90deg,#2563EB,#7C3AED);border-radius:99px;width:0%;transition:width .05s;}
+.form-label{font-size:.75rem;font-weight:600;color:var(--text2);letter-spacing:.04em;text-transform:uppercase;margin-bottom:5px;display:block;}
+.form-control,.form-select{background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:var(--radius-sm);padding:10px 13px;font-size:.88rem;font-family:var(--font);transition:border-color .2s,box-shadow .2s;width:100%;}.form-control:focus,.form-select:focus{background:var(--surface2);color:var(--text);border-color:var(--accent);box-shadow:0 0 0 3px rgba(37,99,235,.12);outline:none;}.form-control::placeholder{color:var(--muted);}.form-select option{background:var(--surface);color:var(--text);}
+.form-check-input{background-color:var(--surface2) !important;border-color:var(--border) !important;}.form-check-input:checked{background-color:var(--accent) !important;border-color:var(--accent) !important;}.form-check-label{color:var(--text2);font-size:.83rem;}.form-switch .form-check-input{width:36px !important;height:20px;}.form-group{display:flex;flex-direction:column;gap:5px;}
+.btn-primary{background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);padding:10px 20px;font-family:var(--font);font-weight:600;font-size:.88rem;cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;gap:6px;}.btn-primary:hover{background:#1D4ED8;transform:translateY(-1px);box-shadow:0 4px 12px rgba(37,99,235,.3);}.btn-primary.w-100{width:100%;justify-content:center;}
+.btn-secondary{background:var(--surface2);color:var(--text2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:9px 16px;font-family:var(--font);font-weight:500;font-size:.85rem;cursor:pointer;transition:all .2s;}.btn-secondary:hover{background:var(--border);color:var(--text);}
+.btn-sm-primary{background:var(--accent-lt);border:1px solid rgba(37,99,235,.25);color:var(--accent);border-radius:6px;padding:4px 11px;font-size:.77rem;cursor:pointer;transition:all .2s;font-family:var(--font);font-weight:500;}.btn-sm-primary:hover{background:var(--accent);color:#fff;}
+.btn-sm-success{background:var(--accent2-lt);border:1px solid rgba(5,150,105,.25);color:var(--accent2);border-radius:6px;padding:4px 11px;font-size:.77rem;cursor:pointer;transition:all .2s;font-family:var(--font);font-weight:500;}.btn-sm-success:hover{background:var(--accent2);color:#fff;}
+.btn-sm-warning{background:var(--amber-lt);border:1px solid rgba(217,119,6,.25);color:var(--amber);border-radius:6px;padding:4px 11px;font-size:.77rem;cursor:pointer;transition:all .2s;font-family:var(--font);font-weight:500;}.btn-sm-warning:hover{background:var(--amber);color:#fff;}
+.btn-sm-danger{background:var(--rose-lt);border:1px solid rgba(225,29,72,.25);color:var(--rose);border-radius:6px;padding:4px 11px;font-size:.77rem;cursor:pointer;transition:all .2s;font-family:var(--font);font-weight:500;}.btn-sm-danger:hover{background:var(--rose);color:#fff;}
+.icon-btn{width:36px;height:36px;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;border:1px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer;transition:all .2s;font-size:.9rem;text-decoration:none;flex-shrink:0;}.icon-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-lt);}
+.link-btn{background:none;border:none;color:var(--accent);text-decoration:underline;cursor:pointer;padding:0;font-family:inherit;font-size:inherit;}
+.alert-success{background:var(--accent2-lt);border:1px solid rgba(5,150,105,.25);color:var(--accent2);border-radius:var(--radius-sm);padding:10px 14px;font-size:.85rem;}.alert-danger{background:var(--rose-lt);border:1px solid rgba(225,29,72,.2);color:var(--rose);border-radius:var(--radius-sm);padding:10px 14px;font-size:.85rem;}.alert-info{background:var(--accent-lt);border:1px solid rgba(37,99,235,.2);color:var(--accent);border-radius:var(--radius-sm);padding:10px 14px;font-size:.85rem;}.text-danger{color:var(--rose);font-size:.82rem;margin-top:6px;}.divider{height:1px;background:var(--border);margin:18px 0;}
+
+/* ============ LANDING / MARKETPLACE ============ */
+#landingPage{position:relative;z-index:0;min-height:100vh;background:var(--bg);}
+#landingPage::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background-image:linear-gradient(rgba(15,23,42,0.035) 1px,transparent 1px),linear-gradient(90deg,rgba(15,23,42,0.035) 1px,transparent 1px);background-size:40px 40px;-webkit-mask-image:radial-gradient(125% 80% at 50% 0%,#000 30%,transparent 78%);mask-image:radial-gradient(125% 80% at 50% 0%,#000 30%,transparent 78%);}
+#landingPage::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(720px 460px at 8% -8%,rgba(37,99,235,0.13),transparent 60%),radial-gradient(680px 460px at 92% -6%,rgba(124,58,237,0.12),transparent 60%),radial-gradient(760px 520px at 76% 10%,rgba(5,150,105,0.08),transparent 64%);}
+[data-theme="dark"] #landingPage::before{background-image:linear-gradient(rgba(255,255,255,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.04) 1px,transparent 1px);}
+[data-theme="dark"] #landingPage::after{background:radial-gradient(720px 460px at 8% -8%,rgba(37,99,235,0.22),transparent 60%),radial-gradient(680px 460px at 92% -6%,rgba(124,58,237,0.20),transparent 60%),radial-gradient(760px 520px at 76% 10%,rgba(16,185,129,0.12),transparent 64%);}
+.mk-nav{position:sticky;top:0;z-index:200;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:12px 26px;gap:12px;flex-wrap:wrap;box-shadow:var(--shadow);}
+.mk-brand{display:flex;align-items:center;gap:11px;}.mk-brand .mk-logo{width:40px;height:40px;background:linear-gradient(135deg,#2563EB,#7C3AED);border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}.mk-brand .mk-logo svg{width:21px;height:21px;}.mk-brand .mk-bn{font-size:1.05rem;font-weight:800;color:var(--text);line-height:1;}.mk-brand .mk-bs{font-size:.68rem;color:var(--muted);margin-top:2px;}
+.mk-navlinks{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.mk-navlink{padding:8px 13px;border-radius:var(--radius-sm);color:var(--text2);font-size:.85rem;font-weight:600;cursor:pointer;background:none;border:none;transition:all .15s;}.mk-navlink:hover{background:var(--surface2);color:var(--text);}
+.mk-hero{max-width:1180px;margin:0 auto;padding:54px 26px 28px;text-align:center;}
+.mk-hero h1{font-size:2.5rem;font-weight:800;letter-spacing:-.02em;line-height:1.12;margin-bottom:14px;background:linear-gradient(120deg,#1E3A8A,#2563EB 45%,#7C3AED);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.mk-hero p{font-size:1.02rem;color:var(--text2);max-width:620px;margin:0 auto 22px;line-height:1.6;}
+.mk-searchwrap{max-width:580px;margin:0 auto;position:relative;}
+.mk-searchwrap .mk-sico{position:absolute;left:16px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:1.05rem;pointer-events:none;}
+.mk-search{width:100%;padding:15px 16px 15px 46px;border-radius:14px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:.95rem;font-family:var(--font);box-shadow:var(--shadow);transition:border-color .2s,box-shadow .2s;}
+.mk-search:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 4px rgba(37,99,235,.12);}
+.mk-stats{display:flex;justify-content:center;gap:14px;margin-top:20px;flex-wrap:wrap;}
+.mk-stat{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 18px;display:flex;flex-direction:column;align-items:center;min-width:96px;box-shadow:var(--shadow);}
+.mk-stat .v{font-size:1.25rem;font-weight:800;color:var(--accent);line-height:1;}.mk-stat .l{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-top:4px;}
+.mk-section{max-width:1180px;margin:0 auto;padding:18px 26px 10px;}
+.mk-sec-title{font-size:1.15rem;font-weight:800;color:var(--text);margin-bottom:4px;display:flex;align-items:center;gap:8px;}
+.mk-sec-sub{font-size:.82rem;color:var(--muted);margin-bottom:16px;}
+.mk-cats{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px;}
+.mk-chip{padding:7px 15px;border-radius:99px;border:1px solid var(--border);background:var(--surface);color:var(--text2);font-size:.8rem;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap;}.mk-chip:hover{border-color:var(--accent);color:var(--accent);}.mk-chip.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+.mk-more{position:relative;display:inline-block;}
+.mk-more .mk-more-btn{display:inline-flex;align-items:center;gap:4px;}
+.mk-more-menu{position:absolute;top:calc(100% + 6px);left:0;z-index:60;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-md);padding:6px;display:none;max-height:280px;overflow-y:auto;min-width:170px;}
+.mk-more-menu.open{display:block;}
+.mk-more-item{display:block;width:100%;text-align:left;padding:8px 12px;border:none;background:none;color:var(--text2);font-size:.82rem;font-weight:600;border-radius:8px;cursor:pointer;white-space:nowrap;font-family:var(--font);}
+.mk-more-item:hover{background:var(--surface2);color:var(--text);}
+.mk-more-item.active{background:var(--accent-lt);color:var(--accent);}
+.mk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:18px;}
+.mk-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;cursor:pointer;transition:transform .2s,box-shadow .2s,border-color .2s;display:flex;flex-direction:column;}
+.mk-card:hover{transform:translateY(-4px);box-shadow:var(--shadow-md);border-color:rgba(37,99,235,.3);}
+.mk-img{width:100%;aspect-ratio:1/1;background:var(--surface2);background-size:cover;background-position:center;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:2.4rem;position:relative;}
+.mk-img .mk-stock{position:absolute;top:8px;right:8px;background:rgba(15,23,42,.78);color:#fff;font-size:.66rem;font-weight:600;padding:2px 8px;border-radius:99px;}
+.mk-img .mk-stock.out{background:rgba(225,29,72,.9);}
+.mk-fire{position:absolute;top:8px;left:8px;background:linear-gradient(135deg,#F97316,#EF4444);color:#fff;font-size:.66rem;font-weight:700;padding:2px 8px;border-radius:99px;box-shadow:0 2px 8px rgba(239,68,68,.4);}
+.mk-cardbody{padding:13px 14px 15px;display:flex;flex-direction:column;gap:5px;flex:1;}
+.mk-cat{font-size:.68rem;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.05em;}
+.mk-name{font-size:.92rem;font-weight:700;color:var(--text);line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.mk-price{font-size:1.02rem;font-weight:800;color:var(--text);font-family:var(--mono);margin-top:2px;}
+.mk-cvendor{display:flex;align-items:center;gap:6px;margin-top:auto;padding-top:8px;border-top:1px solid var(--border);}
+.mk-cvendor img{width:20px;height:20px;border-radius:50%;object-fit:cover;}
+.mk-cvendor .mk-vinit{width:20px;height:20px;border-radius:50%;background:linear-gradient(135deg,#2563EB,#7C3AED);display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:700;color:#fff;}
+.mk-cvendor span{font-size:.76rem;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.mk-vgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;}
+.mk-vcard{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:18px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;transition:transform .2s,box-shadow .2s;}
+.mk-vcard:hover{transform:translateY(-3px);box-shadow:var(--shadow-md);}
+.mk-vlogo{width:60px;height:60px;border-radius:16px;object-fit:contain;background:var(--surface2);border:1px solid var(--border);padding:4px;}
+.mk-vlogo-ph{width:60px;height:60px;border-radius:16px;background:linear-gradient(135deg,#2563EB,#7C3AED);display:flex;align-items:center;justify-content:center;font-size:1.4rem;font-weight:800;color:#fff;}
+.mk-vname{font-size:.98rem;font-weight:800;color:var(--text);}
+.mk-vtype{font-size:.76rem;color:var(--accent);background:var(--accent-lt);padding:3px 10px;border-radius:99px;font-weight:600;}
+.mk-about{background:var(--surface);border-top:1px solid var(--border);margin-top:30px;padding:46px 26px;}
+.mk-about-inner{max-width:1000px;margin:0 auto;}
+.mk-about h2{font-size:1.5rem;font-weight:800;color:var(--text);text-align:center;margin-bottom:8px;}
+.mk-about .lead{text-align:center;color:var(--text2);max-width:640px;margin:0 auto 28px;line-height:1.7;font-size:.95rem;}
+.mk-about-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;}
+.mk-feat{background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:20px;text-align:center;}
+.mk-feat .fi{font-size:1.8rem;margin-bottom:10px;}.mk-feat h4{font-size:.95rem;font-weight:700;color:var(--text);margin-bottom:6px;}.mk-feat p{font-size:.83rem;color:var(--muted);line-height:1.55;}
+.mk-foot{padding:26px;text-align:center;color:var(--muted);font-size:.78rem;border-top:1px solid var(--border);background:var(--surface);}
+.mk-empty{text-align:center;color:var(--muted);padding:50px 20px;font-size:.92rem;}
+@media(max-width:600px){.mk-hero h1{font-size:1.85rem;}.mk-nav{padding:10px 14px;}.mk-section{padding:16px 14px 8px;}.mk-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;}}
+
+/* ============ LOGIN ============ */
+#loginPage{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;background:linear-gradient(135deg,#EEF4FF 0%,#F5F3FF 50%,#ECFDF5 100%);}[data-theme="dark"] #loginPage{background:linear-gradient(135deg,#0D1117 0%,#161B22 100%);}
+.login-wrap{width:100%;max-width:900px;display:grid;grid-template-columns:1fr 1fr;gap:0;border-radius:20px;overflow:hidden;box-shadow:var(--shadow-md);}@media(max-width:640px){.login-wrap{grid-template-columns:1fr;}.login-left{display:none !important;}}
+.login-left{background:linear-gradient(155deg,#1E3A8A,#2563EB 40%,#7C3AED);padding:48px 40px;display:flex;flex-direction:column;justify-content:space-between;}.login-left h2{font-size:1.9rem;font-weight:800;color:#fff;line-height:1.2;margin-top:auto;}.login-left p{color:rgba(255,255,255,.7);margin-top:12px;font-size:.9rem;line-height:1.6;}
+.login-taglines{display:flex;flex-direction:column;gap:10px;margin-top:32px;}.login-tag{display:flex;align-items:center;gap:10px;color:rgba(255,255,255,.85);font-size:.83rem;}.login-tag .dot{width:7px;height:7px;border-radius:50%;background:#06D6A0;flex-shrink:0;}
+.login-right{background:var(--surface);padding:42px 40px;overflow-y:auto;max-height:100vh;}
+.brand-row{display:flex;align-items:center;gap:12px;margin-bottom:18px;}.brand-icon{width:44px;height:44px;background:linear-gradient(135deg,#2563EB,#7C3AED);border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}.brand-icon svg{width:22px;height:22px;}.brand-name{font-size:1.1rem;font-weight:800;color:var(--text);}.brand-sub{font-size:.72rem;color:var(--muted);margin-top:1px;}
+.login-title{font-size:1.4rem;font-weight:800;margin-bottom:6px;}.login-sub{color:var(--text2);font-size:.85rem;margin-bottom:24px;}.custom-logo-row{text-align:center;margin-bottom:18px;}.custom-logo-img{max-height:56px;max-width:160px;object-fit:contain;border-radius:10px;}
+.translate-bar{display:flex;gap:8px;margin-bottom:16px;}.lang-btn{flex:1;padding:7px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface2);color:var(--text2);font-size:.78rem;font-family:var(--font);cursor:pointer;transition:all .2s;font-weight:500;}.lang-btn.active{border-color:var(--accent);background:var(--accent-lt);color:var(--accent);}
+.back-mk{display:inline-flex;align-items:center;gap:6px;font-size:.82rem;color:var(--text2);background:none;border:none;cursor:pointer;margin-bottom:14px;font-weight:600;}.back-mk:hover{color:var(--accent);}
+.fg2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}.fg3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
+/* ============ v2 additions ============ */
+html.bo-desktop .sidebar{display:block !important;position:static;transform:none;box-shadow:none;}
+html.bo-desktop .mobile-menu-btn{display:none !important;}
+html.bo-desktop .main-content{padding:28px 30px;}
+html.bo-desktop .tb-vendor-badge{display:inline-block;}
+.tabs-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;}
+.tab-chip{padding:7px 14px;border-radius:99px;border:1px solid var(--border);background:var(--surface);color:var(--text2);font-size:.8rem;font-weight:600;cursor:pointer;font-family:var(--font);}
+.tab-chip.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+.filter-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;align-items:end;margin-bottom:14px;}
+.mono{font-family:var(--mono);}
+.muted{color:var(--muted);}
+.small{font-size:.78rem;}
+.right{text-align:right;}
+.badge-cancel{background:var(--rose-lt);color:var(--rose);border:1px solid rgba(225,29,72,.2);}
+.badge-credit{background:var(--purple-lt);color:var(--purple);border:1px solid rgba(124,58,237,.2);}
+.badge-cash{background:var(--accent2-lt);color:var(--accent2);border:1px solid rgba(5,150,105,.2);}
+.badge-lipa{background:var(--accent-lt);color:var(--accent);border:1px solid rgba(37,99,235,.2);}
+.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;align-items:end;}
+.btn-primary:disabled,.btn-secondary:disabled{opacity:.55;cursor:not-allowed;transform:none;}
+.empty{color:var(--muted);padding:24px;text-align:center;font-size:.88rem;}
+.err-box{background:var(--rose-lt);border:1px solid rgba(225,29,72,.25);color:var(--rose);border-radius:var(--radius-sm);padding:12px 14px;font-size:.85rem;margin:8px 0;}
+.unit-pick{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;}
+.unit-pick label{display:inline-flex;align-items:center;gap:5px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:4px 8px;font-size:.76rem;font-family:var(--mono);cursor:pointer;}
+.unit-pick label.on{border-color:var(--accent);background:var(--accent-lt);color:var(--accent);}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:.84rem;}
+.kv b{color:var(--muted);font-weight:600;}
+#bootScreen{position:fixed;inset:0;z-index:9998;background:var(--bg);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:.9rem;}
+  </style>
+</head>
+<body>
+
+<div id="bootScreen">Inapakia… / Loading…</div>
+
+<div id="loadingScreen" class="hidden">
+  <div class="loader-logo"><svg viewBox="0 0 34 34" fill="none"><path d="M3 24V13L17 4L31 13V24H3Z" fill="rgba(255,255,255,0.95)"/><rect x="13" y="16" width="8" height="8" rx="1" fill="#1E3A8A"/><rect x="13" y="11" width="8" height="3" rx="1" fill="rgba(255,255,255,0.7)"/><circle cx="17" cy="7" r="2.5" fill="#FCD34D"/></svg></div>
+  <div style="text-align:center;"><div class="loader-brand">Samaritan Industrial</div><div class="loader-sub">by Samaritan Techs</div></div>
+  <div class="loader-bar"><div class="loader-bar-fill" id="loaderFill"></div></div>
+</div>
+
+<!-- ==================== LANDING / MARKETPLACE ==================== -->
+<div id="landingPage" class="hidden">
+  <nav class="mk-nav">
+    <div class="mk-brand">
+      <div class="mk-logo"><svg viewBox="0 0 21 21" fill="none"><path d="M2.5 15V8.5L10.5 3.5L18.5 8.5V15H2.5Z" fill="rgba(255,255,255,0.95)"/><rect x="8" y="10.5" width="5" height="4.5" rx=".6" fill="#1E3A8A"/><circle cx="10.5" cy="6.3" r="1.5" fill="#FCD34D"/></svg></div>
+      <div><div class="mk-bn">Samaritan Industrial</div><div class="mk-bs">Marketplace by Samaritan Techs</div></div>
+    </div>
+    <div class="mk-navlinks">
+      <button class="mk-navlink" onclick="mkScrollTo('mkMarketSection')">🛍️ Marketplace</button>
+      <button class="mk-navlink" onclick="mkScrollTo('mkAboutSection')">ℹ️ About Us</button>
+      <a href="#" class="icon-btn" onclick="showSuggestionBox();return false;" title="Feedback via WhatsApp">💬</a>
+      <button class="icon-btn" id="mkLangBtn" onclick="toggleLang()" title="Lugha ya vidokezo / Tips language (EN/SW)" style="font-weight:800;font-size:.72rem;">EN</button><button class="icon-btn" id="mkThemeBtn" onclick="toggleTheme()" title="Toggle theme">🌙</button>
+      <button class="icon-btn" onclick="globalRefresh()" title="Refresh data">↻</button>
+      <button class="btn-secondary" onclick="showLogin(false)" style="padding:8px 16px;">Log in</button>
+      <button class="btn-primary" onclick="showLogin(true)" style="padding:8px 16px;">Register</button>
+    </div>
+  </nav>
+
+  <section class="mk-hero">
+    <h1>Discover products from real businesses near you</h1>
+    <p>Browse a growing marketplace of goods from trusted local vendors — view photos, prices and contacts freely. Run a business? Manage your sales, stock and reports all in one place.</p>
+    <div class="mk-searchwrap">
+      <span class="mk-sico">🔍</span>
+      <input type="text" id="mkSearch" class="mk-search" placeholder="Search products, categories or businesses…" oninput="filterMarket()">
+    </div>
+    <div class="mk-stats">
+      <div class="mk-stat"><div class="v" id="mkStatProducts">–</div><div class="l">Products</div></div>
+      <div class="mk-stat"><div class="v" id="mkStatVendors">–</div><div class="l">Businesses</div></div>
+      <div class="mk-stat"><div class="v" id="mkStatCats">–</div><div class="l">Categories</div></div>
+    </div>
+  </section>
+
+  <section class="mk-section" id="mkMarketSection">
+    <div class="mk-sec-title">🛍️ Marketplace</div>
+    <div class="mk-sec-sub">Tap any product to see details and contact the seller. Viewing is always free.</div>
+    <div class="mk-cats" id="mkTypeChips" style="margin-bottom:10px;">
+      <button class="mk-chip active" id="mkType_ALL" onclick="setMkType('ALL')">All Listings</button>
+      <button class="mk-chip" id="mkType_Sale" onclick="setMkType('Sale')">&#128722; For Sale</button>
+      <button class="mk-chip" id="mkType_Rent" onclick="setMkType('Rent')">&#128273; For Rent</button>
+    </div>
+    <div class="mk-cats" id="mkCats"></div>
+    <div id="mkProductGrid" class="mk-grid"><div class="mk-empty">Loading products…</div></div>
+    <div id="mkLoadMoreWrap" style="text-align:center;margin-top:6px;"></div>
+  </section>
+
+
+  <section class="mk-about" id="mkAboutSection">
+    <div class="mk-about-inner">
+      <h2>About Samaritan Industrial</h2>
+      <p class="lead">Samaritan Industrial helps shops and vendors leave the counterbook behind — recording sales, tracking stock and cash, and sending reports digitally. And now it gives every business a free storefront in our shared marketplace, so more customers can find what you sell.</p>
+      <div class="mk-about-grid">
+        <div class="mk-feat"><div class="fi">📝</div><h4>Goodbye Counterbooks</h4><p>Record every sale digitally in seconds. No handwriting, no lost pages, no carbon paper.</p></div>
+        <div class="mk-feat"><div class="fi">🛍️</div><h4>A Free Storefront</h4><p>Your products appear in the marketplace with photos, prices and your contact — at no cost.</p></div>
+        <div class="mk-feat"><div class="fi">📊</div><h4>Reports & Insights</h4><p>Daily, weekly and monthly reports plus stock and cash tracking, ready whenever you need them.</p></div>
+        <div class="mk-feat"><div class="fi">👥</div><h4>Your Whole Team</h4><p>Sellers record from their own devices while owners keep full oversight in one dashboard.</p></div>
+      </div>
+      <div style="text-align:center;margin-top:28px;">
+        <button class="btn-primary" onclick="showLogin(true)" style="padding:13px 30px;font-size:.95rem;">🚀 Register your business — free</button>
+      </div>
+    </div>
+  </section>
+
+  <footer class="mk-foot">&copy; <span id="mkFootYear"></span> Samaritan Techs · Samaritan Industrial — Smart business management & marketplace</footer>
+</div>
+
+<!-- ==================== LOGIN / REGISTER ==================== -->
+<div id="loginPage" class="hidden">
+  <div class="login-wrap">
+    <div class="login-left">
+      <div><div style="font-size:.75rem;font-weight:700;color:rgba(255,255,255,.5);letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px;">Samaritan Techs</div><h2>Smart Business<br>Management System</h2><p>A powerful sales, inventory &amp; reporting platform — with a free marketplace storefront for your products.</p></div>
+      <div class="login-taglines"><div class="login-tag"><span class="dot"></span>Real-time sales tracking</div><div class="login-tag"><span class="dot"></span>Automated PDF &amp; Excel reports</div><div class="login-tag"><span class="dot"></span>Free marketplace storefront</div><div class="login-tag"><span class="dot"></span>Lending &amp; borrower tracking</div><div class="login-tag"><span class="dot"></span>Multi-vendor management</div></div>
+      <div style="margin-top:32px;color:rgba(255,255,255,.4);font-size:.72rem;">&copy; <span id="loginYear"></span> Samaritan Techs. All rights reserved.</div>
+    </div>
+    <div class="login-right">
+      <button class="back-mk" onclick="showLanding()">← Back to Marketplace</button>
+      <div class="brand-row"><div class="brand-icon"><svg viewBox="0 0 22 22" fill="none"><path d="M2 16V9L11 3L20 9V16H2Z" fill="rgba(255,255,255,0.95)"/><rect x="8" y="11" width="6" height="5" rx="1" fill="#1E3A8A"/><circle cx="11" cy="6.5" r="1.8" fill="#FCD34D"/></svg></div><div><div class="brand-name">Samaritan Industrial</div><div class="brand-sub">Powered by Samaritan Techs</div></div></div>
+      <div id="customLogoRow" class="custom-logo-row hidden"><img id="customLogoImg" src="" class="custom-logo-img" alt="Business Logo"></div>
+      <div class="translate-bar"><button class="lang-btn active" id="langEn" onclick="setLang('en')">🇬🇧 English</button><button class="lang-btn" id="langSw" onclick="setLang('sw')">🇹🇿 Kiswahili</button></div>
+      <div class="login-title" id="lbl_signin">Sign in to your account</div>
+      <div class="login-sub" id="lbl_signin_sub">Enter your User ID or Email to access the system</div>
+      <div id="loginFieldsWrap">
+        <div class="form-group" style="margin-bottom:13px;"><label class="form-label" id="lbl_userid">User ID or Email</label><input type="text" id="loginId" class="form-control" placeholder="username or email@example.com" autocomplete="username" onkeypress="if(event.keyCode===13)doLogin()"></div>
+        <div class="form-group" style="margin-bottom:18px;"><label class="form-label" id="lbl_password">Password</label><input type="password" id="loginPwd" class="form-control" autocomplete="current-password" onkeypress="if(event.keyCode===13)doLogin()"></div>
+        <button class="btn-primary w-100" onclick="doLogin()" id="lbl_login_btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>Sign In</button>
+        <div style="text-align:right;margin-top:8px;"><button class="link-btn" onclick="forgotPassword()" style="font-size:.82rem;">Forgot Password?</button></div>
+        <div id="loginMsg" class="text-danger"></div>
+        <div class="divider"></div>
+        <div style="text-align:center;"><button class="link-btn" onclick="toggleRegForm()" id="regLink" style="font-size:.84rem;">+ Register New Business</button></div>
+        <div id="regForm" style="display:none;margin-top:18px;">
+          <div style="font-size:.85rem;font-weight:700;color:var(--text);margin-bottom:14px;">Create Business Account</div>
+          <div class="form-group" style="margin-bottom:10px;"><label class="form-label">Business Name</label><input class="form-control" id="regVendorName" placeholder="e.g. Fromville Electronics"></div>
+          <div class="fg2" style="margin-bottom:10px;"><div class="form-group"><label class="form-label">Business Type</label><input class="form-control" id="regBusinessType" placeholder="e.g. Groceries, Electronics"></div><div class="form-group"><label class="form-label">Business Phone (WhatsApp)</label><input class="form-control" id="regBusinessPhone" placeholder="Start with code, e.g. +255"></div></div>
+          <div class="form-group" style="margin-bottom:10px;"><label class="form-label">Business Address / Location</label><input class="form-control" id="regBusinessAddress" placeholder="e.g. Kariakoo, Dar es Salaam"></div>
+          <div class="fg2" style="margin-bottom:10px;"><div class="form-group"><label class="form-label">Admin Email</label><input class="form-control" id="regAdminEmail" placeholder="admin@email.com"></div><div class="form-group"><label class="form-label">Full Name</label><input class="form-control" id="regAdminName"></div></div>
+          <div class="fg2" style="margin-bottom:12px;"><div class="form-group"><label class="form-label">User ID</label><input class="form-control" id="regAdminUserId" placeholder="username"></div><div class="form-group"><label class="form-label">Password</label><input class="form-control" id="regAdminPwd" type="password"></div></div>
+          <div class="form-check mb-3"><input class="form-check-input" type="checkbox" id="agreeTerms"><label class="form-check-label" for="agreeTerms">I agree to the <button class="link-btn" onclick="showTerms()">Terms &amp; Conditions</button></label></div>
+          <button class="btn-primary w-100" onclick="submitVendorRegistration()">Register Business</button>
+          <div id="regMsg" style="font-size:.82rem;margin-top:8px;"></div>
+        </div>
+      </div>
+      <div id="setupForm" style="display:none;">
+        <div class="login-title" style="font-size:1.2rem;">Set up this system</div>
+        <div class="login-sub" style="margin-bottom:18px;">Nobody runs this system yet. Create the manager account &mdash; the one that approves businesses and holds the settings. This screen appears once and never again.</div>
+        <div id="setupKeyless" class="alert-danger" style="display:none;margin-bottom:14px;">This deployment has no setup key yet. Add <strong>BO_SETUP_KEY</strong> to its environment variables, redeploy, then reload this page.</div>
+        <div class="form-group" style="margin-bottom:12px;"><label class="form-label">Setup key</label><input type="password" id="setupKey" class="form-control" autocomplete="off"><div class="small muted" style="margin-top:5px;">The <strong>BO_SETUP_KEY</strong> from your deployment&rsquo;s environment variables.</div></div>
+        <div class="form-group" style="margin-bottom:12px;"><label class="form-label">Your full name</label><input id="setupName" class="form-control" autocomplete="name"></div>
+        <div class="fg2" style="margin-bottom:12px;"><div class="form-group"><label class="form-label">User ID (how you sign in)</label><input id="setupHandle" class="form-control" autocomplete="username"></div><div class="form-group"><label class="form-label">Email</label><input type="email" id="setupEmail" class="form-control" autocomplete="email"></div></div>
+        <div class="form-group" style="margin-bottom:16px;"><label class="form-label">Password</label><input type="password" id="setupPwd" class="form-control" autocomplete="new-password"></div>
+        <button class="btn-primary w-100" id="setupBtn" onclick="submitSetup()">Create manager account</button>
+        <div id="setupMsg" style="margin-top:12px;font-size:.84rem;"></div>
+      </div>
+      <div id="resetForm" style="display:none;">
+        <div class="login-title" style="font-size:1.2rem;">Set New Password</div>
+        <div class="login-sub" style="margin-bottom:18px;">Choose a new password for your account.</div>
+        <div class="form-group" style="margin-bottom:12px;"><label class="form-label">New Password</label><input type="password" id="resetNewPwd" class="form-control"></div>
+        <div class="form-group" style="margin-bottom:16px;"><label class="form-label">Confirm Password</label><input type="password" id="resetConfirmPwd" class="form-control"></div>
+        <button class="btn-primary w-100" onclick="submitResetPassword()">Update Password</button>
+        <div id="resetMsg" style="margin-top:12px;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+/* ============ APP SHELL ============ */
+.topbar{height:var(--topbar-h);background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 24px;position:sticky;top:0;z-index:100;box-shadow:0 1px 0 var(--border);}.tb-left{display:flex;align-items:center;gap:16px;}.tb-brand{display:flex;align-items:center;gap:10px;}.tb-logo{width:34px;height:34px;background:linear-gradient(135deg,#2563EB,#7C3AED);border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}.tb-logo svg{width:18px;height:18px;}.tb-name{font-size:.95rem;font-weight:800;color:var(--text);}.tb-vendor-badge{background:var(--accent-lt);border:1px solid rgba(37,99,235,.2);color:var(--accent);padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:600;max-width:140px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}.tb-right{display:flex;align-items:center;gap:8px;}.tb-user{display:flex;align-items:center;gap:8px;}.tb-avatar{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#2563EB,#7C3AED);display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;color:#fff;text-transform:uppercase;flex-shrink:0;overflow:hidden;}.tb-user-info{line-height:1.2;}.tb-user-name{font-size:.82rem;font-weight:600;color:var(--text);}.tb-user-role{font-size:.72rem;color:var(--accent);}
+.app-layout{display:flex;height:calc(100vh - var(--topbar-h));overflow:hidden;}.sidebar{width:var(--sidebar-w);flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);padding:16px 10px;display:flex;flex-direction:column;gap:2px;overflow-y:auto;}.nav-group-label{font-size:.66rem;font-weight:700;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;padding:10px 10px 4px;}.nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--radius-sm);color:var(--text2);font-size:.83rem;font-weight:500;cursor:pointer;transition:all .15s;border:none;background:none;text-align:left;width:100%;}.nav-item:hover{background:var(--surface2);color:var(--text);}.nav-item.active{background:var(--accent-lt);color:var(--accent);font-weight:600;}.nav-item .ni{font-size:.95rem;width:20px;text-align:center;flex-shrink:0;}.sidebar-footer{margin-top:auto;padding-top:12px;border-top:1px solid var(--border);}
+.main-content{flex:1;overflow-y:auto;padding:28px 30px;background:var(--bg);}@media(max-width:768px){.sidebar{display:none;}.main-content{padding:16px;}.topbar{padding:0 10px;}.tb-vendor-badge{display:none;}.tb-right{gap:5px;}}
+.page-hdr{margin-bottom:24px;display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px;}.page-title{font-size:1.4rem;font-weight:800;color:var(--text);letter-spacing:-.02em;}.page-sub{font-size:.83rem;color:var(--muted);margin-top:3px;}
+.stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:14px;margin-bottom:22px;}.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;cursor:pointer;transition:all .2s;position:relative;overflow:hidden;}.stat-card:hover{transform:translateY(-2px);box-shadow:var(--shadow-md);}.stat-card .sc-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1rem;margin-bottom:12px;}.stat-card .sc-label{font-size:.72rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;}.stat-card .sc-value{font-size:1.35rem;font-weight:800;color:var(--text);letter-spacing:-.02em;margin-top:3px;line-height:1;}.stat-card .sc-unit{font-size:.72rem;color:var(--muted);font-weight:400;margin-left:2px;}.stat-card .sc-accent{position:absolute;bottom:0;left:0;right:0;height:3px;border-radius:0 0 var(--radius) var(--radius);}
+.sc-blue .sc-icon{background:var(--accent-lt);}.sc-blue .sc-accent{background:var(--accent);}.sc-green .sc-icon{background:var(--accent2-lt);}.sc-green .sc-accent{background:var(--accent2);}.sc-amber .sc-icon{background:var(--amber-lt);}.sc-amber .sc-accent{background:var(--amber);}.sc-rose .sc-icon{background:var(--rose-lt);}.sc-rose .sc-accent{background:var(--rose);}.sc-purple .sc-icon{background:var(--purple-lt);}.sc-purple .sc-accent{background:var(--purple);}
+.table-wrap{overflow:auto;max-height:70vh;}.bo-table{width:100%;border-collapse:collapse;font-size:.84rem;}.bo-table thead th{background:var(--surface2);color:var(--muted);font-weight:700;font-size:.7rem;letter-spacing:.07em;text-transform:uppercase;padding:10px 14px;border-bottom:1px solid var(--border);white-space:nowrap;position:sticky;top:0;z-index:3;}.bo-table tbody tr{border-bottom:1px solid var(--border);transition:background .12s;}.bo-table tbody tr:hover{background:var(--surface2);}.bo-table tbody td{padding:10px 14px;color:var(--text);vertical-align:middle;}.bo-table tbody tr:last-child{border-bottom:none;}
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:.72rem;font-weight:600;white-space:nowrap;}.badge-ok,.badge-status.badge-ok{background:var(--accent2-lt);color:var(--accent2);border:1px solid rgba(5,150,105,.2);}.badge-low,.badge-status.badge-low{background:var(--amber-lt);color:var(--amber);border:1px solid rgba(217,119,6,.2);}.badge-out,.badge-status.badge-out{background:var(--rose-lt);color:var(--rose);border:1px solid rgba(225,29,72,.2);}.badge-status{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:.72rem;font-weight:600;white-space:nowrap;}.badge-active{background:var(--accent2-lt);color:var(--accent2);border:1px solid rgba(5,150,105,.2);}.badge-inactive{background:var(--rose-lt);color:var(--rose);border:1px solid rgba(225,29,72,.2);}.badge-admin,.badge-assistant-admin{background:var(--purple-lt);color:var(--purple);border:1px solid rgba(124,58,237,.2);}.badge-seller{background:var(--accent-lt);color:var(--accent);border:1px solid rgba(37,99,235,.2);}.badge-manager{background:var(--amber-lt);color:var(--amber);border:1px solid rgba(217,119,6,.2);}
+.section-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:20px;box-shadow:var(--shadow);overflow:hidden;}.section-hdr{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;}.section-hdr-title{font-size:.85rem;font-weight:700;color:var(--text);}.section-body{padding:20px;}
+.sale-tbl{width:100%;border-collapse:collapse;}.sale-tbl th{color:var(--muted);font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;padding:8px 10px;border-bottom:1px solid var(--border);font-weight:700;}.sale-tbl td{padding:6px 8px;}.row-total{font-family:var(--mono);font-weight:600;color:var(--accent2);font-size:.88rem;}.chart-wrap{position:relative;height:200px;}
+.report-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:16px;}.report-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:12px;text-decoration:none;color:var(--text);}.report-card:hover{border-color:var(--accent);background:var(--accent-lt);transform:translateY(-1px);box-shadow:var(--shadow-md);}.rc-icon{font-size:1.5rem;}.rc-title{font-weight:600;font-size:.85rem;}.rc-sub{font-size:.73rem;color:var(--muted);margin-top:2px;}
+.avatar-placeholder{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#2563EB,#7C3AED);display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;color:#fff;text-transform:uppercase;flex-shrink:0;}.photo-upload-area{border:2px dashed var(--border);border-radius:var(--radius);padding:20px;text-align:center;cursor:pointer;transition:all .2s;background:var(--surface2);}.photo-upload-area:hover{border-color:var(--accent);background:var(--accent-lt);}.photo-preview{width:80px;height:80px;border-radius:50%;object-fit:cover;border:3px solid var(--border);}
+.prod-img-slot{border:2px dashed var(--border);border-radius:var(--radius-sm);padding:10px;text-align:center;cursor:pointer;transition:all .2s;background:var(--surface2);min-height:120px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;}.prod-img-slot:hover{border-color:var(--accent);background:var(--accent-lt);}.prod-img-slot img{max-width:100%;max-height:90px;border-radius:6px;object-fit:cover;}
+/* Modal fallback for when the Bootstrap CDN does not answer -- see openModal() in shell.js.
+   Everything here is scoped to .bo-fb, so a page that DID load Bootstrap is untouched. */
+.modal.bo-fb{display:block;position:fixed;inset:0;z-index:1080;overflow-y:auto;background:rgba(0,0,0,.55);}
+.modal.bo-fb .modal-dialog{margin:5vh auto;max-width:560px;width:92%;}
+.modal.bo-fb .modal-content{background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 20px 60px rgba(0,0,0,.45);display:flex;flex-direction:column;}
+.modal.bo-fb .modal-header,.modal.bo-fb .modal-footer{padding:12px 16px;display:flex;align-items:center;gap:10px;}
+.modal.bo-fb .modal-header{border-bottom:1px solid var(--border);}
+.modal.bo-fb .modal-footer{border-top:1px solid var(--border);justify-content:flex-end;}
+.modal.bo-fb .modal-title{margin:0;font-size:1rem;font-weight:700;flex:1;}
+.modal.bo-fb .modal-body{padding:16px;overflow-y:auto;max-height:72vh;}
+.modal.bo-fb .btn-close{border:0;background:transparent;color:var(--text2);font-size:1.2rem;cursor:pointer;line-height:1;}
+.modal.bo-fb .btn-close::before{content:'\2715';}
+body.bo-fb-open{overflow:hidden;}
+.prod-img-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+.prod-img-row .prod-img-slot{position:relative;min-height:96px;padding:6px;}
+.prod-img-row .prod-img-slot img{max-height:72px;}
+.prod-img-x{position:absolute;top:4px;right:4px;border:0;border-radius:50%;width:22px;height:22px;line-height:1;background:rgba(0,0,0,.55);color:#fff;font-size:.72rem;cursor:pointer;}
+.pd-imgs{display:flex;gap:8px;overflow-x:auto;}
+#hintToast{position:fixed;bottom:22px;right:22px;max-width:340px;min-width:260px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow-md);z-index:8888;display:flex;align-items:flex-start;gap:10px;font-size:.83rem;opacity:0;transform:translateY(14px) scale(.97);transition:all .35s ease;pointer-events:none;}#hintToast.show{opacity:1;transform:translateY(0) scale(1);}#hintToast .hint-icon{font-size:1rem;flex-shrink:0;margin-top:1px;}#hintToast .hint-text{color:var(--text);line-height:1.5;}
+.modal-content{background:var(--surface) !important;border:1px solid var(--border) !important;border-radius:16px !important;color:var(--text);box-shadow:var(--shadow-md) !important;}.modal-header{border-bottom:1px solid var(--border) !important;padding:18px 22px 14px !important;}.modal-title{font-weight:800 !important;font-size:.95rem !important;color:var(--text) !important;}.modal-body{padding:18px 22px !important;max-height:70vh;overflow-y:auto;}.modal-footer{border-top:1px solid var(--border) !important;padding:12px 22px !important;gap:8px;}.btn-close{filter:var(--close-filter,none) !important;}[data-theme="dark"] .btn-close{filter:invert(1) !important;}
+.perm-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;}.perm-item{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;display:flex;align-items:center;justify-content:space-between;}.perm-label{font-size:.82rem;font-weight:500;color:var(--text);}.perm-sub{font-size:.72rem;color:var(--muted);margin-top:2px;}
+.suggestion-box{background:linear-gradient(135deg,#EEF4FF,#F5F3FF);border:1px solid rgba(37,99,235,.2);border-radius:var(--radius);padding:20px;}[data-theme="dark"] .suggestion-box{background:linear-gradient(135deg,rgba(37,99,235,.08),rgba(124,58,237,.06));}
+.search-wrap{position:relative;margin-bottom:14px;}.search-wrap .form-control{padding-left:38px;}.search-ico{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:.9rem;pointer-events:none;}
+.mgr-report-card{background:var(--surface2);border:2px solid var(--border);border-radius:var(--radius);padding:20px 18px;cursor:pointer;transition:all .2s;text-align:center;}.mgr-report-card:hover,.mgr-report-card.selected{border-color:var(--accent);background:var(--accent-lt);}.mgr-report-card .mrc-icon{font-size:2rem;margin-bottom:8px;}.mgr-report-card .mrc-title{font-weight:700;font-size:.9rem;color:var(--text);}.mgr-report-card .mrc-sub{font-size:.75rem;color:var(--muted);margin-top:4px;}
+.email-btn{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px 16px;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:12px;text-align:left;width:100%;color:var(--text);}.email-btn:hover{border-color:var(--accent);background:var(--accent-lt);}.email-btn .eb-ico{font-size:1.3rem;}.email-btn .eb-t{font-weight:600;font-size:.85rem;}.email-btn .eb-s{font-size:.73rem;color:var(--muted);margin-top:2px;}
+.app-footer{padding:12px 30px;border-top:1px solid var(--border);font-size:.73rem;color:var(--muted);text-align:center;background:var(--surface);}.currency-pill{background:var(--accent-lt);color:var(--accent);border:1px solid rgba(37,99,235,.2);border-radius:20px;padding:2px 8px;font-size:.72rem;font-weight:600;font-family:var(--mono);}
+.pd-imgs{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px;}.pd-img{width:100%;aspect-ratio:1/1;border-radius:12px;object-fit:cover;background:var(--surface2);border:1px solid var(--border);}.pd-img-ph{width:100%;aspect-ratio:1/1;border-radius:12px;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:2.5rem;color:var(--muted);}
+/* ============ MOBILE SIDEBAR (HAMBURGER) ============ */
+.mobile-menu-btn{display:none;width:36px;height:36px;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text2);cursor:pointer;font-size:1.1rem;}
+@media(max-width:768px){
+  .sidebar{display:block !important;position:fixed;top:var(--topbar-h);left:0;bottom:0;width:var(--sidebar-w);z-index:200;background:var(--surface);border-right:1px solid var(--border);box-shadow:var(--shadow-md);transform:translateX(-100%);transition:transform 0.25s ease;overflow-y:auto;}
+  .sidebar.open{transform:translateX(0);}
+  .mobile-menu-btn{display:flex !important;}
+  .sidebar-overlay{display:none;position:fixed;inset:0;top:var(--topbar-h);background:rgba(0,0,0,0.4);z-index:199;}
+  .sidebar-overlay.show{display:block;}
+}
+/* ===== PAYMENT RESTRICTION (read-only lock) ===== */
+#restrictionBanner,#restrictionOverlay{display:none;}
+body.bo-restricted #restrictionBanner{display:block;position:fixed;top:var(--topbar-h);left:0;right:0;z-index:250;background:linear-gradient(90deg,#B45309,#D97706);color:#fff;padding:11px 18px;font-size:.85rem;font-weight:600;box-shadow:0 2px 10px rgba(0,0,0,.18);}
+body.bo-restricted #restrictionBanner .rb-inner{display:flex;align-items:center;gap:10px;max-width:1180px;margin:0 auto;line-height:1.45;}
+body.bo-restricted #restrictionBanner .rb-lock{font-size:1.15rem;flex-shrink:0;}
+body.bo-restricted #restrictionOverlay{display:block;position:fixed;top:var(--topbar-h);left:0;right:0;bottom:0;z-index:240;background:rgba(13,17,23,.35);cursor:not-allowed;}
+body.bo-restricted .app-layout{filter:grayscale(.35);opacity:.7;pointer-events:none;user-select:none;overflow:hidden;}
+body.bo-restricted .topbar{position:relative;z-index:260;}
+</style>
+
+<!-- ==================== MAIN APP ==================== -->
+<div id="mainApp" class="hidden" style="display:flex;flex-direction:column;height:100vh;">
+  <div class="topbar">
+    <div class="tb-left"><button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu">☰</button><div class="tb-brand"><div class="tb-logo"><svg viewBox="0 0 18 18" fill="none"><path d="M2 13V8L9 3L16 8V13H2Z" fill="rgba(255,255,255,0.95)"/><rect x="7" y="9" width="4" height="4" rx=".5" fill="#1E3A8A"/><circle cx="9" cy="5.5" r="1.3" fill="#FCD34D"/></svg></div><span class="tb-name">Samaritan Industrial</span></div><span class="tb-vendor-badge" id="displayVendor"></span></div>
+    <div class="tb-right"><div class="tb-user"><div class="tb-avatar" id="topbarAvatar">U</div><div class="tb-user-info" style="display:none;" id="tbUserInfo"><div class="tb-user-name" id="displayName"></div><div class="tb-user-role" id="displayRole"></div></div></div><button class="icon-btn" id="viewToggleBtn" onclick="toggleView()" title="Mtazamo wa kompyuta / Desktop view">🖥️</button><button class="icon-btn" id="langToggleBtn" onclick="toggleLang()" title="Lugha ya vidokezo / Tips language (EN/SW)" style="font-weight:800;font-size:.72rem;">EN</button><button class="icon-btn" id="themeToggleBtn" onclick="toggleTheme()" title="Toggle theme">🌙</button><a href="#" class="icon-btn" onclick="showSuggestionBox();return false;" title="Feedback via WhatsApp">💬</a><button class="icon-btn" onclick="globalRefresh()" title="Refresh / sync data">↻</button><button class="icon-btn" onclick="logout()" title="Logout" style="border-color:rgba(225,29,72,.3);color:var(--rose);">⏻</button></div>
+  </div>
+  <div class="app-layout">
+    <nav class="sidebar" id="sidebar">
+      <div class="nav-group-label" data-nav-group="main">Main</div>
+      <button class="nav-item active" id="nav-dashboard" data-roles="seller admin assistant-admin manager assistant-manager" onclick="switchTab('dashboard',this)"><span class="ni">📊</span>Dashboard</button>
+      <button class="nav-item" id="nav-sale" data-roles="seller admin assistant-admin" onclick="switchTab('sale',this)"><span class="ni">🛒</span>Sell</button>
+      <button class="nav-item" id="nav-lendings" data-roles="seller admin assistant-admin manager assistant-manager" onclick="switchTab('lendings',this)"><span class="ni">📋</span>Lendings</button>
+      <div class="nav-group-label" data-roles="admin assistant-admin">Inventory</div>
+      <button class="nav-item" id="nav-products" data-roles="admin assistant-admin" onclick="switchTab('products',this)"><span class="ni">📦</span>Products</button>
+      <button class="nav-item" id="nav-stock" data-roles="admin assistant-admin" onclick="switchTab('stock',this)"><span class="ni">🏬</span>Stock &amp; Shops</button>
+      <button class="nav-item" id="nav-cash" data-roles="admin assistant-admin" onclick="switchTab('cash',this)"><span class="ni">💰</span>Cash</button>
+      <div class="nav-group-label" data-roles="admin assistant-admin manager assistant-manager">People</div>
+      <button class="nav-item" id="nav-users" data-roles="admin assistant-admin manager assistant-manager" onclick="switchTab('users',this)"><span class="ni">👥</span>Users</button>
+      <div class="nav-group-label" data-roles="admin assistant-admin seller">Export</div>
+      <button class="nav-item" id="nav-reports" data-roles="admin assistant-admin seller" onclick="switchTab('reports',this)"><span class="ni">📥</span>Reports</button>
+      <div class="nav-group-label" data-roles="manager assistant-manager">System</div>
+      <button class="nav-item" id="nav-manager" data-roles="manager assistant-manager" onclick="switchTab('manager',this)"><span class="ni">🏢</span>Management</button>
+      <button class="nav-item" id="nav-mgrreports" data-roles="manager assistant-manager" onclick="switchTab('mgrreports',this)"><span class="ni">📥</span>Reports</button>
+      <button class="nav-item" id="nav-settings" data-roles="manager assistant-manager" onclick="switchTab('settings',this)"><span class="ni">⚙️</span>Settings</button>
+      <div class="sidebar-footer"><button class="nav-item" id="nav-account" onclick="switchTab('account',this)"><span class="ni">🔐</span>My Account</button><div style="font-size:.68rem;color:var(--muted);text-align:center;margin-top:6px;">Samaritan Techs</div></div>
+    </nav>
+    <main class="main-content" id="mainScroll">
+      <div id="tab-dashboard"><div class="page-hdr"><div><div class="page-title">Dashboard</div><div class="page-sub" id="dashSubLine">Business overview</div></div></div><div id="dashboardContent"><div class="empty">Loading…</div></div></div>
+      <div id="tab-sale" class="hidden"><div class="page-hdr"><div><div class="page-title">New Sale</div><div class="page-sub">Record a transaction</div></div></div><div id="saleContent"></div></div>
+      <div id="tab-lendings" class="hidden"><div class="page-hdr"><div><div class="page-title">Lendings</div><div class="page-sub">Record and track borrowed items</div></div></div><div id="lendingsContent"></div></div>
+      <div id="tab-products" class="hidden"><div class="page-hdr"><div><div class="page-title">Products</div><div class="page-sub">Manage your inventory &amp; marketplace photos</div></div></div><div id="productsContent"></div></div>
+      <div id="tab-stock" class="hidden"><div class="page-hdr"><div><div class="page-title">Stock &amp; Shops</div><div class="page-sub">Branches, IMEI units, transfers, movements &amp; financing partners</div></div></div><div id="stockContent"></div></div>
+      <div id="tab-users" class="hidden"><div class="page-hdr"><div><div class="page-title">Users</div><div class="page-sub">Manage team access &amp; business profile</div></div></div><div id="usersContent"></div></div>
+      <div id="tab-cash" class="hidden"><div class="page-hdr"><div><div class="page-title">Cash Tracking</div><div class="page-sub">Record payments from sellers</div></div></div><div id="cashContent"></div></div>
+      <div id="tab-reports" class="hidden"><div class="page-hdr"><div><div class="page-title">Reports</div><div class="page-sub">Download business reports</div></div></div><div id="reportsContent"></div></div>
+      <div id="tab-manager" class="hidden"><div class="page-hdr"><div><div class="page-title">Management</div><div class="page-sub">Businesses, email center &amp; marketplace analytics</div></div></div><div id="managerContent"></div></div>
+      <div id="tab-mgrreports" class="hidden"><div class="page-hdr"><div><div class="page-title">Manager Reports</div><div class="page-sub">Download sales, lending, stock &amp; commission reports</div></div></div><div id="mgrReportsContent"></div></div>
+      <div id="tab-settings" class="hidden"><div class="page-hdr"><div><div class="page-title">Settings</div><div class="page-sub">System configuration</div></div></div><div id="settingsContent"></div></div>
+      <div id="tab-account" class="hidden"><div class="page-hdr"><div><div class="page-title">My Account</div><div class="page-sub">Password &amp; profile photo</div></div></div><div id="accountContent"></div></div>
+    </main>
+  </div>
+  <div class="app-footer">&copy; <span id="footerYear"></span> Samaritan Techs · Samaritan Industrial — Smart business management &amp; marketplace</div>
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeMobileSidebar()"></div>
+  <div id="restrictionOverlay"></div>
+  <div id="restrictionBanner"><div class="rb-inner"><span class="rb-lock">&#128274;</span><span id="restrictionBannerText">This account is currently restricted. Please settle your balance to restore full access.</span></div></div>
+</div>
+
+<!-- ==================== MODALS ==================== -->
+<div class="modal fade" id="detailModal" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="detailModalTitle"></h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body" id="detailModalBody"></div></div></div></div>
+<div class="modal fade" id="productDetailModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
+  <div class="modal-header"><h5 class="modal-title" id="pdTitle">Product</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body" id="pdBody"></div>
+</div></div></div>
+<div class="modal fade" id="suggestionModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">💬 Feedback via WhatsApp</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="suggestion-box" style="margin-bottom:16px;"><div style="font-size:.85rem;color:var(--text2);line-height:1.6;">Have an idea or found a bug? Send us a WhatsApp message — we build based on your feedback!</div></div><div class="form-group" style="margin-bottom:12px;"><label class="form-label">Topic</label><select id="suggestionCat" class="form-select"><option value="Feature Request">💡 Feature Request</option><option value="Bug Report">🐛 Bug Report</option><option value="Design Feedback">🎨 Design Feedback</option><option value="Performance Issue">⚡ Performance Issue</option><option value="General">💬 General</option></select></div><div class="form-group"><label class="form-label">Your Message</label><textarea id="suggestionMsg" class="form-control" rows="4" placeholder="Type your message…" style="resize:vertical;"></textarea></div></div><div class="modal-footer"><button class="btn-secondary" data-bs-dismiss="modal">Close</button><button class="btn-primary" onclick="sendSuggestionWhatsApp()">📲 Open WhatsApp</button></div></div></div></div>
+<div class="modal fade" id="logoModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Upload Business Logo</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="photo-upload-area" onclick="document.getElementById('logoFileInput').click()"><img id="logoPreview" style="max-height:80px;max-width:200px;object-fit:contain;border-radius:8px;display:none;margin:0 auto 8px;" src="" alt=""><div id="logoPlaceholder" style="color:var(--muted);font-size:.82rem;">🖼️ Click to upload logo (JPG / PNG)</div></div><input type="file" id="logoFileInput" accept="image/*" style="display:none;"><div id="logoUploadResult" style="margin-top:10px;"></div></div><div class="modal-footer"><button class="btn-secondary" data-bs-dismiss="modal">Cancel</button><button class="btn-primary" id="logoUploadBtn">Upload Logo</button></div></div></div></div>
+<div class="modal fade" id="termsModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Terms &amp; Conditions</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body" style="font-size:.85rem;line-height:1.7;color:var(--text2);"><p><strong style="color:var(--text);">Your Data Belongs to You</strong><br>Everything you enter is your property. Samaritan Techs never sells or shares your data.</p><p><strong style="color:var(--text);">No Data Loss, Ever</strong><br>Your information is continuously saved. Download a copy anytime via Reports.</p><p><strong style="color:var(--text);">Marketplace Visibility</strong><br>Your active products and business contact may be shown publicly in the marketplace to help customers find you. You control what is active.</p><p><strong style="color:var(--text);">You Are in Control</strong><br>You decide who can sell, manage, or view reports. Revoke access at any time.</p><p><strong style="color:var(--text);">Responsibility</strong><br>Keep your password safe. You are responsible for all actions under your credentials.</p><p style="text-align:center;margin-top:16px;font-size:.75rem;">&copy; <span id="currentYear"></span> Samaritan Techs.</p></div><div class="modal-footer"><button class="btn-secondary" data-bs-dismiss="modal">Close</button></div></div></div></div>
+<div class="modal fade" id="boModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" id="boModalDialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="boModalTitle"></h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body" id="boModalBody"></div><div class="modal-footer" id="boModalFooter"></div></div></div></div>
+<div id="hintToast"><span class="hint-icon">💡</span><span class="hint-text" id="hintText"></span></div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="/bo/shell.js"></script>
+<script src="/bo/dashboard.js"></script>
+<script src="/bo/sell.js"></script>
+<script src="/bo/lendings.js"></script>
+<script src="/bo/products.js"></script>
+<script src="/bo/stock.js"></script>
+<script src="/bo/users.js"></script>
+<script src="/bo/cash.js"></script>
+<script src="/bo/reports.js"></script>
+<script src="/bo/manager.js"></script>
+<script src="/bo/settings.js"></script>
+<script src="/bo/account.js"></script>
+<script>BO.boot();</script>
+</body>
+</html>

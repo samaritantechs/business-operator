@@ -1,0 +1,8 @@
+node_modules/
+.env
+.env.local
+.vercel/
+legacy/data/
+
+# the browser smoke writes screenshots here, and installs playwright ad hoc
+tools/.smoke/
