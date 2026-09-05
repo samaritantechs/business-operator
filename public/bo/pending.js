@@ -26,7 +26,13 @@ window.BOHold = (function () {
       + '<div class="form-group"><label class="form-label">Phone</label><input class="form-control" id="hdPhone" inputmode="tel" autocomplete="off"></div>'
       + '<div class="form-group"><label class="form-label">Deposit left</label><input type="number" class="form-control" id="hdDeposit" value="0" min="0"></div>'
       + '<div class="form-group"><label class="form-label">Holding until</label><input type="date" class="form-control" id="hdUntil"></div>'
-      + '<div class="form-group"><label class="form-label">Paying by (if they said)</label><select class="form-select" id="hdPay"><option value="">Decide at collection</option><option value="Cash">💵 Cash</option><option value="Lipa Number">📱 Lipa Number</option><option value="Credit">🏦 Credit (financing)</option></select></div>'
+      + '<div class="form-group"><label class="form-label">Paying by (if they said)</label><select class="form-select" id="hdPay" onchange="BOHold.payChanged()"><option value="">Decide at collection</option><option value="Cash">💵 Cash</option><option value="Lipa Number">📱 Lipa Number</option><option value="Credit">🏦 Credit (financing)</option></select></div>'
+      /* A credit sale needs the partner who will pay the shop, and the hold form offered Credit
+         without ever asking for one -- so the hold could be taken and then NEVER collected:
+         recordSale refuses it, the rollback puts the goods back on hold, and every retry fails
+         the same way. Asked here, and asked again at collection if it is still missing. */
+      + '<div class="form-group" id="hdPartnerWrap" style="display:none;"><label class="form-label">Financing partner</label><select class="form-select" id="hdPartner"><option value="">Choose partner…</option>'
+        + opts.partners.map(function (p) { return '<option value="' + esc(p.id) + '">' + esc(p.name) + '</option>'; }).join('') + '</select></div>'
       + shopSelect('hdBranch')
       + '<div class="form-group" style="grid-column:span 2;"><label class="form-label">Notes</label><input class="form-control" id="hdNotes" placeholder="Anything the person handing it over should know"></div>'
       + '</div>';
@@ -123,8 +129,10 @@ window.BOHold = (function () {
     if (!name) { alert("Enter the customer's name — held stock with nobody's name on it is just missing stock."); document.getElementById('hdName').focus(); return; }
 
     var btn = document.getElementById('hdSubmitBtn'); btn.disabled = true;
+    if (g('hdPay') === 'Credit' && !g('hdPartner')) { alert('A credit hold needs the financing partner who will pay the shop.'); return; }
     var args = { items: items, customer_name: name, customer_phone: g('hdPhone').trim(), deposit: Number(g('hdDeposit') || 0),
       hold_until: g('hdUntil'), payment_method: g('hdPay'), notes: g('hdNotes').trim() };
+    if (g('hdPartner')) args.financing_partner_id = g('hdPartner');
     if (g('hdBranch')) args.branch_id = g('hdBranch');
     srv('createPendingSale', args).then(function (r) {
       btn.disabled = false; showToast(r.message, '🔖'); filter = 'held'; load();
@@ -154,36 +162,69 @@ window.BOHold = (function () {
     }
     if (open) {
       h += '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center;">'
-        + '<select class="form-select" style="width:auto;" id="pay_' + esc(hd.id) + '"><option value="">' + (hd.payment_method ? esc(hd.payment_method) + ' (as agreed)' : 'Paying by…') + '</option><option value="Cash">💵 Cash</option><option value="Lipa Number">📱 Lipa Number</option><option value="Credit">🏦 Credit</option></select>'
-        + '<button class="btn-sm-success" onclick="BOHold.collect(\'' + BO.jsq(hd.id) + '\')">✅ They collected it</button>'
-        + '<button class="btn-sm-warning" onclick="BOHold.release(\'' + BO.jsq(hd.id) + '\',\'' + BO.jsq(hd.customer_name) + '\',' + (hd.overdue ? 'true' : 'false') + ')">↩︎ Put it back</button>'
+        + '<select class="form-select" style="width:auto;" id="pay_' + esc(hd.id) + '" onchange="BOHold.collectPayChanged(\'' + BO.jsq(hd.id) + '\')"><option value="">' + (hd.payment_method ? esc(hd.payment_method) + ' (as agreed)' : 'Paying by…') + '</option><option value="Cash">💵 Cash</option><option value="Lipa Number">📱 Lipa Number</option><option value="Credit">🏦 Credit</option></select>'
+        + '<select class="form-select" style="width:auto;' + (hd.payment_method === 'Credit' && !hd.financing_partner_id ? '' : 'display:none;') + '" id="pt_' + esc(hd.id) + '"><option value="">Financing partner…</option>'
+          + opts.partners.map(function (p) { return '<option value="' + esc(p.id) + '"' + (hd.financing_partner_id === p.id ? ' selected' : '') + '>' + esc(p.name) + '</option>'; }).join('') + '</select>'
+        + '<button class="btn-sm-success" onclick="BOHold.collect(\'' + BO.jsq(hd.id) + '\',this)">✅ They collected it</button>'
+        + '<button class="btn-sm-warning" onclick="BOHold.release(\'' + BO.jsq(hd.id) + '\',\'' + BO.jsq(hd.customer_name) + '\',' + (hd.overdue ? 'true' : 'false') + ',this)">↩︎ Put it back</button>'
         + '</div>';
     }
     return h + '</div>';
   }
 
-  function collect(id) {
-    var sel = document.getElementById('pay_' + id);
+  /* The server now refuses a second collection outright, but the button still has to stop trying:
+     on a slow connection a seller taps it twice and the second tap is a request that can only end
+     in an error message they did not earn. Disabled the moment it is pressed, like create() does. */
+  function collect(id, btn) {
+    if (btn) { if (btn.disabled) return; btn.disabled = true; }
+    var done = function () { if (btn) btn.disabled = false; };
+    var sel = document.getElementById('pay_' + id), pt = document.getElementById('pt_' + id);
     var args = { id: id };
     if (sel && sel.value) args.payment_method = sel.value;
+    if (pt && pt.value) args.financing_partner_id = pt.value;
+    var payingOnCredit = (sel && sel.value === 'Credit') || (!(sel && sel.value) && findHold(id) && findHold(id).payment_method === 'Credit');
+    if (payingOnCredit && !(pt && pt.value) && !(findHold(id) || {}).financing_partner_id) {
+      if (btn) btn.disabled = false;
+      alert('Which financing partner is paying for this one?');
+      if (pt) { pt.style.display = ''; pt.focus(); }
+      return;
+    }
     srv('completePendingSale', args).then(function (r) {
       showToast(r.message, '✅');
       if (r.balance_due > 0 && r.deposit > 0) alert('Take ' + fmtFull(r.balance_due) + ' ' + currency + ' now (' + fmtFull(r.deposit) + ' was already left as a deposit).');
       load(); BO.reload('dashboard'); BO.reload('products'); BO.reload('stock');
       BORcpt.open({ group_id: r.group_id });
-    }).catch(BO.fail);
+    }).catch(function (e) { done(); BO.fail(e); });
   }
-  function release(id, who, overdue) {
+  function release(id, who, overdue, btn) {
+    if (btn) { if (btn.disabled) return; btn.disabled = true; }
     var reason = prompt('Putting the goods back on the shelf. Why is ' + who + "'s hold ending?");
-    if (reason == null) return;
+    if (reason == null) { if (btn) btn.disabled = false; return; }
     srv('cancelPendingSale', { id: id, reason: reason.trim(), expired: !!overdue }).then(function (r) {
       showToast(r.message, '↩︎');
       load(); BO.reload('sale'); BO.reload('products'); BO.reload('stock'); BO.reload('dashboard');
-    }).catch(BO.fail);
+    }).catch(function (e) { if (btn) btn.disabled = false; BO.fail(e); });
+  }
+  function findHold(id) { for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i]; return null; }
+  function payChanged() {
+    var w = document.getElementById('hdPartnerWrap');
+    if (w) w.style.display = g('hdPay') === 'Credit' ? '' : 'none';
+  }
+  function collectPayChanged(id) {
+    var sel = document.getElementById('pay_' + id), pt = document.getElementById('pt_' + id);
+    if (!sel || !pt) return;
+    var hd = findHold(id) || {};
+    var credit = sel.value === 'Credit' || (!sel.value && hd.payment_method === 'Credit');
+    pt.style.display = credit ? '' : 'none';
   }
   function setFilter(v) { filter = v; load(); }
   function g(id) { var e = document.getElementById(id); return e ? e.value : ''; }
 
-  BO.tabs.holds = { load: load, sync: load };
-  return { load: load, addRow: addRow, pick: pick, unitToggle: unitToggle, calc: calc, create: create, collect: collect, release: release, setFilter: setFilter };
+  /* NO sync. silentSync() calls it every autoSyncSeconds (120 by default) and this load() issues
+     productOptions -- one of the two paths rule 1 protects -- so a seller who leaves the tab open
+     hits the till's own payload every two minutes for as long as it is up. And load() ends in
+     el.innerHTML, so the tick would wipe a half-typed hold: customer, phone, deposit, every line.
+     The Sell screen needs the same payload and deliberately registers no sync either. */
+  BO.tabs.holds = { load: load };
+  return { load: load, addRow: addRow, pick: pick, unitToggle: unitToggle, calc: calc, create: create, collect: collect, release: release, setFilter: setFilter, payChanged: payChanged, collectPayChanged: collectPayChanged };
 })();

@@ -383,3 +383,25 @@ test('adjustStock: the ledger says which way a correction went', async () => {
   assert.equal(net, 0);
   assert.equal(product(db, 'P3').stock, 40);
 });
+
+test('a handset held for a customer cannot be edited back into stock', async () => {
+  /* 'reserved' was added to UNIT_STATUSES for the Holds screen and this guard was not extended to
+     it, while the Edit dialog offered only "In stock" and "Lost" -- so a reserved unit
+     pre-selected "In stock" and an admin correcting a typo in an IMEI silently released
+     somebody's phone onto the shelf with the hold still claiming it. */
+  const { FN: HOLDS } = await import('../api/_lib/bo/pending.js');
+  const db = bookDb();
+  const adm = userOf(richBook(), 'ADM1');
+  await HOLDS.createPendingSale(db, adm, { items: [{ product_id: 'P1', qty: 1, unit_ids: ['U1'] }], customer_name: 'Neema' }, NOW);
+
+  const held = db._dump('product_units').find(u => u.id === 'U1');
+  assert.equal(held.status, 'reserved');
+  const stock = db._dump('products').find(p => p.id === 'P1').stock;
+
+  await assert.rejects(
+    FN.updateUnit(db, adm, { unit_id: 'U1', imei: '350000000000999', status: 'in_stock' }, NOW),
+    e => { assert.equal(e.status, 400); assert.match(e.message, /held for a customer|Holds screen/i); return true; });
+
+  assert.equal(db._dump('product_units').find(u => u.id === 'U1').status, 'reserved', 'still held');
+  assert.equal(db._dump('products').find(p => p.id === 'P1').stock, stock, 'and the count did not move');
+});

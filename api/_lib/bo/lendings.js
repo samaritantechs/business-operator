@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { rows, one, insertOne, insertMany, update, remove, num, int, money, fmtMoney, text, mustText, iso,
   badRequest, notFound, vendorScope, requireVendorUser, requireSameVendor,
-  getSetting, currencyOf, vendorById, fillTemplate, PRODUCT_COLS } from './_shared.js';
+  getSetting, currencyOf, vendorById, fillTemplate, sel, PRODUCT_COLS } from './_shared.js';
 import { requireAdmin } from '../auth.js';
 import { changeStock, claimUnits } from './stock.js';
 import { sendEmail, signature } from '../email.js';
@@ -102,7 +102,7 @@ const itemLine = it => int(it.qty) + '× ' + it.product_name + (it.imei ? ' [' +
     the branch it sits in. Cost: 1 products read + 1 units read (when any) + changeStock per item. */
 async function restoreItems(db, user, lending, items, note, nowMs) {
   if (!items.length) return;
-  const products = await rows(db, 'products', q => q.select(PRODUCT_COLS).in('id', [...new Set(items.map(i => i.product_id).filter(Boolean))]));
+  const products = await rows(db, 'products', q => q.select(sel('products', PRODUCT_COLS)).in('id', [...new Set(items.map(i => i.product_id).filter(Boolean))]));
   const unitIds = items.map(i => i.unit_id).filter(Boolean);
   const units = unitIds.length ? await rows(db, 'product_units', q => q.select(UNIT_COLS).in('id', unitIds)) : [];
   for (const it of items) {
@@ -186,7 +186,7 @@ export const FN = {
     /* Every line is checked before anything is written: the old app decremented as it went and
        left half a lending behind when line three failed. Stock is checked cumulatively so the
        same product on two lines cannot each pass against the same 40 pieces. */
-    const products = await rows(db, 'products', q => q.select(PRODUCT_COLS).in('id', [...new Set(items.map(i => String(i && i.product_id || '')))]).eq('vendor_id', vendorId));
+    const products = await rows(db, 'products', q => q.select(sel('products', PRODUCT_COLS)).in('id', [...new Set(items.map(i => String(i && i.product_id || '')))]).eq('vendor_id', vendorId));
     const need = new Map(), claimed = new Set(), lines = [];
     for (const it of items) {
       const product = products.find(p => String(p.id) === String(it && it.product_id));

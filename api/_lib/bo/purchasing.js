@@ -1,5 +1,5 @@
 import { rows, rowsAll, one, insertOne, insertMany, update, remove, num, int, money, fmtMoney, text, mustText, iso,
-  badRequest, notFound, vendorScope, requireVendorUser, currencyOf, PRODUCT_COLS } from './_shared.js';
+  badRequest, notFound, vendorScope, requireVendorUser, currencyOf, sel, requireColumn, PRODUCT_COLS } from './_shared.js';
 import { requireAdmin } from '../auth.js';
 import { changeStock } from './stock.js';
 import { mustBranch, writeVendor } from './stockops.js';
@@ -77,7 +77,7 @@ async function loadOrders(db, { vendorId, status, id, limit = 200 }) {
 /** The order, or a clear "not yours". */
 async function mustOrder(db, vendorId, id) {
   const [po] = await loadOrders(db, { vendorId, id: mustText(id, 'Purchase order') });
-  if (!po) throw notFound('That purchase order is not one of yours.');
+  if (!po) throw notFound('Oda hiyo si ya biashara yako. / That purchase order is not one of yours.');
   return po;
 }
 
@@ -86,9 +86,9 @@ export const FN = {
   purchaseOrders: async (db, user, args) => {
     requireAdmin(user);
     const vendorId = vendorScope(user, args);
-    if (!vendorId) throw badRequest('Pick a business to see its purchase orders.');
+    if (!vendorId) throw badRequest('Chagua biashara kuona oda zake. / Pick a business to see its purchase orders.');
     const status = text(args.status);
-    if (status && !['ordered', 'received', 'cancelled'].includes(status)) throw badRequest('Status must be ordered, received or cancelled.');
+    if (status && !['ordered', 'received', 'cancelled'].includes(status)) throw badRequest('Hali iwe ordered, received au cancelled. / Status must be ordered, received or cancelled.');
     return { rows: await loadOrders(db, { vendorId, status }), currency: currencyOf(user.vendor) };
   },
 
@@ -98,21 +98,26 @@ export const FN = {
     requireAdmin(user);
     const vendor = await writeVendor(db, user, args);
     const items = Array.isArray(args.items) ? args.items : [];
-    if (!items.length) throw badRequest('Add at least one product to the order.');
+    if (!items.length) throw badRequest('Ongeza angalau bidhaa moja kwenye oda. / Add at least one product to the order.');
     const branch = await mustBranch(db, vendor.id, args.branch_id);
 
     /* Every line is checked before anything is written, the same discipline recordSale keeps:
        a half-written order is worse than none, because somebody will receive it. */
     const wanted = [...new Set(items.map(i => String((i && i.product_id) || '')))].filter(Boolean);
-    const products = wanted.length ? await rows(db, 'products', q => q.select(PRODUCT_COLS).in('id', wanted).eq('vendor_id', vendor.id).limit(500)) : [];
+    const products = wanted.length ? await rows(db, 'products', q => q.select(sel('products', PRODUCT_COLS)).in('id', wanted).eq('vendor_id', vendor.id).limit(500)) : [];
     const lines = [];
     for (const it of items) {
       const p = products.find(x => String(x.id) === String(it && it.product_id));
-      if (!p) throw notFound('One of those products is not in your catalogue.');
+      if (!p) throw notFound('Mojawapo ya bidhaa hizo haiko kwenye orodha yako. / One of those products is not in your catalogue.');
+      /* addStock refuses to restock a deactivated product -- "activate it first" -- and a purchase
+         order is a restock with paperwork, so it must refuse too. Without this a delivery put
+         forty units into a product that appears on no screen: not in the catalogue, not in the
+         marketplace, not sellable, and not in the stock value. */
+      if (!p.active) throw badRequest('"' + p.name + '" haiko hai -- iwashe kwanza. / "' + p.name + '" is not active — activate it before ordering more.');
       const qty = int(it.qty);
-      if (qty < 1) throw badRequest('Order at least 1 of "' + p.name + '".');
+      if (qty < 1) throw badRequest('Agiza angalau 1 ya "' + p.name + '". / Order at least 1 of "' + p.name + '".');
       const unitCost = money(it.unit_cost === undefined || it.unit_cost === null || it.unit_cost === '' ? p.cost_price : it.unit_cost);
-      if (unitCost < 0) throw badRequest('Cost for "' + p.name + '" cannot be negative.');
+      if (unitCost < 0) throw badRequest('Gharama ya "' + p.name + '" haiwezi kuwa hasi. / Cost for "' + p.name + '" cannot be negative.');
       lines.push({ product: p, qty, unitCost });
     }
 
@@ -139,7 +144,7 @@ export const FN = {
     requireAdmin(user);
     const vendorId = requireVendorUser(user);
     const po = await mustOrder(db, vendorId, args.id);
-    if (po.status !== 'ordered') throw badRequest('That order is already ' + po.status + '.');
+    if (po.status !== 'ordered') throw badRequest('Oda hiyo tayari ni ' + po.status + '. / That order is already ' + po.status + '.');
 
     const asked = Array.isArray(args.receipts) ? args.receipts : null;
     /* No list at all means "everything that is still owed arrived", which is the common case and
@@ -152,38 +157,69 @@ export const FN = {
         const named = asked.find(r => String(r && r.item_id) === String(it.id));
         take = named ? int(named.qty) : 0;
       }
-      if (take < 0) throw badRequest('A delivery cannot be negative ("' + it.product_name + '").');
+      if (take < 0) throw badRequest('Bidhaa zilizofika haziwezi kuwa hasi ("' + it.product_name + '"). / A delivery cannot be negative ("' + it.product_name + '").');
       if (take > owed) throw badRequest('"' + it.product_name + '": only ' + owed + ' still owed, but ' + take + ' entered. To take in more than was ordered, raise another order — otherwise the movements stop matching the paperwork.');
       if (take > 0) plan.push({ item: it, take });
     }
-    if (!plan.length) throw badRequest('Nothing to receive. Enter what actually arrived.');
+    if (!plan.length) throw badRequest('Hakuna cha kupokea. Andika zilizofika kweli. / Nothing to receive. Enter what actually arrived.');
 
     const ids = [...new Set(plan.map(p => String(p.item.product_id)))];
-    const products = await rows(db, 'products', q => q.select(PRODUCT_COLS).in('id', ids).eq('vendor_id', vendorId).limit(500));
+    const products = await rows(db, 'products', q => q.select(sel('products', PRODUCT_COLS)).in('id', ids).eq('vendor_id', vendorId).limit(500));
     for (const p of plan) {
       const product = products.find(x => String(x.id) === String(p.item.product_id));
       if (!product) throw notFound('"' + p.item.product_name + '" is no longer in your catalogue. Remove the line or restore the product.');
       /* A phone tracked by IMEI cannot arrive as a number -- each handset carries its own, and
          they go in under Stock & Shops where they can be typed. Saying so is better than
          silently inventing a count the units will then contradict. */
+      if (!product.active) {
+        throw badRequest('"' + product.name + '" haiko hai -- iwashe kabla ya kupokea. / "' + product.name + '" is not active — activate it before receiving this delivery.');
+      }
       if (product.is_serialized) {
         throw badRequest('"' + product.name + '" is tracked by IMEI, so a delivery of it is the IMEIs themselves. Add them under Stock & Shops, then mark this line received.');
       }
     }
 
     let taken = 0;
+    const costUnrecorded = [];
     for (const p of plan) {
       const product = products.find(x => String(x.id) === String(p.item.product_id));
-      await changeStock(db, {
-        product, delta: p.take, branchId: po.branch_id || null, type: 'received', user,
-        note: 'Purchase order ' + (po.legacy_id || ''),
-      }, nowMs);
-      await update(db, 'purchase_order_items', { received_qty: p.item.received_qty + p.take }, q => q.eq('id', p.item.id));
+      /* CLAIM THE LINE BEFORE THE STOCK MOVES. The header of this file promised that receiving
+         the same delivery twice is refused rather than doubled, and that was only true of
+         SEQUENTIAL calls: the "how much is still owed" check reads a snapshot, and the top-up was
+         read-modify-write. Frank taps Receive on his phone while the assistant taps it on the
+         counter tablet, both see 40 owed, and one box of forty becomes eighty in the count and two
+         'received' movements in the ledger.
+
+         The conditional update is the lock: it only applies if received_qty is still what we read,
+         so exactly one of the two wins and the other is told to look again. It goes FIRST, so a
+         lost race costs nothing; if the stock move then fails, the line is put back. */
+      const claimed = await update(db, 'purchase_order_items', { received_qty: p.item.received_qty + p.take },
+        q => q.eq('id', p.item.id).eq('received_qty', p.item.received_qty));
+      if (!claimed.length) {
+        throw badRequest('"' + p.item.product_name + '" imepokelewa na mtu mwingine hivi punde. Fungua oda upya uone kilichobaki. / '
+          + '"' + p.item.product_name + '" was received by somebody else a moment ago. Reopen the order to see what is still owed.');
+      }
+      try {
+        await changeStock(db, {
+          product, delta: p.take, branchId: po.branch_id || null, type: 'received', user,
+          note: 'Purchase order ' + (po.legacy_id || ''),
+        }, nowMs);
+      } catch (e) {
+        await update(db, 'purchase_order_items', { received_qty: p.item.received_qty }, q => q.eq('id', p.item.id));
+        throw e;
+      }
       /* THE COST FOLLOWS THE DELIVERY. Otherwise cost_price is whatever somebody typed once,
          months ago, and every profit figure quietly drifts away from what the shop is really
          paying. A zero on the order means "no cost recorded", not "free", so it is left alone. */
       if (p.item.unit_cost > 0 && num(product.cost_price) !== p.item.unit_cost) {
-        await update(db, 'products', { cost_price: p.item.unit_cost, updated_at: iso(nowMs) }, q => q.eq('id', product.id));
+        /* The admin hint says "receiving it updates the cost price for you", so a receipt that
+           quietly does not is the same lie requireColumn was added to stop on the products form.
+           The stock IS in by now and must stay in, so this reports rather than refuses: the
+           delivery landed, the cost did not, and the message says which. */
+        try {
+          requireColumn('products', 'cost_price', 'cost prices');
+          await update(db, 'products', { cost_price: p.item.unit_cost, updated_at: iso(nowMs) }, q => q.eq('id', product.id));
+        } catch (e) { costUnrecorded.push(product.name); }
       }
       taken += p.take;
     }
@@ -197,8 +233,12 @@ export const FN = {
     }
     return {
       message: taken + ' item' + (taken === 1 ? '' : 's') + ' received into stock'
-        + (stillOwed ? '. ' + stillOwed + ' still owed on ' + po.legacy_id + '.' : '. ' + po.legacy_id + ' is complete.'),
-      closed: !stillOwed, outstanding: stillOwed,
+        + (stillOwed ? '. ' + stillOwed + ' still owed on ' + po.legacy_id + '.' : '. ' + po.legacy_id + ' is complete.')
+        + (costUnrecorded.length
+          ? ' Bei ya kununulia HAIKUHIFADHIWA (' + costUnrecorded.join(', ') + ') -- endesha db/RUN-ME-002. / '
+            + 'The cost price could NOT be saved for ' + costUnrecorded.join(', ') + ' — this database has not run db/RUN-ME-002 yet.'
+          : ''),
+      closed: !stillOwed, outstanding: stillOwed, cost_unrecorded: costUnrecorded,
     };
   },
 
@@ -208,7 +248,7 @@ export const FN = {
     requireAdmin(user);
     const vendorId = requireVendorUser(user);
     const po = await mustOrder(db, vendorId, args.id);
-    if (po.status !== 'ordered') throw badRequest('That order is already ' + po.status + '.');
+    if (po.status !== 'ordered') throw badRequest('Oda hiyo tayari ni ' + po.status + '. / That order is already ' + po.status + '.');
     const got = po.items.reduce((a, i) => a + i.received_qty, 0);
     if (got) throw badRequest(got + ' item' + (got === 1 ? ' has' : 's have') + ' already been received on ' + po.legacy_id
       + '. Receive the rest, or adjust the stock down under Stock & Shops — cancelling now would leave stock on the shelf that nothing accounts for.');

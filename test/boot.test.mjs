@@ -129,7 +129,7 @@ test('an empty hints table answers the legacy defaults; password fields never le
   book.hints = [];
   const user = { ...userOf(book, SELLER1), password_hash: 'h', password_salt: 's' };
   const out = await buildBoot(bookDb(book), user, NOW);
-  assert.deepEqual(out.hints, DEFAULT_HINTS.seller.map(en => ({ en, sw: '' })));
+  assert.deepEqual(out.hints, DEFAULT_HINTS.seller.map(([en, sw]) => ({ en, sw })));
   assert.equal('password_hash' in out.user, false);
   assert.equal('password_salt' in out.user, false);
   assert.equal(user.password_hash, 'h', 'the caller object is not mutated');

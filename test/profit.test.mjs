@@ -199,3 +199,140 @@ test('the whole thing goes through the API surface a browser actually calls', as
   assert.ok(r.rows.length);
   assert.ok(r.totals.some(t => t[0] === 'GROSS PROFIT'));
 });
+
+test('a hold deposit is cash on a different day, and the Cash Due report now says so', async () => {
+  /* Juma takes a deposit on Monday against a hold; nothing recorded it, so Monday was light.
+     Neema collects on Friday and recordSale books the WHOLE amount as Friday's cash sale, so
+     Friday billed Juma for money that never crossed the counter that day. The owner counts the
+     drawer against that figure and finds it short with nothing explaining the gap. */
+  const { FN: HOLDS } = await import('../api/_lib/bo/pending.js');
+  const db = bookDb();
+  const before = (await report(db, ADM(), { type: 'cashdue' })).rows.find(r => /Juma/.test(r.seller));
+
+  const h = await HOLDS.createPendingSale(db, SEL(), {
+    items: [{ product_id: 'P3', qty: 20, list_price: 5000 }], customer_name: 'Neema Mushi', deposit: 40000,
+  }, NOW);
+
+  const held = (await report(db, ADM(), { type: 'cashdue' })).rows.find(r => /Juma/.test(r.seller));
+  assert.equal(held.dep_taken, 40000, 'the 40,000 he is holding is on his row the day he takes it');
+  assert.equal(held.balance, before.balance + 40000, 'and it is in what he owes the till');
+
+  await HOLDS.completePendingSale(db, SEL(), { id: h.id, payment_method: 'Cash' }, NOW);
+  const done = (await report(db, ADM(), { type: 'cashdue' })).rows.find(r => /Juma/.test(r.seller));
+  assert.equal(done.dep_applied, 40000, 'on collection the deposit is named as already paid');
+  assert.equal(done.cash_sales, before.cash_sales + 100000, 'the sale is still the full 100,000');
+  assert.equal(done.balance, before.balance + 100000, 'but he is billed 100,000 once, not 140,000');
+
+  const rep = await report(db, ADM(), { type: 'cashdue' });
+  assert.ok(rep.meta.some(m => /Deposits Taken/.test(m)), 'and the report explains the two columns');
+});
+
+test('the Cash Due deposit columns use the East Africa day, like every other figure on it', async () => {
+  /* Slicing a UTC timestamp put a deposit taken at 01:30 EAT on the day before, while the SALE it
+     belongs to was counted for today by periodBounds, which does use the EAT clock. The two
+     halves of one balance disagreed and a seller was billed for money they never took. */
+  const { FN: HOLDS } = await import('../api/_lib/bo/pending.js');
+  const at0130EAT = Date.parse('2026-09-04T22:30:00Z');       // 01:30 on 5 Sep, East Africa
+  const db = bookDb();
+  const h = await HOLDS.createPendingSale(db, SEL(), {
+    items: [{ product_id: 'P3', qty: 20, list_price: 5000 }], customer_name: 'Neema', deposit: 40000,
+  }, at0130EAT);
+  await HOLDS.completePendingSale(db, SEL(), { id: h.id, payment_method: 'Cash' }, at0130EAT);
+
+  const rep = await REPORTS.reportData(db, ADM(), { type: 'cashdue' }, at0130EAT);
+  const juma = rep.rows.find(r => /Juma/.test(r.seller));
+  assert.equal(juma.dep_taken, 40000, 'taken in the small hours still counts for that shop-day');
+  assert.equal(juma.dep_applied, 40000, 'and so does applied');
+});
+
+test('a Cash Due report that could not read the deposits SAYS so', async () => {
+  /* A bare catch put "the table is not there yet" and "the database just timed out" in the same
+     branch, and both produced silently wrong balances -- the exact silent shortfall the deposit
+     columns exist to remove. */
+  const db = bookDb();
+  const broken = new Proxy(db, {
+    get(t, k) {
+      if (k !== 'from') return t[k];
+      return name => {
+        if (name !== 'pending_sales') return t.from(name);
+        const q = t.from(name);
+        q.then = (res) => res({ data: null, error: { code: '57014', message: 'canceling statement due to statement timeout' } });
+        return q;
+      };
+    },
+  });
+  const rep = await REPORTS.reportData(broken, ADM(), { type: 'cashdue' }, NOW);
+  assert.ok(rep.rows.length, 'the report still opens');
+  const warn = rep.meta.find(m => /WARNING/.test(m));
+  assert.ok(warn, 'and it does not pretend the deposits were zero');
+  assert.match(warn, /Balance below may be wrong/, 'it says which figures to distrust');
+  /* The reason reaches the reader through friendlyDbError, so a shop is told "the database is
+     briefly unreachable", not "canceling statement due to statement timeout". That is right --
+     what matters is that SOMETHING is said, not that Postgres is quoted. */
+  assert.match(warn, /briefly unreachable|haupatikani/);
+});
+
+test('a deposit nets off a CASH collection only — never into a negative balance', async () => {
+  /* The balance is built from cash and lipa sales. A Credit collection puts nothing in either
+     (the financing partner pays the shop) and an unreceipted Lipa sale is already ASSUMED
+     received, so subtracting the deposit in those two cases drove the balance NEGATIVE: the till
+     appeared to owe the seller 36,000 for a phone he had sold on finance. */
+  const { FN: HOLDS } = await import('../api/_lib/bo/pending.js');
+  for (const [method, nets] of [['Cash', true], ['Lipa Number', false], ['Credit', false]]) {
+    const db = bookDb();
+    const h = await HOLDS.createPendingSale(db, SEL(), {
+      items: [{ product_id: 'P3', qty: 20, list_price: 5000 }], customer_name: 'Neema', deposit: 40000,
+    }, NOW);
+    const args = { id: h.id, payment_method: method };
+    if (method === 'Credit') args.financing_partner_id = 'FP1';
+    await HOLDS.completePendingSale(db, SEL(), args, NOW);
+
+    const juma = (await report(db, ADM(), { type: 'cashdue' })).rows.find(r => /Juma/.test(r.seller));
+    assert.equal(juma.dep_applied, nets ? 40000 : 0, method + ': deposit applied?');
+    assert.ok(juma.balance >= 0, method + ': a balance must never go negative — got ' + juma.balance);
+  }
+});
+
+test("a manager's all-vendor customer report keeps each business's customers apart", async () => {
+  /* The report carries a Vendor column, which is a claim that every row belongs to one business.
+     It did not. The key was the phone, or the name, or -- for anybody who left neither -- the
+     constant '\0walk-in', which is the same string for every vendor in the country. So on EVERY
+     all-vendor run the counter trade of every business on the platform arrived as one row,
+     attributed to whichever vendor happened to be seen first, and the grand total was right
+     while not one line of it was. profitReport and employeeReport prefix their key with the
+     vendor for exactly this reason. */
+  const db = bookDb();
+
+  // A second business serves the same regular. Nothing links the two shops but her number.
+  await SALES.recordSale(db, userOf(richBook(), 'SEL3'), {
+    items: [{ product_id: 'P5', qty: 1 }], payment_method: 'Cash',
+    customer_name: 'Neema Mushi', customer_phone: '0712000111',
+  }, NOW);
+
+  const rep = await report(db, MGR(), { type: 'customer', start: '2026-09-02', end: '2026-09-02' }, NOW);
+
+  const walkIns = rep.rows.filter(r => /Walk-in/.test(r.customer_name));
+  assert.equal(walkIns.length, 2, 'two businesses served walk-ins, so two rows');
+  assert.deepEqual(walkIns.map(r => r.vendor_name).sort(), ['Fromville Phones', 'Mama Ntilie Grocery']);
+  assert.equal(walkIns.find(r => r.vendor_name === 'Fromville Phones').total, 5000);
+  assert.equal(walkIns.find(r => r.vendor_name === 'Mama Ntilie Grocery').total, 6400);
+
+  const neema = rep.rows.filter(r => r.customer_phone === '0712000111');
+  assert.equal(neema.length, 2, 'one Neema per shop -- neither owner is shown the other\'s takings');
+  assert.equal(neema.find(r => r.vendor_name === 'Fromville Phones').total, 350000);
+  assert.equal(neema.find(r => r.vendor_name === 'Mama Ntilie Grocery').total, 3200);
+});
+
+test('and one vendor on its own still merges the same person across visits', async () => {
+  /* The prefix must be empty when the report is about one business, or the fix would undo the
+     one it was built on: a regular recorded with her number on some visits and not others is
+     still ONE row. */
+  const db = bookDb();
+  await SALES.recordSale(db, SEL(), { items: [{ product_id: 'P3', qty: 1 }], payment_method: 'Cash', customer_name: 'Neema Mushi' }, NOW);
+
+  const rep = await report(db, ADM(), { type: 'customer', start: '2026-09-02', end: '2026-09-02' }, NOW);
+  const neema = rep.rows.filter(r => /Neema/.test(r.customer_name));
+  assert.equal(neema.length, 1, 'the name with no phone still finds the group the phone opened');
+  assert.equal(neema[0].visits, 3);
+  assert.equal(neema[0].total, 355000);
+});

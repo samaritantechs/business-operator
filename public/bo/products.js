@@ -57,7 +57,7 @@ window.BOProd = (function () {
       + '<button class="btn-primary" onclick="BOProd.add()">+ Add</button></div>'
       + '<div class="small muted" style="margin-top:8px;">💡 After adding, tap <strong>Edit</strong> on the product to upload a marketplace photo. For IMEI-tracked products, add the units under <strong>Stock &amp; Shops</strong>.</div></div></div>';
     h += '<div class="section-card" style="margin-bottom:18px;"><div class="section-hdr"><span>📦</span><div class="section-hdr-title">All Products</div><div class="small muted" style="margin-left:auto;">Inactive shown — reactivate anytime</div></div><div style="padding:0;"><div class="table-wrap"><table class="bo-table"><thead><tr><th>Photo</th><th>ID</th><th>Name</th><th>Brand / Model</th><th>Category</th><th>Price</th>' + (canSeeCost() ? '<th>Cost</th><th>Margin</th>' : '') + '<th>Stock</th><th>Reorder</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
-    if (!list.length) h += '<tr><td colspan="10" class="empty">No products yet — add your first one above.</td></tr>';
+    if (!list.length) h += '<tr><td colspan="' + (canSeeCost() ? 12 : 10) + '" class="empty">No products yet — add your first one above.</td></tr>';
     list.forEach(function (p, i) {
       var thumb = p.image1_url ? '<img src="' + esc(p.image1_url) + '" style="width:34px;height:34px;border-radius:7px;object-fit:cover;" onerror="this.style.display=\'none\'">' : '<div style="width:34px;height:34px;border-radius:7px;background:var(--surface2);display:flex;align-items:center;justify-content:center;color:var(--muted);">🛍️</div>';
       var stock = p.is_serialized ? (p.units_in_stock != null ? p.units_in_stock : p.stock) : p.stock;
@@ -77,7 +77,15 @@ window.BOProd = (function () {
     if (!BO.confirm('Add "' + n + '"' + (serial ? ' (IMEI-tracked)' : ' with ' + (s || 0) + ' units') + '?')) return;
     var args = { name: n, category: c, brand: g('newProdBrand').trim(), model: g('newProdModel').trim(), price: Number(p), cost_price: Number(g('newProdCost') || 0), stock: serial ? 0 : Number(s || 0), reorder_point: Number(g('newProdReorder') || 20), listing_type: g('newProdType'), price_unit: g('newProdUnit'), location: g('newProdLoc').trim(), is_serialized: serial };
     var br = g('newProdBranch'); if (br) args.branch_id = br;
-    srv('addProduct', args).then(function (r) { showToast('Product ' + (r.product.legacy_id || '') + ' added! Tap Edit to add a photo.'); load(); }).catch(BO.fail);
+    srv('addProduct', args).then(function (r) {
+      showToast('Product ' + (r.product.legacy_id || '') + ' added! Tap Edit to add a photo.');
+      /* The product saved and the cost price did not, because the database has not been migrated.
+         A toast that clears itself in under three seconds while somebody is typing the next
+         product is not telling them -- and the number they typed is gone. This one is dismissed
+         by hand, once, until the manager runs the migration. */
+      if (r.cost_unrecorded) alert(r.message);
+      load();
+    }).catch(BO.fail);
   }
   function toggle(id, active) { srv('toggleProduct', { id: id, active: active }).then(function (r) { showToast(r.message); load(); }).catch(BO.fail); }
   function restock() {

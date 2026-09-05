@@ -23,6 +23,10 @@ window.BOCredit = (function () {
     if (!data.credit.length) {
       h += '<div class="empty">Nothing outstanding. Every credit sale has been settled.</div>';
     } else {
+      if (data.credit_capped) {
+        h += '<div class="alert-warning small" style="margin-bottom:10px;">Showing the ' + data.cap
+          + ' oldest unsettled sales. There are more — settle some, and the rest appear. The total above is for these ' + data.cap + ' only.</div>';
+      }
       h += '<div class="cv-partners">' + data.by_partner.map(function (p) {
         return '<div class="cv-partner"><div class="cv-pname">' + esc(p.partner_name) + '</div>'
           + '<div class="cv-ptotal">' + fmtFull(p.total) + ' ' + esc(cur) + '</div>'
@@ -42,6 +46,9 @@ window.BOCredit = (function () {
     if (!data.voids.length) {
       h += '<div class="empty">Nothing cancelled in this period.</div>';
     } else {
+      if (data.voids_capped) {
+        h += '<div class="alert-warning small" style="margin-bottom:10px;">Showing the ' + data.cap + ' most recent cancellations in this period; there are more.</div>';
+      }
       h += '<div class="small muted" style="margin-bottom:10px;">' + data.voids.length + ' cancelled checkout' + (data.voids.length === 1 ? '' : 's')
         + ' worth <strong>' + fmtFull(data.voids_total) + ' ' + esc(cur) + '</strong>. The stock went back on the shelf when each was cancelled.</div>';
       h += '<div class="table-wrap"><table class="bo-table"><thead><tr><th>Cancelled</th><th>Sold</th><th>Items</th><th>Amount</th><th>Sold by</th><th>Cancelled by</th><th>Reason</th><th></th></tr></thead><tbody>';

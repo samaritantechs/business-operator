@@ -6,3 +6,6 @@ legacy/data/
 
 # the browser smoke writes screenshots here, and installs playwright ad hoc
 tools/.smoke/
+
+# Scratch files written by review agents into this checkout — never ours to ship.
+test/zz-*.test.mjs

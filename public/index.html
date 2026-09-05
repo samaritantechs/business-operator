@@ -45,7 +45,7 @@
 .btn-sm-danger{background:var(--rose-lt);border:1px solid rgba(180,35,24,.25);color:var(--rose);border-radius:6px;padding:4px 11px;font-size:.77rem;cursor:pointer;transition:all .2s;font-family:var(--font);font-weight:500;}.btn-sm-danger:hover{background:var(--rose-solid);color:var(--on-solid);}
 .icon-btn{width:36px;height:36px;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;border:1px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer;transition:all .2s;font-size:.9rem;text-decoration:none;flex-shrink:0;}.icon-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-lt);}
 .link-btn{background:none;border:none;color:var(--accent);text-decoration:underline;cursor:pointer;padding:0;font-family:inherit;font-size:inherit;}
-.alert-success{background:var(--accent2-lt);border:1px solid rgba(6,118,71,.25);color:var(--accent2);border-radius:var(--radius-sm);padding:10px 14px;font-size:.85rem;}.alert-danger{background:var(--rose-lt);border:1px solid rgba(180,35,24,.2);color:var(--rose);border-radius:var(--radius-sm);padding:10px 14px;font-size:.85rem;}.alert-info{background:var(--accent-lt);border:1px solid rgba(11,42,107,.18);color:var(--accent);border-radius:var(--radius-sm);padding:10px 14px;font-size:.85rem;}.text-danger{color:var(--rose);font-size:.82rem;margin-top:6px;}.divider{height:1px;background:var(--border);margin:18px 0;}
+.alert-success{background:var(--accent2-lt);border:1px solid rgba(6,118,71,.25);color:var(--accent2);border-radius:var(--radius-sm);padding:10px 14px;font-size:.85rem;}.alert-danger{background:var(--rose-lt);border:1px solid rgba(180,35,24,.2);color:var(--rose);border-radius:var(--radius-sm);padding:10px 14px;font-size:.85rem;}.alert-info{background:var(--accent-lt);border:1px solid rgba(11,42,107,.18);color:var(--accent);border-radius:var(--radius-sm);padding:10px 14px;font-size:.85rem;}.alert-warning{background:var(--amber-lt);border:1px solid rgba(146,64,14,.25);color:var(--amber);border-radius:var(--radius-sm);padding:10px 14px;font-size:.85rem;}.text-danger{color:var(--rose);font-size:.82rem;margin-top:6px;}.divider{height:1px;background:var(--border);margin:18px 0;}
 
 /* ============ LANDING / MARKETPLACE ============ */
 #landingPage{position:relative;z-index:0;min-height:100vh;background:var(--bg);}
@@ -222,13 +222,15 @@ html.bo-desktop .tb-vendor-badge{display:inline-block;}
       </div>
       <div style="text-align:center;margin-top:28px;">
         <button class="btn-primary" onclick="showLogin(true)" style="padding:13px 30px;font-size:.95rem;">🚀 Register your business — free</button>
-        <!-- The app, offered where somebody has just decided to sign up. Hidden until the
-             marketplace payload says a release exists: a download button with nothing behind it
-             is worse than no button, and the "Get the app" section below already explains the
-             browser route when there is nothing published. -->
-        <div id="mkCtaApp" class="hidden" style="margin-top:14px;">
-          <a class="btn-secondary" id="mkCtaApkBtn" href="/download" style="padding:11px 24px;font-size:.9rem;display:inline-flex;">⬇️ Download the Android app</a>
-          <div class="small muted" id="mkCtaApkMeta" style="margin-top:7px;"></div>
+        <!-- The app, offered where somebody has just decided to sign up. It is ALWAYS here:
+             hiding it until an APK exists meant that on a system with no release published yet
+             there was simply nothing under the sign-up button, which reads as a missing feature
+             rather than as a deliberate absence. So it starts as "use it on your phone" -- which
+             is true of every phone, needs no APK, and scrolls to the QR codes -- and becomes the
+             download the moment a release is published. Never a dead link either way. -->
+        <div id="mkCtaApp" style="margin-top:14px;">
+          <a class="btn-secondary" id="mkCtaApkBtn" href="#mkAppSection" onclick="mkScrollTo('mkAppSection');return false;" style="padding:11px 24px;font-size:.9rem;display:inline-flex;">📲 Use it on your phone</a>
+          <div class="small muted" id="mkCtaApkMeta" style="margin-top:7px;">Scan a code to open it, or install the Android app.</div>
         </div>
       </div>
     </div>
@@ -376,6 +378,8 @@ body.bo-fb-open{overflow:hidden;}
 .rcpt-tbl td{padding:7px 4px;border-bottom:1px dashed var(--border);vertical-align:top;}
 .rcpt-tbl .num{text-align:right;white-space:nowrap;}
 .rcpt-dim{font-size:.72rem;color:var(--text2);}
+.rcpt-void td{text-decoration:line-through;opacity:.55;}
+.rcpt-void .rcpt-dim{text-decoration:none;color:var(--rose);font-weight:700;}
 .rcpt-total{display:flex;justify-content:space-between;gap:14px;font-size:1rem;font-weight:800;padding:8px 0;margin:6px 0;border-top:2px solid var(--text);border-bottom:2px solid var(--text);}
 .rcpt-foot{text-align:center;font-size:.74rem;color:var(--text2);margin-top:14px;padding-top:10px;border-top:1px dashed var(--border);}
 @media print{

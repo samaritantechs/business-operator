@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { rows, rowsAll, one, insertMany, update, count, iso, num, money, text, mustText, fmtMoney, badRequest, forbidden, notFound,
   isAdminLevel, isManagerLevel, vendorScope, scopedVendor, requireVendorUser, requireSameVendor, mustProduct, productById, vendorById, stripCost,
-  currencyOf, periodBounds, localNow } from './_shared.js';
+  currencyOf, periodBounds, localNow, sel } from './_shared.js';
 import { requireAdmin } from '../auth.js';
 import { changeStock, claimUnits } from './stock.js';
 import { sendEmail, signature } from '../email.js';
@@ -163,7 +163,7 @@ async function cancelSale(db, user, args, nowMs) {
   requireAdmin(user);
   const id = mustText(args.sale_id, 'The sale');
   const reason = mustText(args.reason, 'A reason');
-  const sale = await one(db, 'sales', q => q.select(SALE_COLS).eq('id', id));
+  const sale = await one(db, 'sales', q => q.select(sel('sales', SALE_COLS)).eq('id', id));
   if (!sale) throw notFound('Sale not found.');
   requireSameVendor(user, sale);
   if (sale.status !== 'completed') throw badRequest('This sale is already cancelled.');
@@ -272,7 +272,7 @@ async function recentSales(db, user, args) {
   const limit = Math.min(Math.max(parseInt(args.limit, 10) || 30, 1), 200);
   const branchId = text(args.branch_id);
   const list = await rows(db, 'sales', q => {
-    let s = q.select(SALE_COLS).eq('vendor_id', vid);
+    let s = q.select(sel('sales', SALE_COLS)).eq('vendor_id', vid);
     if (!args.include_cancelled) s = s.eq('status', 'completed');
     if (branchId) s = s.eq('branch_id', branchId);
     return s.order('sold_at', { ascending: false }).order('legacy_id', { ascending: false }).limit(limit);
@@ -295,7 +295,7 @@ async function salesDetail(db, user, args, nowMs) {
   const own = !isAdminLevel(user.role) && !isManagerLevel(user.role);   // a seller sees only their own lines
   const branchId = text(args.branch_id);
   const list = await rowsAll(db, 'sales', q => {
-    let s = q.select(SALE_COLS).eq('status', 'completed').gte('sold_at', b[period]).lte('sold_at', iso(nowMs));
+    let s = q.select(sel('sales', SALE_COLS)).eq('status', 'completed').gte('sold_at', b[period]).lte('sold_at', iso(nowMs));
     if (vid) s = s.eq('vendor_id', vid);
     if (branchId) s = s.eq('branch_id', branchId);
     if (own) s = s.eq('seller_id', user.id);
@@ -351,7 +351,7 @@ async function saleReceipt(db, user, args) {
     gid = seed.group_id;
   }
   const list = await rows(db, 'sales', q => {
-    let x = q.select(SALE_COLS).eq('group_id', gid);
+    let x = q.select(sel('sales', SALE_COLS)).eq('group_id', gid);
     if (vid) x = x.eq('vendor_id', vid);
     return x.order('legacy_id').limit(500);
   });
@@ -362,31 +362,54 @@ async function saleReceipt(db, user, args) {
     throw forbidden('That is not your sale. Ask the business admin for a copy.');
   }
 
+  /* The rows come back ordered by legacy_id, which is TEXT. Re-ordered here by the number inside
+     the label so both the range above and the lines below run the way they were rung up. */
+  const labelOf = r => String((r && r.legacy_id) || '');
+  const seq = r => { const m = /(\d+)\s*$/.exec(labelOf(r)); return m ? parseInt(m[1], 10) : Number.MAX_SAFE_INTEGER; };
+  const ordered = [...list].sort((a, b) => seq(a) - seq(b));
+
   const vendor = await vendorById(db, list[0].vendor_id);
   if (!vendor) throw notFound('That business no longer exists.');
   const names = await nameLookups(db, list);
   const first = list[0], extra = names(first);
 
-  const items = list.map(r => ({
+  /* A CANCELLED LINE IS NOT PART OF THE TOTAL. This summed every row in the group, so a customer
+     who bought two handsets and brought one back was handed a receipt reading the full 700,000 --
+     the amount they had NOT paid -- with a single note underneath saying one line was cancelled
+     and no way to tell which of two identical Samsungs it was. That figure is what Print and the
+     WhatsApp message carry, so it is the number that gets argued about at the counter.
+
+     The cancelled lines stay ON the receipt, marked, because somebody holding the old slip needs
+     to see what happened to them. They just stop counting. */
+  const items = ordered.map(r => ({
     product_name: r.product_name, brand: r.brand || '', model: r.model || '', imei: r.imei || '',
     qty: num(r.qty), list_price: num(r.list_price), discount: num(r.discount), price: num(r.price), total: num(r.total),
+    cancelled: r.status === 'cancelled',
+    cancelled_note: r.status === 'cancelled'
+      ? [r.cancelled_by_name ? 'cancelled by ' + r.cancelled_by_name : 'cancelled', r.cancel_reason || ''].filter(Boolean).join(': ')
+      : '',
   }));
-  const subtotal = money(items.reduce((a, i) => a + i.qty * i.list_price, 0));
-  const discount = money(items.reduce((a, i) => a + i.qty * i.discount, 0));
-  const total = money(items.reduce((a, i) => a + i.total, 0));
+  const live = items.filter(i => !i.cancelled);
+  const subtotal = money(live.reduce((a, i) => a + i.qty * i.list_price, 0));
+  const discount = money(live.reduce((a, i) => a + i.qty * i.discount, 0));
+  const total = money(live.reduce((a, i) => a + i.total, 0));
   const cancelled = list.filter(r => r.status === 'cancelled');
+  const cancelled_total = money(items.filter(i => i.cancelled).reduce((a, i) => a + i.total, 0));
 
   return {
     group_id: gid,
     /* The label people read out over the phone. A checkout of three lines wrote SALE-0007,
        SALE-0008 and SALE-0009, so the receipt names the range rather than picking one. */
-    receipt_no: list.length > 1 ? (first.legacy_id || '') + ' – ' + (list[list.length - 1].legacy_id || '') : (first.legacy_id || shortId(first.id)),
+    /* SALE-9999 sorts after SALE-10000 as text, so a checkout that crossed the ten-thousandth
+       sale printed a range running backwards with a line missing from the middle -- and that
+       number is what gets read out over the phone. Ordered by the digits. */
+    receipt_no: list.length > 1 ? labelOf(ordered[0]) + ' – ' + labelOf(ordered[ordered.length - 1]) : (first.legacy_id || shortId(first.id)),
     sold_at: first.sold_at, currency: currencyOf(vendor),
     vendor: { name: vendor.name, phone: vendor.phone || '', address: vendor.address || '', logo_url: vendor.logo_url || '', business_type: vendor.business_type || '' },
     branch_name: extra.branch_name || '', seller_name: first.seller_name || '',
     customer_name: first.customer_name || '', customer_phone: first.customer_phone || '',
     payment_method: first.payment_method, partner_name: extra.partner_name || '',
-    items, subtotal, discount, total,
+    items, subtotal, discount, total, cancelled_total,
     /* A cancelled line still gets a receipt -- somebody is holding the old one and needs to be
        shown what happened to it -- but it says so at the top, in as many words. */
     status: cancelled.length === list.length ? 'cancelled' : (cancelled.length ? 'part-cancelled' : 'completed'),
@@ -420,17 +443,29 @@ async function creditAndVoids(db, user, args, nowMs) {
   const days = Math.min(Math.max(parseInt(args.days, 10) || 30, 1), 365);
   const since = iso(nowMs - days * 86400000);
 
-  const credit = await rowsAll(db, 'sales', q => {
-    let x = q.select(SALE_COLS).eq('vendor_id', vid).eq('payment_method', 'Credit')
+  /* A DEBT DOES NOT EXPIRE, BUT A SCREEN STILL HAS TO LOAD. "not yet settled" is only a bound in a
+     shop that settles; the shop that never taps Paid is exactly the one that most needs this
+     screen, and its unsettled set grows for ever -- a year of six credit sales a day is already
+     past this screen's whole budget, on a phone. So the read is capped, oldest first, because the
+     oldest debt is the one to chase, and the screen SAYS when it is showing a capped list rather
+     than quietly implying that is all there is. */
+  const CREDIT_CAP = 500;
+  const credit = await rows(db, 'sales', q => {
+    let x = q.select(sel('sales', SALE_COLS)).eq('vendor_id', vid).eq('payment_method', 'Credit')
       .eq('status', 'completed').eq('partner_paid', false);
     if (branchId) x = x.eq('branch_id', branchId);
-    return x.order('sold_at', { ascending: true });        // oldest debt first: that is the one to chase
+    return x.order('sold_at', { ascending: true }).limit(CREDIT_CAP + 1);   // +1 tells us there are more
   });
-  const voids = await rowsAll(db, 'sales', q => {
-    let x = q.select(SALE_COLS).eq('vendor_id', vid).eq('status', 'cancelled').gte('cancelled_at', since);
+  const creditCapped = credit.length > CREDIT_CAP;
+  if (creditCapped) credit.length = CREDIT_CAP;
+  const VOID_CAP = 500;
+  const voids = await rows(db, 'sales', q => {
+    let x = q.select(sel('sales', SALE_COLS)).eq('vendor_id', vid).eq('status', 'cancelled').gte('cancelled_at', since);
     if (branchId) x = x.eq('branch_id', branchId);
-    return x.order('cancelled_at', { ascending: false });  // newest void first: that is the one being asked about
+    return x.order('cancelled_at', { ascending: false }).limit(VOID_CAP + 1);  // newest void first: that is the one being asked about
   });
+  const voidsCapped = voids.length > VOID_CAP;
+  if (voidsCapped) voids.length = VOID_CAP;
   const names = await nameLookups(db, [...credit, ...voids]);
 
   return {
@@ -440,6 +475,9 @@ async function creditAndVoids(db, user, args, nowMs) {
     voids: groupByCheckout(voids, names, nowMs),
     credit_total: money(credit.reduce((a, r) => a + num(r.total), 0)),
     voids_total: money(voids.reduce((a, r) => a + num(r.total), 0)),
+    /* Said, not hidden: a total computed from a capped list is not the business's total, and a
+       screen that implies otherwise is worse than one that admits the cut (CLAUDE.md rule 2). */
+    credit_capped: creditCapped, voids_capped: voidsCapped, cap: CREDIT_CAP,
     /* By partner, because that is who the phone call is to. */
     by_partner: partnerTotals(credit, names),
   };

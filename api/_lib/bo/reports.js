@@ -1,7 +1,7 @@
 import {
   rows, rowsAll, one, badRequest, forbidden, isManagerLevel, isAdminLevel, scopedVendor, vendorsList,
-  rangeBounds, periodBounds, todayKey, localNow, iso, num, money, fmtMoney, text, stockStatus,
-  permissionsOf, currencyOf, getSettings, PROFILE_COLS,
+  rangeBounds, periodBounds, todayKey, addDaysKey, localNow, iso, num, money, fmtMoney, text, stockStatus,
+  permissionsOf, currencyOf, getSettings, sel, PROFILE_COLS,
 } from './_shared.js';
 import { signTicket } from '../auth.js';
 import { buildPdf } from '../pdf.js';
@@ -115,7 +115,7 @@ async function scopeFor(db, user, args, nowMs) {
 /** Sales in the range for this scope -- the one paged read most reports stand on. */
 function salesIn(db, s, status = 'completed', extra) {
   return rowsAll(db, 'sales', q => {
-    let x = q.select(SALE_COLS).eq('status', status).gte('sold_at', s.range.from).lt('sold_at', s.range.to);
+    let x = q.select(sel('sales', SALE_COLS)).eq('status', status).gte('sold_at', s.range.from).lt('sold_at', s.range.to);
     if (s.vendor_id) x = x.eq('vendor_id', s.vendor_id);
     if (s.seller_id) x = x.eq('seller_id', s.seller_id);
     if (s.branch_id) x = x.eq('branch_id', s.branch_id);
@@ -206,10 +206,39 @@ async function cashDueReport(db, s) {
     return x.order('name');
   });
   const sales = await rowsAll(db, 'sales', q => {
-    let x = q.select('seller_id, vendor_id, total, payment_method').eq('status', 'completed').gte('sold_at', b.today).lt('sold_at', b.tomorrow);
+    let x = q.select('seller_id, vendor_id, total, payment_method, group_id').eq('status', 'completed').gte('sold_at', b.today).lt('sold_at', b.tomorrow);
     if (s.vendor_id) x = x.eq('vendor_id', s.vendor_id);
     return x;
   });
+  /* A DEPOSIT IS CASH THAT CROSSED THE COUNTER ON A DIFFERENT DAY, and this report had no idea.
+     Juma takes 40,000 to hold twenty covers on Monday; nothing records it, so Monday's balance is
+     40,000 light. Neema collects on Friday, 60,000 changes hands, and recordSale books the whole
+     100,000 as Friday's cash sale -- so Friday's balance bills Juma for 100,000 when 60,000 came
+     in. The owner counts the drawer against that and finds it short, with nothing on the screen
+     explaining the gap.
+
+     Both halves are counted here, from the holds themselves: what was taken today (cash held with
+     no sale behind it yet) and what was applied today (part of a sale total that was paid
+     earlier). Bounded to today, and the read is skipped entirely when the table is not there --
+     a database that has not run the migration has no holds to account for. */
+  let deposits = [], depositsFailed = '';
+  try {
+    /* `rows`, not `rowsAll`: fetchAll appends .range() per page, which overwrites the very
+       'limit' key .limit() sets, so a cap written inside a paged read does not exist. This one
+       has to be a real cap, so it is a single bounded read. */
+    deposits = await rows(db, 'pending_sales', q => {
+      let x = q.select('id, vendor_id, deposit, status, created_by, created_at, closed_at, sale_group_id').gt('deposit', 0);
+      if (s.vendor_id) x = x.eq('vendor_id', s.vendor_id);
+      return x.gte('created_at', addDaysKey(s.today, -365)).order('created_at', { ascending: false }).limit(2000);
+    });
+  } catch (e) {
+    /* A bare catch put "the table is not there yet" and "the database just timed out" in the same
+       branch, and both produced silently wrong balances -- the exact silent shortfall the deposit
+       columns were added to remove. Only the missing table is normal; anything else is said. */
+    const msg = String((e && e.message) || e);
+    if (/does not exist|schema cache|PGRST205|42P01/i.test(msg)) deposits = [];
+    else { deposits = []; depositsFailed = msg.slice(0, 140); }
+  }
   const receipts = await rowsAll(db, 'cash_receipts', q => {
     let x = q.select('seller_id, vendor_id, cash_amount, lipa_amount').gte('received_at', b.today).lt('received_at', b.tomorrow);
     if (s.vendor_id) x = x.eq('vendor_id', s.vendor_id);
@@ -217,21 +246,69 @@ async function cashDueReport(db, s) {
   });
   const maps = await nameMaps(db, s, { vendors: true });
   const by = new Map();
-  const rowFor = id => bump(by, String(id), () => ({ cash_sales: 0, lipa_sales: 0, credit_sales: 0, cash_received: 0, lipa_received: 0 }));
+  const rowFor = id => bump(by, String(id), () => ({ cash_sales: 0, lipa_sales: 0, credit_sales: 0, cash_received: 0, lipa_received: 0, dep_taken: 0, dep_applied: 0 }));
+  /* ONLY A CASH COLLECTION NETS OFF A DEPOSIT, and the other two are instructive about why.
+
+     Credit: the financing partner pays the shop, so nothing lands in cash_sales or lipa_sales at
+     all. Subtracting the deposit anyway drove the balance NEGATIVE -- the till appeared to owe
+     Juma 36,000 for a phone he had sold on finance.
+
+     Lipa: an unreceipted Lipa sale is ASSUMED received (that rule predates this and is written
+     into the report), so the lipa half already nets to zero. Subtracting the deposit on top of an
+     assumption produced the same negative. The deposit stays billed to whoever took it, on the
+     day they took it, until they hand it in -- which is the true statement.
+
+     Cash is the one case where the arithmetic is not in doubt: cash_sales counted the whole
+     100,000 today and only 60,000 crossed the counter. */
+  const sellerOfGroup = new Map();
+  for (const r of sales) {
+    if (!r.group_id) continue;
+    const isCash = bucketOf(r.payment_method) === 'cash';
+    const seen = sellerOfGroup.get(String(r.group_id));
+    if (!seen) sellerOfGroup.set(String(r.group_id), { seller_id: r.seller_id, cash: isCash });
+    else if (isCash) seen.cash = true;
+  }
   for (const r of sales) { const a = rowFor(r.seller_id); const k = bucketOf(r.payment_method); if (k === 'lipa') a.lipa_sales += num(r.total); else if (k === 'credit') a.credit_sales += num(r.total); else a.cash_sales += num(r.total); }
   for (const r of receipts) { const a = rowFor(r.seller_id); a.cash_received += num(r.cash_amount); a.lipa_received += num(r.lipa_amount); }
+  /* THE DAY IS THE EAT DAY. Slicing a UTC timestamp gave the wrong date for the three hours
+     after midnight East Africa time, so a deposit taken or a hold collected at 01:30 fell on the
+     day before -- while the SALE it belongs to was counted for today by periodBounds, which does
+     use the EAT clock. The two halves of one balance disagreed and a seller was billed for money
+     they never took. Every day comparison in this report goes through the same clock. */
+  const dayOf = ts => (ts ? todayKey(Date.parse(ts)) : '');
+  for (const d of deposits) {
+    if (dayOf(d.created_at) === s.today && d.created_by) rowFor(d.created_by).dep_taken += num(d.deposit);
+    const applied = d.status === 'completed' && dayOf(d.closed_at) === s.today;
+    const g = applied && d.sale_group_id ? sellerOfGroup.get(String(d.sale_group_id)) : null;
+    if (g && g.cash) rowFor(g.seller_id).dep_applied += num(d.deposit);
+  }
   let grand = 0;
   const out = sellers.map(p => {
     const a = by.get(String(p.id)) || rowFor(p.id);
     const lipaReceived = a.lipa_received === 0 ? a.lipa_sales : a.lipa_received;
-    const balance = a.cash_sales - a.cash_received + a.lipa_sales - lipaReceived;
+    // + what they took as a deposit today (cash in hand, no sale yet), - what today's sales were
+    // already paid for by a deposit taken on some earlier day.
+    const balance = a.cash_sales - a.cash_received + a.lipa_sales - lipaReceived + a.dep_taken - a.dep_applied;
     grand += balance;
     return { seller_id: p.id, seller: p.name + ' (' + label(p.handle) + ')', cash_sales: money(a.cash_sales), lipa_sales: money(a.lipa_sales), credit_sales: money(a.credit_sales),
-      cash_received: money(a.cash_received), lipa_received: money(lipaReceived), balance: money(balance), vendor_name: vendorName(s, maps, p) };
+      cash_received: money(a.cash_received), lipa_received: money(lipaReceived),
+      dep_taken: money(a.dep_taken), dep_applied: money(a.dep_applied),
+      balance: money(balance), vendor_name: vendorName(s, maps, p) };
   });
   const columns = withVendor(s, [col('seller', 'Seller'), col('cash_sales', 'Cash Sales', R), col('lipa_sales', 'Lipa Sales', R), col('credit_sales', 'Credit Sales', R),
-    col('cash_received', 'Cash Received', R), col('lipa_received', 'Lipa Received', R), col('balance', 'Balance', R)]);
-  return { columns, rows: out, totals: [['TOTAL', cur(s, grand)]], subtitle: fmtKey(s.today) };
+    col('cash_received', 'Cash Received', R), col('lipa_received', 'Lipa Received', R),
+    col('dep_taken', 'Deposits Taken', R), col('dep_applied', 'Deposits Applied', R), col('balance', 'Balance', R)]);
+  const meta = [];
+  if (depositsFailed) {
+    meta.push('WARNING: the hold deposits could not be read (' + depositsFailed + '), so the Deposits columns '
+      + 'are blank and every Balance below may be wrong by the deposits taken or applied today. Try again in a moment.');
+  }
+  if (out.some(r => r.dep_taken || r.dep_applied)) {
+    meta.push('Deposits Taken is cash held today against a hold that has not been collected. '
+      + 'Deposits Applied is the part of today\u2019s sales that was paid on an earlier day. '
+      + 'Both are in the Balance, so the drawer should match it.');
+  }
+  return { columns, rows: out, totals: [['TOTAL', cur(s, grand)]], subtitle: fmtKey(s.today), meta };
 }
 
 /* lending -- one row per borrowed line, Active / Returned / ALL, by the date it was recorded.
@@ -339,11 +416,36 @@ async function profitReport(db, s) {
 async function customerReport(db, s) {
   const list = await salesIn(db, s);
   const maps = await nameMaps(db, s, { vendors: true });
+  /* ONE PERSON, ONE ROW. Keying on "the phone, or else the name" split a regular into two rows the
+     moment a seller recorded her number on some visits and not others -- so "most valuable first"
+     ranked her by the smaller half and no row stated what she had actually spent. And the
+     backfill line written for exactly that case could never fire: a group keyed BY the phone
+     already had one.
+
+     So names are resolved to phones in a first pass. A name seen with a phone anywhere in the
+     range belongs to that phone everywhere in it, and a name learned later fills in a group that
+     started anonymous. Two people who share a name and neither leaves a number still merge -- but
+     that was already true, and a report that under-counts a regular is the worse of the two. */
+
+  /* ONE PERSON PER BUSINESS, THOUGH. A manager's all-vendor run puts every shop's sales in one
+     list, and this report carries a Vendor column -- a claim that each row belongs to one of
+     them. Keyed on the phone alone it did not: two shops that both serve 0712 345 678 printed as
+     a single row under whichever was seen first. The walk-in bucket was worse, because its key is
+     a CONSTANT: every business's counter trade merged into one row on every all-vendor run, no
+     collision required. profitReport and employeeReport prefix their key with the vendor for
+     exactly this reason; so does this. On one vendor the prefix is empty and nothing changes. */
+  const vkey = r => (s.all ? String(r.vendor_id) + '|' : '');
+
+  const phoneOfName = new Map();
+  for (const r of list) {
+    const phone = label(r.customer_phone), name = label(r.customer_name).toLowerCase();
+    if (phone && name && !phoneOfName.has(vkey(r) + name)) phoneOfName.set(vkey(r) + name, phone);
+  }
   const byCustomer = new Map();
   for (const r of list) {
     const phone = label(r.customer_phone), name = label(r.customer_name);
     const walkIn = !phone && !name;
-    const key = walkIn ? '\u0000walk-in' : (phone || name.toLowerCase());
+    const key = vkey(r) + (walkIn ? '\u0000walk-in' : (phone || phoneOfName.get(vkey(r) + name.toLowerCase()) || name.toLowerCase()));
     const a = bump(byCustomer, key, () => ({
       customer_name: walkIn ? 'Walk-in (not recorded)' : (name || '(no name)'), customer_phone: phone,
       visits: new Set(), units: 0, total: 0, last: '', vendor_name: vendorName(s, maps, r),
@@ -352,7 +454,9 @@ async function customerReport(db, s) {
     a.units += num(r.qty);
     a.total += num(r.total);
     if (!a.last || r.sold_at > a.last) a.last = r.sold_at;
+    // A group that started from a sale carrying only one of the two fields learns the other here.
     if (!a.customer_phone && phone) a.customer_phone = phone;
+    if ((!a.customer_name || a.customer_name === '(no name)') && name) a.customer_name = name;
   }
   let grand = 0;
   const out = [...byCustomer.values()].map(a => {

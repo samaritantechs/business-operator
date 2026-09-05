@@ -51,10 +51,13 @@ window.BORcpt = (function () {
     h += '<table class="rcpt-tbl"><thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th></tr></thead><tbody>';
     r.items.forEach(function (i) {
       var sub = [i.brand, i.model].filter(Boolean).join(' ');
-      h += '<tr><td>' + esc(i.product_name)
+      /* A cancelled line is struck through and named, not silently dropped: the person holding
+         the old slip has to be able to see which of two identical handsets went back. */
+      h += '<tr' + (i.cancelled ? ' class="rcpt-void"' : '') + '><td>' + esc(i.product_name)
         + (sub ? '<div class="rcpt-dim">' + esc(sub) + '</div>' : '')
         + (i.imei ? '<div class="rcpt-dim mono">IMEI ' + esc(i.imei) + '</div>' : '')
         + (i.discount ? '<div class="rcpt-dim">less ' + fmtFull(i.discount) + ' each</div>' : '')
+        + (i.cancelled ? '<div class="rcpt-dim">CANCELLED' + (i.cancelled_note ? ' \u2014 ' + esc(i.cancelled_note) : '') + '</div>' : '')
         + '</td><td class="num">' + i.qty + '</td><td class="num mono">' + fmtFull(i.price) + '</td><td class="num mono">' + fmtFull(i.total) + '</td></tr>';
     });
     h += '</tbody></table>';
@@ -86,7 +89,8 @@ window.BORcpt = (function () {
     if (r.customer_name || r.customer_phone) L.push('Customer: ' + [r.customer_name, r.customer_phone].filter(Boolean).join(' · '));
     L.push('');
     r.items.forEach(function (i) {
-      L.push(i.product_name + (i.imei ? ' (IMEI ' + i.imei + ')' : '') + '  ' + i.qty + ' x ' + fmtFull(i.price) + ' = ' + fmtFull(i.total));
+      L.push(i.product_name + (i.imei ? ' (IMEI ' + i.imei + ')' : '') + '  ' + i.qty + ' x ' + fmtFull(i.price) + ' = ' + fmtFull(i.total)
+        + (i.cancelled ? '   *** CANCELLED' + (i.cancelled_note ? ' - ' + i.cancelled_note : '') + ' ***' : ''));
     });
     L.push('');
     if (r.discount) { L.push('Subtotal: ' + money(r.subtotal, r.currency)); L.push('Discount: -' + money(r.discount, r.currency)); }

@@ -145,9 +145,33 @@ class FakeQuery {
   limit(n) { this.lim = n; return this; }
   range(a, b) { this.rng = [a, b]; return this; }
   maybeSingle() { this.single = true; return this; }
-  insert(rows) { this.mode = 'insert'; this.payload = Array.isArray(rows) ? rows : [rows]; return this; }
-  upsert(rows, opts) { this.mode = 'upsert'; this.payload = Array.isArray(rows) ? rows : [rows]; this.opts = opts || {}; return this; }
-  update(patch) { this.mode = 'update'; this.payload = patch; return this; }
+  /* A WRITE NAMING A COLUMN THE TABLE HAS NOT GOT IS REFUSED TOO, and PostgREST words it
+     differently from a read: PGRST204 "Could not find the 'x' column of 't' in the schema
+     cache", not 42703. The fake refused only reads, so the write half of a migration fallback
+     was as untestable as the read half used to be -- and it is the half that takes the TILL
+     down, because recording a sale writes the new column rather than merely selecting it. */
+  _refuseUnknown(keys) {
+    const absent = (this.missingCols || []).filter(c => keys.includes(c));
+    if (absent.length) {
+      this.rejectWith = { code: 'PGRST204',
+        message: "Could not find the '" + absent[0] + "' column of '" + this.tableName + "' in the schema cache" };
+    }
+  }
+  insert(rows) {
+    this.mode = 'insert'; this.payload = Array.isArray(rows) ? rows : [rows];
+    this._refuseUnknown([...new Set(this.payload.flatMap(r => Object.keys(r || {})))]);
+    return this;
+  }
+  upsert(rows, opts) {
+    this.mode = 'upsert'; this.payload = Array.isArray(rows) ? rows : [rows]; this.opts = opts || {};
+    this._refuseUnknown([...new Set(this.payload.flatMap(r => Object.keys(r || {})))]);
+    return this;
+  }
+  update(patch) {
+    this.mode = 'update'; this.payload = patch;
+    this._refuseUnknown(Object.keys(patch || {}));
+    return this;
+  }
   delete() { this.mode = 'delete'; return this; }
   /* A column that was asked for but is absent from the stored row still comes back as a key
      with null, the way Postgres answers for a column that exists but holds nothing. */

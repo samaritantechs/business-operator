@@ -443,13 +443,26 @@ function showAppSection(release) {
   if (meta) meta.textContent = label;
   if (!published && btn) { btn.classList.add('disabled'); btn.setAttribute('aria-disabled', 'true'); }
 
-  /* The same download, offered again under "Register your business" -- the moment somebody has
-     just decided to sign up is the moment to hand them the app, and the section that normally
-     carries this button is further down the page than most people scroll. It appears ONLY when
-     there is a release: a download button with nothing behind it is worse than no button. */
-  var cta = document.getElementById('mkCtaApp'), ctaMeta = document.getElementById('mkCtaApkMeta');
-  if (cta) cta.classList.toggle('hidden', !published);
-  if (ctaMeta && published) ctaMeta.textContent = label + ' · installs on any Android phone';
+  /* The same offer, repeated under "Register your business" -- the moment somebody has just
+     decided to sign up is the moment to hand them the app, and the section that normally carries
+     this button is further down the page than most people scroll.
+
+     It is ALWAYS shown. Hiding it until an APK existed meant a system with no release published
+     had nothing at all under its sign-up button, which reads as a broken feature rather than a
+     deliberate absence -- and it is why this button "was not there". So the unpublished state is
+     a real offer too: every phone can open the site and scan a code, no APK required. It becomes
+     the download when there is something to download, and it is never a dead link. */
+  var ctaBtn = document.getElementById('mkCtaApkBtn'), ctaMeta = document.getElementById('mkCtaApkMeta');
+  if (ctaBtn) {
+    ctaBtn.textContent = published ? '⬇️ Download the Android app' : '📲 Use it on your phone';
+    ctaBtn.setAttribute('href', published ? '/download' : '#mkAppSection');
+    ctaBtn.onclick = published ? null : function () { mkScrollTo('mkAppSection'); return false; };
+  }
+  if (ctaMeta) {
+    ctaMeta.textContent = published
+      ? label + ' · installs on any Android phone'
+      : 'Scan a code to open it, or install the Android app.';
+  }
 }
 /** Nags only a phone that is actually running an older APK than the published one. */
 function checkAppUpdate(release) {

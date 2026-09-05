@@ -218,3 +218,61 @@ test('the page reaches it through the same door as everything else', async () =>
   assert.equal(list.rows.length, 1);
   assert.equal(list.currency, 'TZS');
 });
+
+test('one delivery cannot be received twice, however it is tapped', async () => {
+  /* The header of purchasing.js promised this, and it was only true of SEQUENTIAL calls: the
+     "how much is still owed" check read a snapshot and the top-up was read-modify-write. Frank
+     taps Receive on his phone while the assistant taps it on the counter tablet, and one box of
+     forty becomes eighty in the count with two 'received' movements in the ledger. */
+  const db = bookDb();
+  const before = product(db, 'P3').stock;
+  await raise(db, null, [{ product_id: 'P3', qty: 40, unit_cost: 2800 }]);
+  const po = await only(db);
+
+  const both = await Promise.allSettled([
+    FN.receivePurchaseOrder(db, ADM(), { id: po.id }, NOW),
+    FN.receivePurchaseOrder(db, ADM(), { id: po.id }, NOW),
+  ]);
+  assert.equal(both.filter(r => r.status === 'fulfilled').length, 1, 'exactly one receipt may win');
+
+  assert.equal(product(db, 'P3').stock, before + 40, 'forty arrived, forty counted');
+  assert.equal(moves(db).filter(m => m.type === 'received').length, 1, 'and one movement, not two');
+  const done = await only(db);
+  assert.equal(done.items[0].received_qty, 40);
+  assert.equal(done.status, 'received');
+});
+
+test('two people receiving DIFFERENT parts of the same order both succeed', async () => {
+  /* The lock must not become "only one person may ever touch this order". Sequential partial
+     receipts are the normal case and have to keep working. */
+  const db = bookDb();
+  const before = product(db, 'P3').stock;
+  await raise(db, null, [{ product_id: 'P3', qty: 40, unit_cost: 2800 }]);
+  let po = await only(db);
+  await FN.receivePurchaseOrder(db, ADM(), { id: po.id, receipts: [{ item_id: po.items[0].id, qty: 28 }] }, NOW);
+  po = await only(db);
+  await FN.receivePurchaseOrder(db, ADM(), { id: po.id, receipts: [{ item_id: po.items[0].id, qty: 12 }] }, NOW);
+  assert.equal(product(db, 'P3').stock, before + 40);
+  assert.equal((await only(db)).status, 'received');
+});
+
+test('a purchase order will not restock a product that is switched off', async () => {
+  /* addStock refuses this outright -- "activate it first" -- and a purchase order is a restock
+     with paperwork. Without the check a delivery put forty units into a product that appears on
+     no screen at all: not in the catalogue, not in the marketplace, not sellable, and not in the
+     stock value. */
+  const db = bookDb();
+  assert.equal(product(db, 'P4').active, false, 'P4 is the fixture\'s deactivated product');
+
+  await rejects(raise(db, null, [{ product_id: 'P4', qty: 40, unit_cost: 4000 }]), 400, /not active/);
+  assert.equal(db._dump('purchase_orders').length, 0, 'and no order is left behind');
+
+  /* Deactivated AFTER the order was raised: the refusal moves to the delivery, where the stock
+     would actually land, rather than letting it in through the back door. */
+  await raise(db, null, [{ product_id: 'P3', qty: 10, unit_cost: 2800 }]);
+  db._dump('products').find(p => p.id === 'P3').active = false;
+  const po = await only(db);
+  const before = product(db, 'P3').stock;
+  await rejects(FN.receivePurchaseOrder(db, ADM(), { id: po.id }, NOW), 400, /not active/);
+  assert.equal(product(db, 'P3').stock, before, 'nothing was taken in');
+});

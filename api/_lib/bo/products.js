@@ -1,4 +1,4 @@
-import { rows, rowsAll, insertOne, update, badRequest, num, int, money, text, mustText, iso, vendorScope, mustProduct, stripCost, canSeeCost, PRODUCT_COLS } from './_shared.js';
+import { rows, rowsAll, insertOne, update, badRequest, num, int, money, text, mustText, iso, vendorScope, mustProduct, stripCost, canSeeCost, sel, requireColumn, columnAbsent, PRODUCT_COLS } from './_shared.js';
 import { requireAdmin } from '../auth.js';
 import { changeStock } from './stock.js';
 import { decodeDataUrl, uploadImage, BUCKETS } from '../storage.js';
@@ -48,7 +48,7 @@ export const FN = {
   products: async (db, user, args) => {
     const vendorId = vendorScope(user, args);
     const list = await rowsAll(db, 'products', q => {
-      let s = q.select(PRODUCT_COLS);
+      let s = q.select(sel('products', PRODUCT_COLS));
       if (vendorId) s = s.eq('vendor_id', vendorId);
       if (!boolArg(args.include_inactive)) s = s.eq('active', true);
       return s.order('legacy_id').order('name');
@@ -94,7 +94,8 @@ export const FN = {
     const price = money(args.price);
     if (price < 0) throw badRequest('Price cannot be negative.');
     const cost = money(args.cost_price);
-    if (cost < 0) throw badRequest('Cost price cannot be negative.');
+    if (cost < 0) throw badRequest('Bei ya kununulia haiwezi kuwa hasi. / Cost price cannot be negative.');
+    if (cost > 0) requireColumn('products', 'cost_price', 'cost prices');   // a zero is "not recorded", and costs nothing to drop
     const opening = int(args.stock);
     if (opening < 0) throw badRequest('Opening stock cannot be negative.');
     const serialized = boolArg(args.is_serialized);
@@ -113,7 +114,20 @@ export const FN = {
       const r = await changeStock(db, { product, delta: opening, branchId: branch ? branch.id : null, type: 'received', user, note: 'Opening stock' }, nowMs);
       product.stock = r.stock;
     }
-    return { product };
+    /* THE INSERT WAS THE DISCOVERY. requireColumn above can only refuse what this process has
+       already been told is missing, and on the first request a cold instance serves it has been
+       told nothing -- so the insert is refused, the fallback learns, retries without cost_price
+       and the product lands with the cost gone. Refusing here would be the opposite lie: an
+       error on screen and a product in the list, and a duplicate typed in to fix it. So the
+       product stands and the answer says which part of it did not. */
+    const costUnrecorded = cost > 0 && columnAbsent('products', 'cost_price');
+    if (!costUnrecorded) return { product };
+    return {
+      product, cost_unrecorded: true,
+      message: 'Bidhaa imehifadhiwa, LAKINI bei ya kununulia (' + cost + ') HAIKUHIFADHIWA -- endesha db/RUN-ME-002 kwenye Supabase, kisha iandike tena kwa Edit. / '
+        + 'The product was saved, but its cost price (' + cost + ') was NOT — this database has not run db/RUN-ME-002 yet. '
+        + 'Run it in Supabase, then set the cost with Edit.',
+    };
   },
 
   /** The edit form. Fields are applied as given; a changed `stock` on a counted product is
@@ -131,8 +145,17 @@ export const FN = {
        form -- or anyone replaying its request -- could write the field they are not allowed to read,
        and the profit figures would quietly become fiction. */
     if (args.cost_price !== undefined && canSeeCost(user)) {
-      patch.cost_price = money(args.cost_price);
-      if (patch.cost_price < 0) throw badRequest('Cost price cannot be negative.');
+      const wanted = money(args.cost_price);
+      if (wanted < 0) throw badRequest('Bei ya kununulia haiwezi kuwa hasi. / Cost price cannot be negative.');
+      /* ONLY A REAL CHANGE HAS TO BE REFUSED. The edit form posts every field it holds, and on a
+         database with no cost_price it holds a 0 -- so requiring the column on "is it present in
+         the request" blocked EVERY product edit before the migration: the name, the price and any
+         queued photos all went down with it, because the uploads run inside this call's success.
+         A request that would not change the number needs nothing from the database. */
+      if (wanted !== num(p.cost_price)) {
+        requireColumn('products', 'cost_price', 'cost prices');
+        patch.cost_price = wanted;
+      }
     }
     if (args.reorder_point !== undefined) patch.reorder_point = int(args.reorder_point);
     if (args.listing_type !== undefined) patch.listing_type = listingType(args.listing_type);

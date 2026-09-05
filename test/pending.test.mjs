@@ -19,6 +19,7 @@ const ADM = () => userOf(richBook(), 'ADM1');
 const SEL = () => userOf(richBook(), 'SEL1');
 const ADM2 = () => userOf(richBook(), 'ADM2');
 const MGR = () => userOf(richBook(), 'MGR');
+const SEL2 = () => userOf(richBook(), 'SEL2');
 const product = (db, id) => db._dump('products').find(p => p.id === id);
 const unit = (db, id) => db._dump('product_units').find(u => u.id === id);
 const bs = (db, p, b) => (db._dump('branch_stock').find(x => x.product_id === p && x.branch_id === b) || { qty: 0 }).qty;
@@ -218,4 +219,180 @@ test('the page reaches it through the same door as everything else', async () =>
   const list = await boApi(db, ADM(), 'pendingSales', {}, NOW);
   assert.equal(list.rows.length, 1);
   assert.equal(list.currency, 'TZS');
+});
+
+/* =====================================================================================
+   WHAT AN ADVERSARIAL REVIEW FOUND, AFTER THIS SHIPPED.
+   =====================================================================================
+   Seven defects, four of them here, every one a way for stock to be created or destroyed. They
+   are grouped together because they share a cause: I wrote the hold path by analogy with the
+   sale path and did not carry over the guards the sale path had already learned. */
+
+test('a hold cannot be collected twice, however fast the second tap is', async () => {
+  /* Reading the status and writing it back afterwards is not a lock. Two taps on "They collected
+     it" both read 'held', both released the stock, and both sold it. lendings.js already did this
+     correctly and says why -- I wrote that guard and then did not apply it here. */
+  const db = bookDb();
+  const before = product(db, 'P3').stock;
+  const h = await hold(db, null, { items: [{ product_id: 'P3', qty: 4 }], customer_name: 'Neema Mushi' });
+
+  const both = await Promise.allSettled([
+    FN.completePendingSale(db, SEL(), { id: h.id, payment_method: 'Cash' }, NOW),
+    FN.completePendingSale(db, SEL(), { id: h.id, payment_method: 'Cash' }, NOW),
+  ]);
+  const won = both.filter(r => r.status === 'fulfilled');
+  assert.equal(won.length, 1, 'exactly one collection may win');
+  assert.match(String(both.find(r => r.status === 'rejected').reason.message), /already been dealt with|already completed/);
+
+  assert.equal(product(db, 'P3').stock, before - 4, 'four held, four sold — not eight');
+  const group = won[0].value.group_id;
+  assert.equal(db._dump('sales').filter(s => s.group_id === group).length, 1, 'the winner wrote one sale');
+  const holdSales = db._dump('sales').filter(s => s.customer_name === 'Neema Mushi' && s.qty === 4);
+  assert.equal(holdSales.length, 1, 'and the loser wrote none — one collection, one sale');
+  assert.equal((await only(db)).status, 'completed');
+});
+
+test('a hold cannot be released twice either', async () => {
+  const db = bookDb();
+  const before = product(db, 'P3').stock;
+  const h = await hold(db, null, { items: [{ product_id: 'P3', qty: 3 }], customer_name: 'X' });
+  const both = await Promise.allSettled([
+    FN.cancelPendingSale(db, ADM(), { id: h.id, reason: 'a' }, NOW),
+    FN.cancelPendingSale(db, ADM(), { id: h.id, reason: 'b' }, NOW),
+  ]);
+  assert.equal(both.filter(r => r.status === 'fulfilled').length, 1);
+  assert.equal(product(db, 'P3').stock, before, 'the three come back once, not twice');
+});
+
+test('releasing a hold never resurrects a handset that is no longer reserved', async () => {
+  /* release() forced 'in_stock' whatever the unit's current status. A handset that had escaped
+     the hold and been sold, or been marked lost, was put back on the shelf by the release and
+     could be sold a second time. */
+  const db = bookDb();
+  const h = await hold(db, null, { items: [{ product_id: 'P1', qty: 1, unit_ids: ['U1'] }], customer_name: 'Neema' });
+  db._dump('product_units').find(u => u.id === 'U1').status = 'sold';     // it got out some other way
+  const stock = product(db, 'P1').stock;
+
+  await FN.cancelPendingSale(db, ADM(), { id: h.id, reason: 'gone' }, NOW);
+  assert.equal(unit(db, 'U1').status, 'sold', 'a sold handset stays sold');
+  assert.equal(product(db, 'P1').stock, stock, 'and the count is not inflated by a phone that is gone');
+});
+
+test('a hold never moves the handset between shops', async () => {
+  /* changeStock rewrites a unit's branch whenever toBranchId is passed, and release passed the
+     HOLD's branch. A seller at Sinza taking a booking for a phone in the Kariakoo drawer moved
+     that phone to Sinza in the book; an admin with no branch dropped it out of every shop. */
+  const db = bookDb();
+  const where = unit(db, 'U3').branch_id;
+  assert.ok(where, 'U3 starts at a shop');
+
+  const h = await hold(db, ADM(), { items: [{ product_id: 'P1', qty: 1, unit_ids: ['U3'] }], customer_name: 'Neema' });
+  assert.equal(unit(db, 'U3').branch_id, where, 'reserving never moved it');
+  await FN.cancelPendingSale(db, ADM(), { id: h.id, reason: 'never came' }, NOW);
+  assert.equal(unit(db, 'U3').branch_id, where, 'and releasing must not move it either');
+});
+
+test('a hold cannot take more out of a shop than that shop holds', async () => {
+  /* recordSale carries this check with a comment describing exactly what happens without it: the
+     shop's row goes negative and the per-shop figures stop adding up to the business total. The
+     hold path reserved through the same branch and checked only the business-wide total. */
+  const db = bookDb();
+  const total = product(db, 'P3').stock, here = bs(db, 'P3', 'B2');
+  assert.ok(total > here, 'the business holds more than this one shop does');
+
+  await rejects(FN.createPendingSale(db, userOf(richBook(), 'SEL2'),
+    { items: [{ product_id: 'P3', qty: here + 5 }], customer_name: 'X', branch_id: 'B2' }, NOW), 400, /short at this shop/);
+  assert.equal(bs(db, 'P3', 'B2'), here, 'and the shop row is untouched, not negative');
+  assert.equal(product(db, 'P3').stock, total);
+});
+
+test('every handset on a hold is charged the price IT was held at', async () => {
+  /* Two of the same model, one discounted, collapsed onto the first line's price: a hold agreed
+     at 650,000 was rung up at 700,000, and which line won depended on the row order. */
+  const db = bookDb();
+  const h = await hold(db, null, {
+    items: [{ product_id: 'P1', qty: 1, unit_ids: ['U1'], list_price: 350000, discount: 0 },
+            { product_id: 'P1', qty: 1, unit_ids: ['U2'], list_price: 350000, discount: 50000 }],
+    customer_name: 'Neema Mushi',
+  });
+  assert.equal((await only(db)).total, 650000, 'the hold says 650,000');
+
+  const r = await FN.completePendingSale(db, SEL(), { id: h.id, payment_method: 'Cash' }, NOW);
+  assert.equal(r.grand_total, 650000, 'and the customer is charged 650,000, not 700,000');
+  const sold = db._dump('sales').filter(s => s.group_id === r.group_id);
+  assert.deepEqual(sold.map(s => s.discount).sort((a, b) => a - b), [0, 50000], 'each handset keeps its own discount');
+});
+
+/* ------------------------------------------------------------------ the second review round */
+
+test('a seller sees WHAT is held, not WHO it is held for', async () => {
+  /* The reason this screen is open to sellers is so nobody promises a handset already spoken
+     for -- that needs the items. It does not need a colleague's customer's name, phone and
+     notes, and saleReceipt refuses exactly those two fields on exactly that reasoning. */
+  const db = bookDb();
+  await hold(db, SEL2(), { items: [{ product_id: 'P3', qty: 1 }], customer_name: 'Neema Mushi',
+    customer_phone: '0712000111', notes: 'Her brother is paying' });
+
+  const asAsha = (await FN.pendingSales(db, SEL2(), {}, NOW)).rows[0];
+  assert.equal(asAsha.customer_name, 'Neema Mushi', 'her own hold is hers to see');
+  assert.equal(asAsha.customer_phone, '0712000111');
+
+  const asJuma = (await FN.pendingSales(db, SEL(), {}, NOW)).rows[0];
+  assert.equal(asJuma.customer_phone, '', 'another seller gets no phone');
+  assert.equal(asJuma.notes, '', 'and no notes');
+  assert.notEqual(asJuma.customer_name, 'Neema Mushi', 'and no name');
+  assert.equal(asJuma.items.length, 1, 'but does see what is held, which is the point of the screen');
+  assert.equal(asJuma.total, asAsha.total);
+
+  const asAdmin = (await FN.pendingSales(db, ADM(), {}, NOW)).rows[0];
+  assert.equal(asAdmin.customer_phone, '0712000111', 'the owner sees everything, as everywhere else');
+});
+
+test('a hold cannot be taken at a shop that is closed', async () => {
+  /* recordSale refuses to sell from a closed shop. A hold that ignored that reserved stock for a
+     sale the system would never let anybody ring up: the rollback puts it back on hold for ever,
+     and "Put it back" is the only escape. */
+  const db = bookDb();
+  db._dump('branches').find(b => b.id === 'B1').active = false;
+  const before = product(db, 'P3').stock;
+  await rejects(FN.createPendingSale(db, SEL(), { items: [{ product_id: 'P3', qty: 3 }], customer_name: 'X' }, NOW), 400, /closed/);
+  assert.equal(product(db, 'P3').stock, before, 'and nothing left the shelf');
+});
+
+test('overdue is decided on the East Africa clock, not on UTC', async () => {
+  /* At 01:00 EAT the UTC date is still yesterday, so a hold due yesterday read as not overdue --
+     and releasing it filed a genuinely lapsed hold as cancelled rather than expired. */
+  const db = bookDb();
+  await hold(db, null, { items: [{ product_id: 'P3', qty: 1 }], customer_name: 'Late', hold_until: '2026-09-04' });
+  const at0100EAT = Date.parse('2026-09-04T22:00:00Z');      // 01:00 on 5 Sep, East Africa
+  const list = (await FN.pendingSales(db, ADM(), {}, at0100EAT)).rows;
+  assert.equal(list[0].overdue, true, 'it is the 5th in the shop, and the hold was due on the 4th');
+});
+
+test('a credit hold is refused without a financing partner, at both ends', async () => {
+  /* The Holds form offered "Credit (financing)" and never asked who was financing it, so the
+     hold could be taken and then never collected: recordSale refuses it, the rollback puts the
+     goods straight back on hold, and every retry fails the same way. The stock sits off the
+     shelf until somebody thinks to press "Put it back". */
+  const db = bookDb();
+  const before = product(db, 'P3').stock;
+  await rejects(FN.createPendingSale(db, SEL(), {
+    items: [{ product_id: 'P3', qty: 2 }], customer_name: 'Neema', payment_method: 'Credit',
+  }, NOW), 400, /financing partner/);
+  assert.equal(product(db, 'P3').stock, before, 'and nothing left the shelf');
+
+  // Named at the hold: it collects cleanly.
+  const h = await FN.createPendingSale(db, SEL(), {
+    items: [{ product_id: 'P3', qty: 2 }], customer_name: 'Neema', payment_method: 'Credit', financing_partner_id: 'FP1',
+  }, NOW);
+  const r = await FN.completePendingSale(db, SEL(), { id: h.id }, NOW);
+  assert.equal(db._dump('sales').find(s => s.group_id === r.group_id).financing_partner_id, 'FP1');
+
+  // Decided at collection instead: the partner may be named then, and must be.
+  const h2 = await FN.createPendingSale(db, SEL(), { items: [{ product_id: 'P3', qty: 1 }], customer_name: 'X' }, NOW);
+  await rejects(FN.completePendingSale(db, SEL(), { id: h2.id, payment_method: 'Credit' }, NOW), 400, /financing partner/);
+  const stillHeld = (await FN.pendingSales(db, ADM(), {}, NOW)).rows.find(x => x.id === h2.id);
+  assert.equal(stillHeld.status, 'held', 'and THAT hold survives the refusal');
+  const r2 = await FN.completePendingSale(db, SEL(), { id: h2.id, payment_method: 'Credit', financing_partner_id: 'FP1' }, NOW);
+  assert.equal(db._dump('sales').find(s => s.group_id === r2.group_id).financing_partner_id, 'FP1');
 });

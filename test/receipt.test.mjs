@@ -71,14 +71,39 @@ test('the receipt number names the range when a checkout wrote several lines', a
   assert.equal(r.items.length, 3, 'a phone is one line per handset, because each has its own IMEI');
 });
 
-test('a cancelled sale still gets a receipt, and it says so', async () => {
+test('a cancelled sale still gets a receipt, and it owes nothing', async () => {
   /* Somebody is standing there holding the old one. Refusing to print anything tells them
-     nothing; what they need is the same document with CANCELLED across it. */
+     nothing; what they need is the same document with CANCELLED across it -- and a total of
+     zero, because that is what they owe. */
   const db = bookDb();
   const r = await FN.saleReceipt(db, ADM(), { sale_id: 'S4' });
   assert.equal(r.status, 'cancelled');
   assert.match(r.cancelled_note, /cancelled by Frank Amos: wrong item/);
-  assert.equal(r.total, 15000, 'and it still shows what was charged');
+  assert.equal(r.total, 0, 'nothing is owed on a cancelled sale');
+  assert.equal(r.cancelled_total, 15000, 'and the receipt still says what it WAS');
+  assert.equal(r.items[0].cancelled, true, 'with the line itself marked');
+  assert.match(r.items[0].cancelled_note, /cancelled by Frank Amos: wrong item/);
+});
+
+test('a PART-cancelled receipt charges only the lines that stand', async () => {
+  /* Two handsets on one checkout, one brought back. The receipt used to total both -- handing
+     the customer a slip for money they had not paid, with no way to tell which of two identical
+     Samsungs was the void. That figure is what Print and the WhatsApp message carry, so it is
+     the number that gets argued about at the counter. */
+  const db = bookDb();
+  const sale = await FN.recordSale(db, SEL(), {
+    items: [{ product_id: 'P1', qty: 2, unit_ids: ['U1', 'U2'], price: 350000 }],
+    payment_method: 'Cash', customer_name: 'Neema Mushi',
+  }, NOW);
+  await FN.cancelSale(db, ADM(), { sale_id: sale.sale_ids[0], reason: 'customer returned it' }, NOW);
+
+  const r = await FN.saleReceipt(db, ADM(), { group_id: sale.group_id });
+  assert.equal(r.status, 'part-cancelled');
+  assert.equal(r.items.length, 2, 'both lines stay on the paper');
+  assert.equal(r.total, 350000, 'but only the handset they kept is charged');
+  assert.equal(r.cancelled_total, 350000);
+  assert.equal(r.items.filter(i => i.cancelled).length, 1, 'and the void line is the one that is marked');
+  assert.equal(r.subtotal - r.discount, r.total);
 });
 
 /* ------------------------------------------------------------------ who may ask */

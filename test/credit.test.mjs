@@ -124,3 +124,28 @@ test('the page reaches it through the same door as everything else', async () =>
   assert.ok(Array.isArray(r.credit) && Array.isArray(r.voids));
   assert.equal(r.currency, 'TZS');
 });
+
+test('the unsettled-credit read is capped, and the screen SAYS when it is', async () => {
+  /* "Not yet settled" is only a bound in a shop that settles. The shop that never taps Paid is
+     exactly the one that most needs this screen, and its unsettled set grows for ever -- a year
+     of six credit sales a day was already past the screen's whole budget, on a phone. */
+  const book = richBook();
+  const base = book.sales.find(s => s.id === 'S1');
+  for (let i = 0; i < 620; i++) {
+    book.sales.push({ ...base, id: 'BULK' + i, legacy_id: 'SALE-B' + i, group_id: 'GB' + i,
+      sold_at: '2026-0' + (1 + (i % 8)) + '-1' + (i % 9) + 'T08:00:00.000Z' });
+  }
+  const db = bookDb(book);
+  const r = await FN.creditAndVoids(db, ADM(), {}, NOW);
+
+  assert.equal(r.credit.length, r.cap, 'capped at exactly the cap');
+  assert.equal(r.credit_capped, true, 'and it admits the cut');
+  assert.ok(r.credit[0].sold_at <= r.credit[r.credit.length - 1].sold_at, 'oldest first — the debt to chase');
+});
+
+test('an ordinary shop is not told anything was cut', async () => {
+  const db = bookDb();
+  const r = await FN.creditAndVoids(db, ADM(), {}, NOW);
+  assert.equal(r.credit_capped, false);
+  assert.equal(r.voids_capped, false);
+});

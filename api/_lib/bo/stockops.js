@@ -1,5 +1,5 @@
 import { rows, rowsAll, one, insertOne, insertMany, update, badRequest, forbidden, notFound, num, int, text, mustText, iso,
-  isManagerLevel, vendorScope, scopedVendor, mustProduct, productById, rangeBounds, PRODUCT_COLS } from './_shared.js';
+  isManagerLevel, vendorScope, scopedVendor, mustProduct, productById, rangeBounds, sel, PRODUCT_COLS } from './_shared.js';
 import { requireAdmin } from '../auth.js';
 import { changeStock, claimUnits, recountSerialized, adjustBranchStock, branchStockRows, writeMovement, MOVEMENT_TYPES } from './stock.js';
 
@@ -234,6 +234,13 @@ export const FN = {
     if (status && status !== unit.status) {
       if (!['in_stock', 'lost'].includes(status)) throw badRequest('A unit can only be set to in_stock or lost here.');
       if (unit.status === 'sold' || unit.status === 'lent') throw badRequest('This unit is ' + unit.status + ' -- cancel the sale or mark the lending returned instead.');
+      /* A HELD HANDSET IS SPOKEN FOR TOO. 'reserved' was added to UNIT_STATUSES for the Holds
+         screen and this guard was not extended to it, while the Edit dialog offers only "In stock"
+         and "Lost" -- so a reserved unit pre-selected "In stock" and an admin correcting a typo in
+         an IMEI silently released somebody's phone back onto the shelf, with the hold still
+         claiming it. The hold is the only thing that may let it go. */
+      if (unit.status === 'reserved') throw badRequest('Simu hii imewekwa kwa mteja -- ishughulikie kwenye Zilizowekwa. / '
+        + 'This handset is being held for a customer -- collect or release it on the Holds screen instead.');
       const lost = status === 'lost';
       const { branch_id: _b, ...rest } = patch;            // changeStock sets branch_id itself via toBranchId
       await changeStock(db, {
@@ -267,7 +274,7 @@ export const FN = {
     const branches = await branchesOf(db, unit.vendor_id);
     const movements = await rowsAll(db, 'stock_movements', q => q.select(MOVEMENT_COLS).eq('unit_id', unit.id).order('created_at'));
     // A unit sold, cancelled and sold again has two sales rows: the completed one is its story.
-    const sales = await rows(db, 'sales', q => q.select(SALE_COLS).eq('unit_id', unit.id).order('sold_at', { ascending: false }).limit(5));
+    const sales = await rows(db, 'sales', q => q.select(sel('sales', SALE_COLS)).eq('unit_id', unit.id).order('sold_at', { ascending: false }).limit(5));
     const s = sales.find(x => x.status === 'completed') || sales[0] || null;
     const partner = s && s.financing_partner_id ? await one(db, 'financing_partners', q => q.select('id, name').eq('id', s.financing_partner_id)) : null;
     return {
