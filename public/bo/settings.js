@@ -35,11 +35,30 @@ window.BOSet = (function () {
     srv('hints', {}).then(function (r) {
       hints = r.rows || [];
       var el = document.getElementById('hintsTable'); if (!el) return;
-      if (!hints.length) { el.innerHTML = 'No hints yet — the built-in tips are showing.'; return; }
+      if (!hints.length) {
+        /* THIS EMPTY LIST IS WHY SOMEBODY ASKS "are hints there?". Thirty-eight tips are
+           rotating on the screens; none of them is here, because they live in the code. Saying
+           so is not enough on its own -- the next thing a manager does is add one, and the
+           first custom hint for a role REPLACES that role's built-ins. So the way out is on
+           the screen, next to the sentence that explains it. */
+        el.innerHTML = '<div class="alert-info" style="margin-bottom:12px;">'
+          + '<strong>Your staff ARE seeing tips.</strong> The built-in ones live in the app itself, '
+          + 'so they do not appear in this list — which is why it looks empty.<br>'
+          + '<span class="small">Load them in to see and edit them. Careful otherwise: the first hint you add '
+          + 'for a role <strong>replaces</strong> that role\'s built-in tips rather than joining them.</span></div>'
+          + '<button class="btn-secondary" onclick="BOSet.loadDefaults(this)">Load the built-in tips into this list</button>';
+        return;
+      }
       var h = '<div class="table-wrap"><table class="bo-table"><thead><tr><th>Role</th><th>Message (EN)</th><th>Kiswahili (SW)</th><th>Actions</th></tr></thead><tbody>';
       hints.forEach(function (x, i) { h += '<tr><td><span class="badge badge-seller">' + esc(x.role) + '</span></td><td style="color:var(--text2);">' + esc(x.message_en) + '</td><td style="color:var(--text2);">' + (x.message_sw ? esc(x.message_sw) : '<span class="muted">—</span>') + '</td><td style="white-space:nowrap;"><button class="btn-sm-primary" onclick="BOSet.editHint(' + i + ')">Edit</button> <button class="btn-sm-danger" onclick="BOSet.deleteHint(\'' + BO.jsq(x.id) + '\')">Del</button></td></tr>'; });
       el.innerHTML = h + '</tbody></table></div>';
     }).catch(function (e) { var el = document.getElementById('hintsTable'); if (el) el.innerHTML = BO.errorBox(e); });
+  }
+  function loadDefaults(btn) {
+    if (!BO.confirm('Copy the built-in tips into this list so you can edit them?\n\nNothing changes for your staff — these are the same tips they are already seeing.')) return;
+    btn.disabled = true;
+    srv('loadDefaultHints', {}).then(function (r) { showToast(r.message, '📝'); loadHints(); })
+      .catch(function (e) { btn.disabled = false; BO.fail(e); });
   }
   function editHint(i) {
     var x = hints[i]; if (!x) return;
@@ -87,5 +106,5 @@ window.BOSet = (function () {
      rollbackRelease) are left alone as the manual route of last resort. */
 
   BO.tabs.settings = { load: load };
-  return { load: load, save: save, saveHintTimings: saveHintTimings, addBulkRow: addBulkRow, saveBulk: saveBulk, editHint: editHint, saveHint: saveHint, deleteHint: deleteHint, applyPerms: applyPerms };
+  return { load: load, save: save, loadDefaults: loadDefaults, saveHintTimings: saveHintTimings, addBulkRow: addBulkRow, saveBulk: saveBulk, editHint: editHint, saveHint: saveHint, deleteHint: deleteHint, applyPerms: applyPerms };
 })();

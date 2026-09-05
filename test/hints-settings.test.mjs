@@ -11,8 +11,8 @@ const setting = (db, key) => { const r = db._dump('settings').find(s => s.key ==
 
 /* ---------------------------------------------------------------- hints */
 test('module shapes', () => {
-  assert.deepEqual(Object.keys(hints.FN).sort(), ['addHints', 'deleteHint', 'hints', 'updateHint']);
-  assert.deepEqual(hints.WRITES.slice().sort(), ['addHints', 'deleteHint', 'updateHint']);
+  assert.deepEqual(Object.keys(hints.FN).sort(), ['addHints', 'deleteHint', 'hints', 'loadDefaultHints', 'updateHint']);
+  assert.deepEqual(hints.WRITES.slice().sort(), ['addHints', 'deleteHint', 'loadDefaultHints', 'updateHint']);
   assert.deepEqual(Object.keys(settings.FN).sort(), ['setAnnouncement', 'settingSet', 'settingsGet']);
   assert.deepEqual(settings.WRITES.slice().sort(), ['setAnnouncement', 'settingSet']);
 });
@@ -103,6 +103,47 @@ test('addHints: manager only, blank English skipped, roles validated, sorted aft
   assert.equal(db._dump('hints').length, 5, 'a refused batch writes nothing');
   // What was added now rotates for admins, ahead of the defaults.
   assert.deepEqual((await hintsForRole(db, 'admin')).map(h => h.en), ['Use Refresh to see the latest numbers.', 'Tip A', 'Tip B']);
+});
+
+test('loadDefaultHints: puts the built-ins in the table so they can be seen and edited', async () => {
+  /* The built-in tips live in code, so the Manage Hints list was empty and read as "there are
+     no hints" -- while thirty-eight of them were rotating on the screens all along. Worse, the
+     first custom hint saved for a role REPLACES that role's built-ins, so adding one seller tip
+     silently took twelve away. Loading them into the table fixes both: they become visible,
+     editable and deletable one at a time, and adding a thirteenth now adds rather than erases. */
+  const db = bookDb(emptyBook());
+  const before = {};
+  for (const r of hints.HINT_ROLES) before[r] = await hintsForRole(db, r);
+
+  const r = await hints.FN.loadDefaultHints(db, userOf(richBook(), MANAGER), {}, NOW);
+  const written = db._dump('hints');
+  assert.equal(written.length, Object.values(DEFAULT_HINTS).reduce((a, b) => a + b.length, 0));
+  assert.match(r.message, new RegExp(String(written.length)));
+
+  /* THE POINT OF THIS IS THAT NOTHING CHANGES ON SCREEN. The rows written ARE the built-ins, so
+     every role must serve exactly what it served a moment ago -- otherwise this "make them
+     visible" button would quietly be a "change everyone's tips" button. */
+  for (const role of hints.HINT_ROLES) {
+    assert.deepEqual(await hintsForRole(db, role), before[role], role + ' sees exactly what it saw before');
+  }
+
+  assert.ok(written.every(h => h.active === true), 'all switched on');
+  assert.ok(written.every(h => typeof h.message_sw === 'string' && h.message_sw.length), 'Kiswahili on every one');
+  assert.ok(written.every(h => hints.HINT_ROLES.includes(h.role)), 'no row lands under a role nothing reads');
+});
+
+test('loadDefaultHints: refuses to run twice, so a second press cannot double every tip', async () => {
+  const db = bookDb(emptyBook());
+  const mgr = () => userOf(richBook(), MANAGER);
+  await hints.FN.loadDefaultHints(db, mgr(), {}, NOW);
+  const after = db._dump('hints').length;
+  await rejects(hints.FN.loadDefaultHints(db, mgr(), {}, NOW), 400, /already/i);
+  assert.equal(db._dump('hints').length, after, 'and nothing was written by the refused call');
+});
+
+test('loadDefaultHints: manager only', async () => {
+  await rejects(hints.FN.loadDefaultHints(bookDb(emptyBook()), userOf(richBook(), ADMIN1), {}, NOW), 403);
+  await rejects(hints.FN.loadDefaultHints(bookDb(emptyBook()), userOf(richBook(), SELLER1), {}, NOW), 403);
 });
 
 test('updateHint and deleteHint: manager only, by id, 404 when gone', async () => {
