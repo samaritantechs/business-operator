@@ -1,0 +1,21 @@
+/* THE ANDROID GRADLE PLUGIN VERSION, PINNED ONCE, HERE.
+ *
+ * app/build.gradle applies 'com.android.application' with NO version attached, so the version
+ * has to be declared exactly once at the root with `apply false`. Without this file the build
+ * dies at configuration: "Plugin [id: 'com.android.application'] was not found".
+ *
+ * 8.7.3 is not arbitrary:
+ *   - AGP 8 is required at all, because `namespace` is mandatory from 8.0 and
+ *     `buildFeatures { buildConfig true }` is the 8.0 opt-in for BuildConfig generation --
+ *     app/build.gradle uses both.
+ *   - compileSdk 34 needs AGP 8.1.1 or newer.
+ *   - AGP 8.7.3 runs on Gradle 8.9 up to (not including) 9.0. gradle/wrapper pins 8.14.3,
+ *     which is inside that window. THE UPPER BOUND IS THE ONE THAT BITES: a machine that
+ *     installs "latest Gradle" gets the 9 line and this plugin refuses to run on it. That is
+ *     why the wrapper is committed -- so the version is the project's, not the machine's.
+ *
+ * If Android Studio's upgrade assistant offers to bump this, it must bump
+ * gradle/wrapper/gradle-wrapper.properties in the same change or the build stops working. */
+plugins {
+    id 'com.android.application' version '8.7.3' apply false
+}

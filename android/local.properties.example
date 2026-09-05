@@ -1,0 +1,13 @@
+# COPY THIS TO local.properties AND EDIT THE PATH. It is machine-specific and git-ignored:
+# it says where YOUR Android SDK is. Without it a command-line build stops with
+# "SDK location not found."
+#
+# Android Studio writes this file for you the first time it opens the project, so if you are
+# building in Studio you can ignore this entirely.
+#
+# Windows -- note the escaped colon and the DOUBLED backslashes. This is a Java properties
+# file, not a path box; a single backslash is silently swallowed.
+sdk.dir=C\:\\Users\\YOURNAME\\AppData\\Local\\Android\\Sdk
+
+# macOS -- delete the Windows line above and use this one instead:
+# sdk.dir=/Users/YOURNAME/Library/Android/sdk
