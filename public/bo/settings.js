@@ -91,13 +91,22 @@ window.BOSet = (function () {
     srv('releases', {}).then(function (r) {
       var list = r.rows || [];
       var cur = list.filter(function (x) { return x.is_current; })[0];
-      var h = '<div class="small" style="color:var(--text2);margin-bottom:14px;padding:10px;background:var(--surface2);border-radius:var(--radius-sm);">'
+      var h = '';
+      /* The table itself is missing on a database made before it was added to the schema. That
+         is not "no releases yet" -- publishing will refuse until somebody runs the file -- so it
+         is said here, at the top, in words that name the thing to run. */
+      if (r.missing_table) {
+        h += '<div class="alert-warning" style="margin-bottom:14px;"><strong>This database has no app_releases table yet.</strong><br>'
+          + esc(r.notice || '') + '<br><span class="small">Everything else works; only publishing an APK needs it.</span></div>';
+      }
+      h += '<div class="small" style="color:var(--text2);margin-bottom:14px;padding:10px;background:var(--surface2);border-radius:var(--radius-sm);">'
         + 'The app shows this website, so <strong>everything we change is already on every phone</strong>. '
         + 'You only need a new APK if the web address changes, or the app has to be allowed a new domain. '
         + 'The printed QR code points at <code>/download</code> and always fetches whichever build is current, so it never needs reprinting.</div>';
       h += cur
         ? '<div class="kv" style="background:var(--surface2);border-radius:8px;padding:10px 12px;margin-bottom:14px;"><b>Current build</b><span>' + esc(cur.version_name) + ' (code ' + cur.version_code + ')</span><b>Size</b><span>' + fmtSize(cur.size_bytes) + '</span><b>Published</b><span>' + BO.fmtDT(cur.published_at) + '</span></div>'
-        : '<div class="alert-info" style="margin-bottom:14px;">No APK published yet. People can still use the system in a browser, and <code>/download</code> says so politely.</div>';
+        : (r.missing_table ? ''
+          : '<div class="alert-info" style="margin-bottom:14px;">No APK published yet. People can still use the system in a browser, and <code>/download</code> says so politely.</div>');
       h += '<h6 style="margin-bottom:10px;">Publish a build</h6>'
         + '<div class="fg2" style="margin-bottom:10px;"><div class="form-group"><label class="form-label">Version name</label><input class="form-control" id="relName" placeholder="1.3"></div>'
         + '<div class="form-group"><label class="form-label">Version code</label><input type="number" class="form-control" id="relCode" placeholder="4"><div class="small muted" style="margin-top:4px;">Must be higher than last time, or Android refuses to install over the old app.</div></div></div>'

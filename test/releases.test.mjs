@@ -98,3 +98,50 @@ test('only the manager publishes; anybody signed in may ask what the current bui
     assert.deepEqual(await FN.appRelease(db, user(who), {}, NOW), { release: null }, 'but the download link is everybody\'s');
   }
 });
+
+/* ------------------------------------------------------- a database without the table at all */
+
+/* `app_releases` went into db/schema.sql and never got a RUN-ME file, so a database created
+   before it existed does not have it -- and PostgREST refuses the whole query for a missing
+   TABLE exactly as it does for a missing column: PGRST205, "Could not find the table
+   'public.app_releases' in the schema cache". CLAUDE.md: "Every code path that depends on a
+   migration must work without it -- fall back, never fail." Three of these did not. */
+
+const noTable = (book = richBook()) => bookDb(book, { missingTables: ['app_releases'] });
+
+test('the MARKETPLACE does not go down because the app has never been published', async () => {
+  /* The worst of the three by a distance. The storefront is public, it is what a customer sees,
+     and the release rides its payload -- so one absent table took the whole shop window with
+     it, on a database that is otherwise completely healthy. */
+  const { FN: MARKET } = await import('../api/_lib/bo/market.js');
+  const db = noTable();
+  const r = await MARKET.market(db, {}, NOW);
+  assert.ok(r.products.length, 'the products are still there');
+  assert.ok(r.vendors.length, 'and the businesses');
+  assert.equal(r.release, null, 'there is simply no app to download');
+});
+
+test('and neither does the phone asking whether it is out of date', async () => {
+  const db = noTable();
+  assert.deepEqual(await FN.appRelease(db), { release: null });
+  assert.equal(await currentRelease(db), null);
+});
+
+test('the manager SEES why the Android screen is empty, instead of a schema-cache error', async () => {
+  /* This screen is the one place the answer belongs: it is about releases, so "the table is not
+     there" is the honest answer and the fix is a paste away. What it must not do is show
+     PostgREST's own words to somebody who has never heard of a schema cache. */
+  const db = noTable();
+  const r = await FN.releases(db, user(MANAGER));
+  assert.deepEqual(r.rows, []);
+  assert.equal(r.missing_table, true);
+  assert.match(r.notice, /RUN-ME-003/);
+});
+
+test('and publishing REFUSES clearly rather than half-writing a release', async () => {
+  const db = dbWith([APK], emptyBook());
+  const broken = { ...db, from: noTable(emptyBook()).from };
+  await assert.rejects(
+    FN.publishRelease(broken, user(MANAGER), { version_name: '1.3', version_code: 4, file_name: APK.name }, NOW),
+    e => { assert.equal(e.status, 400); assert.match(e.message, /RUN-ME-003/); return true; });
+});
