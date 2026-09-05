@@ -108,6 +108,21 @@ export function requireColumn(table, col, what) {
    and reports. */
 export function columnAbsent(table, col) { return isAbsent(table, col); }
 
+/* A MISSING TABLE IS THE SAME REFUSAL, ONE SIZE UP. PostgREST answers PGRST205 ("Could not find
+   the table 'public.app_releases' in the schema cache") and Postgres 42P01 ("relation ... does
+   not exist"), and either way the query is refused whole -- so a table added to schema.sql with
+   no migration file behind it takes down every screen that reads it, including ones that only
+   read it in passing. Unlike a column there is nothing to drop and retry: the caller decides
+   whether it can carry on without the table (return nothing) or must say so (a write). */
+export function missingTable(error) {
+  if (!error) return false;
+  const code = String(error.code || '');
+  if (code === 'PGRST205' || code === '42P01') return true;
+  const msg = String(error.message || error);
+  return /Could not find the table\s+'?[\w.]+'?\s+in the schema cache/i.test(msg)
+      || /relation\s+"?[\w.]+"?\s+does not exist/i.test(msg);
+}
+
 /* PostgREST says it two ways: 42703 on a read ("column products.cost_price does not exist") and
    PGRST204 on a write ("Could not find the 'unit_cost' column of 'sales' in the schema cache").
    Only a column this file already calls optional is ever dropped -- a typo in a column name must
@@ -151,7 +166,15 @@ async function withoutAbsentThrowing(table, attempt) {
   }
 }
 
-export function dbErr(error) { return new AppError(friendlyDbError(error), 500); }
+/* The code travels with the error. friendlyDbError turns a long or transient message into a
+   sentence a shopkeeper can read, which is right for a screen and useless to a caller trying to
+   tell "the table is not there" from "the database is down" -- so the original code rides along
+   and missingTable can be asked about a thrown AppError, not just a raw PostgREST reply. */
+export function dbErr(error) {
+  const e = new AppError(friendlyDbError(error), 500);
+  if (error && error.code) e.code = error.code;
+  return e;
+}
 
 /** One bounded read. `build` receives the table builder and returns a query. */
 export async function rows(db, table, build) {

@@ -40,11 +40,20 @@ export function setUnstableOrder(on) { UNSTABLE = !!on; FakeQuery._scan = 0; }
 class FakeQuery {
   static _seq = 0;
   static _scan = 0;
-  constructor(table, name, missingCols) {
+  constructor(table, name, missingCols, tableMissing) {
     this.table = table;
     this.tableName = name;
     // Columns this table has not got yet -- see select(). Empty for an up-to-date database.
     this.missingCols = missingCols || [];
+    /* A TABLE THE DATABASE HAS NOT GOT IS NOT AN EMPTY TABLE EITHER. PostgREST answers
+       PGRST205 "Could not find the table 'public.x' in the schema cache" and refuses the query
+       whole, exactly as it does for an unknown column -- and app_releases, added to schema.sql
+       with no migration file of its own, is how a live marketplace found that out. Set from
+       the very first call so every mode is refused, not just a select. */
+    if (tableMissing) {
+      this.rejectWith = { code: 'PGRST205',
+        message: "Could not find the table 'public." + name + "' in the schema cache" };
+    }
     /* The URL the real client would be about to request. fetchAll reads the table name off
        this to decide which unique column settles a paged read's order, so the fake has to
        offer it or that decision is untestable -- and untested, it is the kind of thing that
@@ -74,7 +83,7 @@ class FakeQuery {
     if (this.mode !== 'select') this.wantRows = true;
     const list = String(cols == null ? '*' : cols).split(',').map(s => s.trim()).filter(Boolean);
     const absent = (this.missingCols || []).filter(c => list.includes(c));
-    if (absent.length) {
+    if (absent.length && !this.rejectWith) {
       this.rejectWith = { code: '42703',
         message: 'column ' + this.tableName + '.' + absent[0] + ' does not exist' };
     }
@@ -152,7 +161,7 @@ class FakeQuery {
      down, because recording a sale writes the new column rather than merely selecting it. */
   _refuseUnknown(keys) {
     const absent = (this.missingCols || []).filter(c => keys.includes(c));
-    if (absent.length) {
+    if (absent.length && !this.rejectWith) {
       this.rejectWith = { code: 'PGRST204',
         message: "Could not find the '" + absent[0] + "' column of '" + this.tableName + "' in the schema cache" };
     }
@@ -347,7 +356,8 @@ export function fakeDb(tables, opts = {}) {
   const storageFiles = { buckets: {} };
   return {
     from(name) { if (!store[name]) store[name] = { rows: [] };
-      return new FakeQuery(store[name], name, (opts.missingColumns || {})[name]); },
+      return new FakeQuery(store[name], name, (opts.missingColumns || {})[name],
+        (opts.missingTables || []).includes(name)); },
     rpc(name, args) {
       return new FakeRpc(async () => {
         if (!Object.prototype.hasOwnProperty.call(rpcs, name) || rpcs[name] == null) {

@@ -1,4 +1,4 @@
-import { rows, one, insertOne, update, badRequest, notFound, text, mustText, int, num, iso } from './_shared.js';
+import { rows, one, insertOne, update, badRequest, notFound, text, mustText, int, num, iso, missingTable } from './_shared.js';
 import { requireManager } from '../auth.js';
 import { publicUrl } from '../storage.js';
 
@@ -24,10 +24,30 @@ const COLS = 'id, version_name, version_code, file_name, url, size_bytes, notes,
 const BUCKET = 'app-releases';
 const MAX_APK_BYTES = 200 * 1024 * 1024;
 
-/** The row every phone and every download link follows. Null until a first APK is published. */
+/* THE TABLE ITSELF CAN BE ABSENT. app_releases went into db/schema.sql without a RUN-ME file
+   behind it, so a database created before it existed does not have it -- and PostgREST refuses
+   the whole query for a missing table exactly as it does for a missing column. Everything that
+   reads a release in PASSING must therefore carry on without one: /download already has its
+   own notice, the phone's update check already swallows a failure, and the marketplace -- which
+   is public, and is the shop window -- went down entirely over an app nobody had published.
+   CLAUDE.md: "Every code path that depends on a migration must work without it."
+
+   Only a table that is not there is tolerated. Any other database error still throws: a
+   marketplace that quietly says "no app" because the database was briefly unreachable would be
+   the same silence one layer down. */
+const NEEDS_TABLE = 'Jedwali la app_releases halipo kwenye hifadhidata. Endesha db/RUN-ME-003-app-releases.sql kwenye Supabase. / '
+  + 'The app_releases table is not in this database yet — run db/RUN-ME-003-app-releases.sql in the Supabase SQL editor.';
+
+/** The row every phone and every download link follows. Null until a first APK is published --
+    and null, rather than an outage, on a database that has not got the table at all. */
 export async function currentRelease(db) {
-  const hit = await rows(db, 'app_releases', q => q.select(COLS).eq('is_current', true).limit(1));
-  return hit.length ? hit[0] : null;
+  try {
+    const hit = await rows(db, 'app_releases', q => q.select(COLS).eq('is_current', true).limit(1));
+    return hit.length ? hit[0] : null;
+  } catch (e) {
+    if (missingTable(e)) return null;
+    throw e;
+  }
 }
 
 /** What a page needs to draw a download button and an update notice; never the whole row. */
@@ -57,7 +77,17 @@ export const FN = {
       not something a shop needs. One bounded read. */
   async releases(db, user) {
     requireManager(user);
-    const list = await rows(db, 'app_releases', q => q.select(COLS).order('version_code', { ascending: false }).limit(100));
+    /* THIS is the screen the answer belongs on. Everywhere else the missing table is something
+       to survive; here it is the whole reason the page is empty, and PostgREST's own words
+       ("could not find the table public.app_releases in schema cache") mean nothing to the
+       person reading them. Say what to run. CLAUDE.md: "Say what was not done." */
+    let list;
+    try {
+      list = await rows(db, 'app_releases', q => q.select(COLS).order('version_code', { ascending: false }).limit(100));
+    } catch (e) {
+      if (!missingTable(e)) throw e;
+      return { rows: [], missing_table: true, notice: NEEDS_TABLE };
+    }
     return { rows: list.map(r => ({ ...publicRelease(r), id: r.id, file_name: r.file_name, is_current: !!r.is_current })) };
   },
 
@@ -96,7 +126,15 @@ export const FN = {
     const found = (listed || []).find(f => f && f.name === fileName);
     if (!found) throw badRequest('No file called ' + fileName + ' is in storage yet. Upload it first, then publish.');
 
-    const clash = await one(db, 'app_releases', q => q.select('id, version_code').eq('version_code', versionCode));
+    /* A WRITE THAT EXISTS TO CREATE A RELEASE CANNOT SHRUG. This read is the first thing to
+       touch the table, so it is where the absence is found -- and it is found BEFORE anything
+       is flipped, so a refusal here leaves nothing half-done. */
+    let clash;
+    try {
+      clash = await one(db, 'app_releases', q => q.select('id, version_code').eq('version_code', versionCode));
+    } catch (e) {
+      throw missingTable(e) ? badRequest(NEEDS_TABLE) : e;
+    }
     if (clash) throw badRequest('Version code ' + versionCode + ' has already been published. Every build needs a higher one, or Android will refuse to install over the old app.');
 
     await update(db, 'app_releases', { is_current: false }, q => q.eq('is_current', true));
@@ -114,7 +152,9 @@ export const FN = {
   async rollbackRelease(db, user, args) {
     requireManager(user);
     const id = mustText(args.id, 'Which release');
-    const target = await one(db, 'app_releases', q => q.select(COLS).eq('id', id));
+    let target;
+    try { target = await one(db, 'app_releases', q => q.select(COLS).eq('id', id)); }
+    catch (e) { throw missingTable(e) ? badRequest(NEEDS_TABLE) : e; }
     if (!target) throw notFound('That release does not exist.');
     await update(db, 'app_releases', { is_current: false }, q => q.eq('is_current', true));
     const [row] = await update(db, 'app_releases', { is_current: true }, q => q.eq('id', target.id));
