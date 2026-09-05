@@ -288,9 +288,21 @@ class FakeQuery {
       const k = (FakeQuery._scan++) % out.length;
       out = out.slice(k).concat(out.slice(0, k));
     }
+    /* A NUMBER COLUMN SORTS LIKE A NUMBER, because that is what Postgres does with one.
+       Every column was compared as a string here, so `sort` values 0..11 came back in the order
+       0,1,10,11,2,3,... -- and the fake happily agreed with any code that got the order wrong.
+       It went unnoticed while every fixture had fewer than ten rows in a sorted column, which is
+       exactly the size at which string and numeric order stop agreeing. A list of hints long
+       enough to matter was the first thing to cross it. Strings still compare as strings. */
     for (let i = this.ords.length - 1; i >= 0; i--) {
       const { k, asc } = this.ords[i];
-      out = out.slice().sort((a, b) => (String(a[k]) < String(b[k]) ? -1 : String(a[k]) > String(b[k]) ? 1 : 0) * (asc ? 1 : -1));
+      out = out.slice().sort((a, b) => {
+        const x = a[k], y = b[k];
+        const cmp = (typeof x === 'number' && typeof y === 'number')
+          ? (x < y ? -1 : x > y ? 1 : 0)
+          : (String(x) < String(y) ? -1 : String(x) > String(y) ? 1 : 0);
+        return cmp * (asc ? 1 : -1);
+      });
     }
     if (this.rng) out = out.slice(this.rng[0], this.rng[1] + 1);
     out = out.slice(0, Math.min(this.lim != null ? this.lim : PAGE_CAP, PAGE_CAP));

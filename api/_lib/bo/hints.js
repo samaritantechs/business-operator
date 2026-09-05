@@ -161,6 +161,43 @@ export const FN = {
     return { message: made.length + ' hint(s) added.' };
   },
 
+  /** {} -> { message }. Writes the built-in list into the table, once, so a manager can SEE the
+      tips their staff are reading and edit or delete them one at a time.
+
+      WHY THIS EXISTS. The defaults live in code, so Manage Hints showed an empty list while
+      thirty-eight tips rotated on the screens -- which reads as "there are no hints". And
+      hintsForRole returns the table's rows INSTEAD of the defaults the moment a role has one,
+      so saving a single seller hint silently removed the other twelve. After this, a role's
+      tips are all in one place and adding a thirteenth adds rather than erases.
+
+      NOTHING CHANGES ON SCREEN when it runs: the rows written are the defaults themselves, so
+      every role serves exactly what it served before. That is what makes it safe to press. */
+  async loadDefaultHints(db, user, args, nowMs) {
+    requireManager(user);
+    /* ONE PRESS ONLY. A second would double every tip, and a manager who could not tell whether
+       the first worked is exactly the person who presses again. Refusing on ANY existing row --
+       not just a duplicate of one of these -- also means this can never overwrite or interleave
+       with a list somebody has already curated. */
+    const existing = await count(db, 'hints', q => q);
+    if (existing) {
+      throw badRequest('There are already ' + existing + ' hint(s) in the list, so the built-in tips '
+        + 'have not been loaded again. Delete the list first if you want to start over.');
+    }
+    const made = [];
+    for (const role of HINT_ROLES) {
+      for (const [en, sw] of (DEFAULT_HINTS[role] || [])) {
+        made.push({
+          role, message_en: en, message_sw: sw || '', active: true,
+          sort: made.length, created_at: new Date(nowMs).toISOString(),
+        });
+      }
+    }
+    if (!made.length) throw badRequest('There are no built-in tips to load.');
+    await insertMany(db, 'hints', made);
+    return { message: made.length + ' built-in tips loaded. They are the same tips your staff were '
+      + 'already seeing — you can now edit or delete them one by one.', count: made.length };
+  },
+
   async updateHint(db, user, args) {
     requireManager(user);
     const id = mustText(args.id, 'Hint id');
@@ -180,4 +217,4 @@ export const FN = {
   },
 };
 
-export const WRITES = ['addHints', 'updateHint', 'deleteHint'];
+export const WRITES = ['addHints', 'loadDefaultHints', 'updateHint', 'deleteHint'];
