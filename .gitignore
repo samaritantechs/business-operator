@@ -9,3 +9,20 @@ tools/.smoke/
 
 # Scratch files written by review agents into this checkout — never ours to ship.
 test/zz-*.test.mjs
+
+# ---------------------------------------------------------------- the Android app
+# THE SIGNING KEY AND ITS PASSWORDS ARE PERMANENT AND SECRET. The key on the first published
+# APK is the key on every future one -- a different key and Android refuses the update on every
+# handset. It is kept OUTSIDE this repository; these lines are the second lock, for the day
+# somebody drops a copy in here and runs `git add -A`.
+android/keystore.properties
+*.jks
+*.keystore
+
+# Machine-specific and generated.
+android/local.properties
+android/.gradle/
+android/build/
+android/app/build/
+android/.idea/
+*.iml

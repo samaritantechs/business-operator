@@ -17,27 +17,72 @@ android {
          * on the web side, so the two agree.
          *
          * versionName is what a person reads. */
-        versionCode 4
-        versionName "1.3"
+        /* NOTHING HAS EVER BEEN PUBLISHED, SO THIS STARTS AT ONE. The 4 / "1.3" that used to sit
+         * here were template examples, and they were not harmless: the site shows its "a newer
+         * app is available" bar whenever the PUBLISHED code is higher than the code compiled
+         * into the running app, so a first APK claiming 4 and a release row saying 1 disagree
+         * from the very first install.
+         *
+         * WHATEVER IS HERE IS WHAT YOU TYPE INTO Settings -> Android app. The two numbers are
+         * one number in two places. */
+        /* CI PASSES THESE IN. The workflow builds and publishes in one go, so whatever it
+         * compiles is exactly what it registers -- the two numbers cannot drift apart because
+         * one value is used for both. A build with no override (yours, on a laptop) uses what
+         * is written here. */
+        versionCode (project.findProperty('appVersionCode') ?: 1) as Integer
+        versionName project.findProperty('appVersionName') ?: "1.0"
     }
+
+    /* THE KEYSTORE NEVER ENTERS THIS REPOSITORY, and neither do its passwords. Both of the
+     * ways in below are git-ignored; there is no third way, and no default that quietly signs
+     * with something else.
+     *
+     * A FILE, NOT FOUR ENVIRONMENT VARIABLES, IS THE DEFAULT. Environment variables are the
+     * right shape for a build server and the wrong one for a person at a laptop: they are set
+     * in one terminal window and gone from the next, Windows `set` eats a % in a password
+     * without saying so, and a relative path in SAMIND_KEYSTORE resolves against app/ rather
+     * than android/. Every one of those failures surfaces at the very END of a long build, as
+     * a message naming a missing file rather than a missing variable. keystore.properties has
+     * none of those edges: it is one file, in one known place, that either exists or does not.
+     * The environment variables still work, for CI, and win if both are present. */
+    def keystoreProps = new Properties()
+    def keystorePropsFile = rootProject.file('keystore.properties')
+    if (keystorePropsFile.exists()) {
+        keystorePropsFile.withInputStream { keystoreProps.load(it) }
+    }
+    /* Anchored on rootProject (android/), never on the app module, so a path written by a
+     * person means what they think it means. An absolute path is used as given. */
+    def storePath = System.getenv("SAMIND_KEYSTORE") ?: keystoreProps.getProperty('storeFile')
+    def resolvedStore = storePath ? rootProject.file(storePath) : null
 
     signingConfigs {
         release {
-            /* THE KEYSTORE NEVER ENTERS THIS REPOSITORY. Pass it in from the machine doing the
-             * build. If a future APK is signed with a different key, Android will not install
-             * it over the existing app and every shop has to uninstall first -- which loses
-             * nothing here (the data is all server-side) but is a bad afternoon. */
-            storeFile file(System.getenv("SAMIND_KEYSTORE") ?: "keystore-not-set.jks")
-            storePassword System.getenv("SAMIND_KEYSTORE_PASSWORD")
-            keyAlias System.getenv("SAMIND_KEY_ALIAS") ?: "businessoperator"
-            keyPassword System.getenv("SAMIND_KEY_PASSWORD")
+            /* A keystore that is not there must fail LOUDLY and early. Pointing this at a
+             * placeholder name would let the build get all the way to packaging before
+             * complaining about a file nobody ever meant to exist. */
+            if (resolvedStore != null) {
+                storeFile resolvedStore
+                storePassword System.getenv("SAMIND_KEYSTORE_PASSWORD") ?: keystoreProps.getProperty('storePassword')
+                keyAlias System.getenv("SAMIND_KEY_ALIAS") ?: keystoreProps.getProperty('keyAlias') ?: 'businessoperator'
+                keyPassword System.getenv("SAMIND_KEY_PASSWORD") ?: keystoreProps.getProperty('keyPassword') ?: System.getenv("SAMIND_KEYSTORE_PASSWORD") ?: keystoreProps.getProperty('storePassword')
+            }
         }
     }
 
     buildTypes {
         release {
             minifyEnabled false
-            signingConfig signingConfigs.release
+            /* NO KEYSTORE MEANS NO SIGNING CONFIG -- and therefore app-release-unsigned.apk
+             * and a build that says so, rather than a release APK signed with the DEBUG key.
+             * A debug-signed APK handed to a shop is the one mistake with no way back: every
+             * future properly-signed update refuses to install over it. */
+            if (resolvedStore != null) {
+                signingConfig signingConfigs.release
+            } else {
+                logger.warn("SIGNING: no keystore configured (android/keystore.properties absent and SAMIND_KEYSTORE unset).\n"
+                    + "         assembleRelease will produce an UNSIGNED apk, which no phone will install.\n"
+                    + "         See android/README.md -- 'Making your signing key'.")
+            }
         }
     }
     buildFeatures { buildConfig true }

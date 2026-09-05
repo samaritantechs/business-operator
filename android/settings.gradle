@@ -1,0 +1,21 @@
+/* WHAT MAKES THIS A GRADLE BUILD AT ALL.
+ *
+ * Without this file the directory is a folder of source, not a project: gradlew answers
+ * "Project directory does not contain a settings file" and nothing else happens. It also names
+ * the repositories every dependency comes from -- androidx.appcompat and androidx.activity are
+ * on google(), so dropping that line makes them unresolvable. */
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+dependencyResolutionManagement {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+rootProject.name = "Samaritan Industrial"
+include ':app'

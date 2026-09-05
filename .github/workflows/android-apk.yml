@@ -1,0 +1,138 @@
+# BUILDS AND PUBLISHES THE ANDROID APP, SO NOBODY HAS TO.
+# =====================================================================================
+# When this finishes, /download hands out the new build and the marketplace button appears
+# on its own. Nothing is uploaded by hand and nothing is typed into Settings.
+#
+# WHEN IT RUNS -- and, much more importantly, WHEN IT DOES NOT.
+#
+# The app is a WebView onto the website. Every ordinary change we ship is on every phone the
+# moment it deploys, with no new APK and nothing for anybody to install. So this does NOT run
+# when the system changes; it runs when the APP changes, which is when the address it opens or
+# the domains it may open change. Rebuilding on every commit would push a re-install to three
+# hundred handsets for a change they already had.
+#
+# You can also run it by hand: Actions -> Build and publish the Android app -> Run workflow.
+#
+# THE ONE-TIME SETUP is in android/README.md ("Making your signing key"). Four repository
+# secrets, added once, and this is automatic forever after:
+#   ANDROID_KEYSTORE_BASE64    base64 of your .jks   (base64 -w0 samaritan-industrial.jks)
+#   ANDROID_KEYSTORE_PASSWORD  the password you set
+#   SUPABASE_URL               same value the site uses
+#   SUPABASE_SERVICE_ROLE_KEY  same value the site uses
+# Without them the build still runs and still hands you a signed APK as an artifact -- it just
+# cannot publish it, and says so.
+
+name: Build and publish the Android app
+
+on:
+  workflow_dispatch:
+    inputs:
+      notes:
+        description: 'What changed (shown on the update notice)'
+        required: false
+        default: ''
+  push:
+    branches: [main]
+    paths:
+      - 'android/**'
+      - '.github/workflows/android-apk.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  # Two builds publishing at once would race for "which row is current".
+  group: android-apk
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Work out the version
+        id: ver
+        run: |
+          # versionName is the readable one and lives in the build file. versionCode is the
+          # one Android compares, and it MUST go up every time -- so it is the run number,
+          # which does that by construction and cannot be forgotten.
+          NAME=$(sed -n "s/.*appVersionName') ?: \"\([^\"]*\)\".*/\1/p" android/app/build.gradle | head -1)
+          echo "name=${NAME:-1.0}.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          echo "code=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+
+      - name: Unpack the signing key
+        id: key
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "::warning::No ANDROID_KEYSTORE_BASE64 secret. Building UNSIGNED — see android/README.md."
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "$KEYSTORE_B64" | base64 -d > "${{ runner.temp }}/release.jks"
+          # A truncated or mis-pasted secret decodes to something that is not a keystore. Find
+          # that out here, in one second, rather than at the end of the build.
+          keytool -list -keystore "${{ runner.temp }}/release.jks" -storepass "$KEYSTORE_PASSWORD" >/dev/null
+          {
+            echo "storeFile=${{ runner.temp }}/release.jks"
+            echo "storePassword=$KEYSTORE_PASSWORD"
+            echo "keyAlias=businessoperator"
+            echo "keyPassword=$KEYSTORE_PASSWORD"
+          } > android/keystore.properties
+          echo "signed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Build
+        run: |
+          cd android
+          ./gradlew assembleRelease --no-daemon \
+            -PappVersionCode=${{ steps.ver.outputs.code }} \
+            -PappVersionName=${{ steps.ver.outputs.name }}
+
+      - name: Check what was actually signed
+        if: steps.key.outputs.signed == 'true'
+        run: |
+          APK=android/app/build/outputs/apk/release/app-release.apk
+          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | tail -1)
+          "$APKSIGNER" verify --print-certs "$APK" | tee /tmp/certs.txt
+          # A debug-signed APK installs, works, and permanently blocks every properly-signed
+          # update that comes after it. It must never leave this job.
+          if grep -q "CN=Android Debug" /tmp/certs.txt; then
+            echo "::error::This APK is signed with the DEBUG key. Refusing to publish it."
+            exit 1
+          fi
+
+      - name: Keep a copy whatever happens
+        uses: actions/upload-artifact@v4
+        with:
+          name: samaritan-industrial-apk
+          path: android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+
+      - name: Publish it, so the download button just works
+        if: steps.key.outputs.signed == 'true'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::warning::Supabase secrets are not set, so this build was not published. The APK is on the Artifacts tab."
+            exit 0
+          fi
+          npm ci --omit=dev --no-audit --no-fund
+          node tools/publish-apk.mjs \
+            android/app/build/outputs/apk/release/app-release.apk \
+            "${{ steps.ver.outputs.code }}" \
+            "${{ steps.ver.outputs.name }}" \
+            "${{ github.event.inputs.notes }}"
+
+      - name: Always leave the keystore behind
+        if: always()
+        run: rm -f "${{ runner.temp }}/release.jks" android/keystore.properties
