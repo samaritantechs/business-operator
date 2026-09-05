@@ -62,10 +62,34 @@ if (clashErr) {
 }
 if (clash) die('version code ' + versionCode + ' is already published (as ' + clash.version_name + '). Every build needs a higher one.');
 
+/* THE BUCKET MAKES ITSELF. Telling somebody to go and create it by hand is one more step that
+   has to be done exactly right, on a screen they visit twice a year, before anything works --
+   and the whole point of this script is that nobody has to do anything. It is created PUBLIC
+   because /download redirects a phone straight at the object URL and the marketplace button
+   links to it: a private bucket here means every shopkeeper gets a 400.
+   Idempotent by construction -- an existing bucket comes back as an error saying so, which is
+   success as far as this is concerned. It is never made private again, and never deleted. */
+async function ensureBucket() {
+  const { data: found } = await db.storage.getBucket(BUCKET);
+  if (found) {
+    if (found.public === false) {
+      die('the "' + BUCKET + '" bucket exists but is PRIVATE. Make it public in Supabase Storage, '
+        + 'or the download link will fail for everybody.');
+    }
+    return 'already there';
+  }
+  const { error } = await db.storage.createBucket(BUCKET, { public: true });
+  if (!error) return 'created';
+  if (/exist/i.test(error.message || '')) return 'already there';   // raced with another run
+  die('could not create the "' + BUCKET + '" bucket: ' + error.message
+    + ' -- create it by hand in Supabase Storage, public, and run this again.');
+}
+console.log('bucket "' + BUCKET + '": ' + await ensureBucket());
+
 const up = await db.storage.from(BUCKET).upload(fileName, bytes, {
   contentType: 'application/vnd.android.package-archive', upsert: true,
 });
-if (up.error) die('upload failed: ' + up.error.message + (/bucket/i.test(up.error.message) ? ' -- create a PUBLIC bucket named "' + BUCKET + '" in Supabase Storage' : ''));
+if (up.error) die('upload failed: ' + up.error.message);
 
 const publicUrl = String(url).replace(/\/+$/, '') + '/storage/v1/object/public/' + BUCKET + '/' + fileName;
 
