@@ -25,8 +25,12 @@ android {
          *
          * WHATEVER IS HERE IS WHAT YOU TYPE INTO Settings -> Android app. The two numbers are
          * one number in two places. */
-        versionCode 1
-        versionName "1.0"
+        /* CI PASSES THESE IN. The workflow builds and publishes in one go, so whatever it
+         * compiles is exactly what it registers -- the two numbers cannot drift apart because
+         * one value is used for both. A build with no override (yours, on a laptop) uses what
+         * is written here. */
+        versionCode (project.findProperty('appVersionCode') ?: 1) as Integer
+        versionName project.findProperty('appVersionName') ?: "1.0"
     }
 
     /* THE KEYSTORE NEVER ENTERS THIS REPOSITORY, and neither do its passwords. Both of the

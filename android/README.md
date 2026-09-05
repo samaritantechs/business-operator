@@ -131,7 +131,39 @@ site, and the site shows its "a newer app is available" bar whenever the publish
 higher than the running one. If the APK says 1 and the release row says 4, every phone is told
 it is out of date, forever.
 
-## Publishing it
+## Publishing it — the automatic way
+
+**You do not have to do any of this by hand.** `.github/workflows/android-apk.yml` builds the
+app, signs it, checks what it signed, uploads it and writes the release row. When it finishes,
+`/download` hands out the new build and the marketplace button appears on its own.
+
+It runs when anything under `android/` lands on `main`, and on demand from the Actions tab. It
+does **not** run when the rest of the system changes, because the app is a window onto the
+website and those changes are already on every phone — rebuilding for them would push a
+re-install to three hundred handsets for nothing.
+
+`versionCode` is the workflow's run number, so it goes up every time and cannot be forgotten,
+and the same number is used for the build and for the release row — they cannot drift apart.
+
+### The one-time setup
+
+Four repository secrets (**Settings → Secrets and variables → Actions**), added once:
+
+| secret | what to paste |
+|---|---|
+| `ANDROID_KEYSTORE_BASE64` | `base64 -w0 samaritan-industrial.jks` on Linux, or `base64 -i samaritan-industrial.jks \| pbcopy` on macOS, or `certutil -encode` on Windows |
+| `ANDROID_KEYSTORE_PASSWORD` | the password you set above |
+| `SUPABASE_URL` | the same value the site uses |
+| `SUPABASE_SERVICE_ROLE_KEY` | the same value the site uses |
+
+The keystore never enters the repository — the workflow writes it to a temp file, uses it, and
+deletes it whether the build passed or failed. Until the secrets exist the workflow still runs
+and still leaves a signed APK on the Actions → Artifacts tab; it just says it could not publish.
+
+You also need a **public** Storage bucket named `app-releases` in Supabase, and
+`db/RUN-ME-003-app-releases.sql` run. The script says so plainly if either is missing.
+
+## Publishing it — by hand, if you ever want to
 
 Sign in as the manager → **Settings → Android app** → enter the version name and code, choose
 the `.apk`, press **Upload & publish**.
