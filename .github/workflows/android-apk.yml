@@ -62,8 +62,14 @@ jobs:
           # versionName is the readable one and lives in the build file. versionCode is the
           # one Android compares, and it MUST go up every time -- so it is the run number,
           # which does that by construction and cannot be forgotten.
-          NAME=$(sed -n "s/.*appVersionName') ?: \"\([^\"]*\)\".*/\1/p" android/app/build.gradle | head -1)
-          echo "name=${NAME:-1.0}.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          NAME=$(sed -n "s/.*appVersionName') ?: '\([^']*\)'.*/\1/p" android/app/build.gradle | head -1)
+          if [ -z "$NAME" ]; then
+            # Silence here would publish every build as "1.0.<n>" no matter what the build file
+            # says, and nobody would notice until the version on a phone looked wrong.
+            echo "::error::Could not read appVersionName out of android/app/build.gradle. The line it looks for has changed."
+            exit 1
+          fi
+          echo "name=${NAME}.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
           echo "code=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
 
       - name: Unpack the signing key

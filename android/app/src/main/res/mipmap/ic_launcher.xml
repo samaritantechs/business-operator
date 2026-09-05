@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ANDROID 7 (minSdk 24) HAS NO ADAPTIVE ICONS, and an icon that exists only under the
+     anydpi-v26 folder leaves those phones with nothing. This is the whole icon in one vector:
+     navy tile, rounded corners, the same S mark. Newer phones override it with the adaptive
+     version next door. XML in mipmap/ is a drawable like any other, so this needs no PNG,
+     which is why there is no bitmap here to keep in step with the brand. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp" android:height="48dp"
+    android:viewportWidth="100" android:viewportHeight="100">
+    <path
+        android:pathData="M22,0 L78,0 A22,22 0 0 1 100,22 L100,78 A22,22 0 0 1 78,100 L22,100 A22,22 0 0 1 0,78 L0,22 A22,22 0 0 1 22,0 Z"
+        android:fillColor="@color/ic_launcher_background" />
+    <path
+        android:pathData="M63,22.1 A17,17 0 1 0 50,50"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="11"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M50,50 A17,17 0 1 1 33.3,70"
+        android:strokeColor="#F0A020"
+        android:strokeWidth="11"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

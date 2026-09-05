@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The brand navy, shared by the legacy icon and the adaptive one so they cannot drift. -->
+<resources>
+    <color name="ic_launcher_background">#0B2A6B</color>
+</resources>

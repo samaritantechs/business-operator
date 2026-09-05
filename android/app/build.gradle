@@ -4,6 +4,20 @@ android {
     namespace 'com.samaritantechs.industrial'
     compileSdk 34
 
+    /* WORKED OUT BEFORE THE BLOCK, NOT INSIDE IT.
+     *
+     * These were written as `versionCode (findProperty(...) ?: 1) as Integer`, which reads
+     * correctly and parses wrongly: Groovy takes it as `versionCode(...)` called first and the
+     * RESULT cast, so the setter received nothing and AGP failed the build with "Value is
+     * null" -- pointing at the line, and saying nothing about why. A local variable has no
+     * ambiguity to get wrong.
+     *
+     * CI PASSES THESE IN, so whatever it compiles is exactly what it registers and the two
+     * numbers cannot drift. A build with no override -- yours, on a laptop -- uses the
+     * defaults here. */
+    def buildVersionCode = (project.findProperty('appVersionCode') ?: '1').toString().trim().toInteger()
+    def buildVersionName = (project.findProperty('appVersionName') ?: '1.0').toString().trim()
+
     defaultConfig {
         applicationId "com.samaritantechs.industrial"
         minSdk 24
@@ -25,12 +39,8 @@ android {
          *
          * WHATEVER IS HERE IS WHAT YOU TYPE INTO Settings -> Android app. The two numbers are
          * one number in two places. */
-        /* CI PASSES THESE IN. The workflow builds and publishes in one go, so whatever it
-         * compiles is exactly what it registers -- the two numbers cannot drift apart because
-         * one value is used for both. A build with no override (yours, on a laptop) uses what
-         * is written here. */
-        versionCode (project.findProperty('appVersionCode') ?: 1) as Integer
-        versionName project.findProperty('appVersionName') ?: "1.0"
+        versionCode buildVersionCode
+        versionName buildVersionName
     }
 
     /* THE KEYSTORE NEVER ENTERS THIS REPOSITORY, and neither do its passwords. Both of the
@@ -93,6 +103,21 @@ android {
 }
 
 dependencies {
+    /* ONE KOTLIN, NOT TWO. Kotlin 1.8 folded kotlin-stdlib-jdk7 and -jdk8 INTO kotlin-stdlib.
+     * The AndroidX libraries below pull kotlin-stdlib 1.8.22 and, transitively, the old split
+     * artifact at 1.6.21 -- and nothing asks for a newer one, so Gradle keeps it. Both jars
+     * then carry the same classes and dexing stops:
+     *
+     *     Duplicate class kotlin.time.jdk8.DurationConversionsJDK8Kt found in modules
+     *     kotlin-stdlib-1.8.22.jar and kotlin-stdlib-jdk8-1.6.21.jar
+     *
+     * The BOM pins every kotlin-* artifact to one version. At 1.8.22 the jdk7/jdk8 modules are
+     * empty shims that simply depend on kotlin-stdlib, so the duplicate disappears rather than
+     * being excluded -- nothing is dropped that something might have needed. 1.8.22 is the
+     * version already winning in the graph, so this moves nothing else.
+     * This app contains no Kotlin of its own; the stdlib is here only because AndroidX is. */
+    implementation platform('org.jetbrains.kotlin:kotlin-bom:1.8.22')
+
     implementation 'androidx.appcompat:appcompat:1.7.0'
     implementation 'androidx.activity:activity:1.9.2'
 }
