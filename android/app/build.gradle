@@ -103,6 +103,21 @@ android {
 }
 
 dependencies {
+    /* ONE KOTLIN, NOT TWO. Kotlin 1.8 folded kotlin-stdlib-jdk7 and -jdk8 INTO kotlin-stdlib.
+     * The AndroidX libraries below pull kotlin-stdlib 1.8.22 and, transitively, the old split
+     * artifact at 1.6.21 -- and nothing asks for a newer one, so Gradle keeps it. Both jars
+     * then carry the same classes and dexing stops:
+     *
+     *     Duplicate class kotlin.time.jdk8.DurationConversionsJDK8Kt found in modules
+     *     kotlin-stdlib-1.8.22.jar and kotlin-stdlib-jdk8-1.6.21.jar
+     *
+     * The BOM pins every kotlin-* artifact to one version. At 1.8.22 the jdk7/jdk8 modules are
+     * empty shims that simply depend on kotlin-stdlib, so the duplicate disappears rather than
+     * being excluded -- nothing is dropped that something might have needed. 1.8.22 is the
+     * version already winning in the graph, so this moves nothing else.
+     * This app contains no Kotlin of its own; the stdlib is here only because AndroidX is. */
+    implementation platform('org.jetbrains.kotlin:kotlin-bom:1.8.22')
+
     implementation 'androidx.appcompat:appcompat:1.7.0'
     implementation 'androidx.activity:activity:1.9.2'
 }
