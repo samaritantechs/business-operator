@@ -160,8 +160,8 @@ The keystore never enters the repository — the workflow writes it to a temp fi
 deletes it whether the build passed or failed. Until the secrets exist the workflow still runs
 and still leaves a signed APK on the Actions → Artifacts tab; it just says it could not publish.
 
-You also need a **public** Storage bucket named `app-releases` in Supabase, and
-`db/RUN-ME-003-app-releases.sql` run. The script says so plainly if either is missing.
+The `app-releases` Storage bucket is created for you, public, on the first run that needs it.
+`db/RUN-ME-003-app-releases.sql` does have to have been run; the script says so plainly if not.
 
 ## Publishing it — by hand, if you ever want to
 
