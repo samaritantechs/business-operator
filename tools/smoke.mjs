@@ -55,11 +55,11 @@ await step('sign in as the phone-shop admin', async () => {
 });
 await page.screenshot({ path: OUT + '02-dashboard.png' });
 
-const tabs = ['sale', 'holds', 'lendings', 'products', 'stock', 'po', 'cash', 'credit', 'users', 'reports', 'account'];
+const tabs = ['sale', 'holds', 'lendings', 'products', 'stock', 'phone', 'po', 'cash', 'credit', 'users', 'reports', 'account'];
 for (const t of tabs) {
   await step('tab renders: ' + t, async () => {
     await page.evaluate(n => switchTab(n), t);
-    const id = { sale: 'saleContent', holds: 'holdsContent', lendings: 'lendingsContent', products: 'productsContent', stock: 'stockContent',
+    const id = { sale: 'saleContent', holds: 'holdsContent', lendings: 'lendingsContent', products: 'productsContent', stock: 'stockContent', phone: 'phoneContent',
                  po: 'poContent', cash: 'cashContent', credit: 'creditContent', users: 'usersContent', reports: 'reportsContent', account: 'accountContent' }[t];
     await page.waitForFunction(el => {
       const e = document.getElementById(el);

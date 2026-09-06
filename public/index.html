@@ -447,6 +447,7 @@ body.bo-restricted .topbar{position:relative;z-index:260;}
       <div class="nav-group-label" data-roles="admin assistant-admin">Inventory</div>
       <button class="nav-item" id="nav-products" data-roles="admin assistant-admin" onclick="switchTab('products',this)"><span class="ni">📦</span>Products</button>
       <button class="nav-item" id="nav-stock" data-roles="admin assistant-admin" onclick="switchTab('stock',this)"><span class="ni">🏬</span>Stock &amp; Shops</button>
+      <button class="nav-item" id="nav-phone" data-roles="admin assistant-admin" onclick="switchTab('phone',this)"><span class="ni">📱</span>Phone Vending</button>
       <button class="nav-item" id="nav-po" data-roles="admin assistant-admin" onclick="switchTab('po',this)"><span class="ni">🚚</span>Purchase Orders</button>
       <button class="nav-item" id="nav-cash" data-roles="admin assistant-admin" onclick="switchTab('cash',this)"><span class="ni">💰</span>Cash</button>
       <button class="nav-item" id="nav-credit" data-roles="admin assistant-admin" onclick="switchTab('credit',this)"><span class="ni">💳</span>Credit &amp; Voids</button>
@@ -465,7 +466,7 @@ body.bo-restricted .topbar{position:relative;z-index:260;}
       <div id="tab-sale" class="hidden"><div class="page-hdr"><div><div class="page-title">New Sale</div><div class="page-sub">Record a transaction</div></div></div><div id="saleContent"></div></div>
       <div id="tab-lendings" class="hidden"><div class="page-hdr"><div><div class="page-title">Lendings</div><div class="page-sub">Record and track borrowed items</div></div></div><div id="lendingsContent"></div></div>
       <div id="tab-products" class="hidden"><div class="page-hdr"><div><div class="page-title">Products</div><div class="page-sub">Manage your inventory &amp; marketplace photos</div></div></div><div id="productsContent"></div></div>
-      <div id="tab-stock" class="hidden"><div class="page-hdr"><div><div class="page-title">Stock &amp; Shops</div><div class="page-sub">Branches, IMEI units, transfers, movements &amp; financing partners</div></div></div><div id="stockContent"></div></div>
+      <div id="tab-stock" class="hidden"><div class="page-hdr"><div><div class="page-title">Stock &amp; Shops</div><div class="page-sub">Shops, stock per shop, transfers between them, and the movement ledger</div></div></div><div id="stockContent"></div></div><div id="tab-phone" class="hidden"><div class="page-hdr"><div><div class="page-title">Phone Vending</div><div class="page-sub">Handsets tracked one by one: register stock by IMEI or serial, and the partners who finance a phone on credit</div></div></div><div id="phoneContent"></div></div>
       <div id="tab-users" class="hidden"><div class="page-hdr"><div><div class="page-title">Users</div><div class="page-sub">Manage team access &amp; business profile</div></div></div><div id="usersContent"></div></div>
       <div id="tab-cash" class="hidden"><div class="page-hdr"><div><div class="page-title">Cash Tracking</div><div class="page-sub">Record payments from sellers</div></div></div><div id="cashContent"></div></div>
       <div id="tab-holds" class="hidden"><div class="page-hdr"><div><div class="page-title">Holds</div><div class="page-sub">Kept back for a customer who is coming for it</div></div></div><div id="holdsContent"></div></div>
