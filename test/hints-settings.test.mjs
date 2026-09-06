@@ -46,8 +46,10 @@ test('hintsForRole: the legacy defaults when the table has nothing for the role'
      all of them, so the EN/SW toggle changed the flag on the button and nothing else -- in a
      country where Kiswahili is the working language of most shop counters. Counting the hints
      proves nothing; this is the property that matters. */
-  for (const role of ['seller', 'admin', 'assistant-admin', 'assistant-manager', 'marketplace']) {
-    const list = await hintsForRole(db, role);
+  for (const role of ['seller', 'admin', 'assistant-admin', 'manager', 'assistant-manager', 'marketplace']) {
+    // With the feature ON, so the phone-shop tips are in the sweep too -- they need both
+    // languages exactly as much as the rest, and filtering them out here would stop checking them.
+    const list = await hintsForRole(db, role, { phoneVending: true });
     assert.ok(list.length >= 3, role + ' must have tips of its own');
     for (const h of list) {
       assert.ok(h.en && h.en.trim(), role + ': every tip needs English');
@@ -58,17 +60,47 @@ test('hintsForRole: the legacy defaults when the table has nothing for the role'
 
   /* And a screen nobody is told about is a screen nobody uses. Each of these arrived with the
      features and had no tip at all until they were written. */
-  const sellerText = (await hintsForRole(db, 'seller')).map(h => h.en + ' ' + h.sw).join(' | ');
-  const adminText = (await hintsForRole(db, 'admin')).map(h => h.en + ' ' + h.sw).join(' | ');
+  const sellerText = (await hintsForRole(db, 'seller', { phoneVending: true })).map(h => h.en + ' ' + h.sw).join(' | ');
+  const adminText = (await hintsForRole(db, 'admin', { phoneVending: true })).map(h => h.en + ' ' + h.sw).join(' | ');
   for (const [who, text, must] of [
     ['seller', sellerText, [/receipt|risiti/i, /Holds|Zilizowekwa/i, /Lending at the till|Mkopo wa bidhaa/i, /customer|mteja/i]],
     ['admin', adminText, [/Cost Price|Bei ya kununulia/i, /Profit|Faida/i, /Purchase Orders|Oda za manunuzi/i, /Credit & Voids|Mikopo na/i]],
   ]) {
     for (const re of must) assert.match(text, re, who + ' has no tip mentioning ' + re);
   }
-  assert.deepEqual(await hintsForRole(db, 'manager'), DEFAULT_HINTS.seller.map(([en, sw]) => ({ en, sw })), 'no list of its own in legacy either');
-  assert.deepEqual(await hintsForRole(db, 'whatever'), DEFAULT_HINTS.seller.map(([en, sw]) => ({ en, sw })));
-  assert.deepEqual(await hintsForRole(db, ''), DEFAULT_HINTS.seller.map(([en, sw]) => ({ en, sw })));
+  /* A manager HAS a list of its own now. Legacy had none, so the person who owns the platform
+     was shown "Your User ID is your login - use it every time you sell." */
+  assert.deepEqual(await hintsForRole(db, 'manager'), DEFAULT_HINTS.manager.map(([en, sw]) => ({ en, sw })));
+  assert.match(DEFAULT_HINTS.manager.map(m => m[0]).join(' | '), /Phone Vending/, 'including the switch that turns it on');
+  const sellerDefaults = DEFAULT_HINTS.seller.filter(([, , f]) => !f).map(([en, sw]) => ({ en, sw }));
+  assert.deepEqual(await hintsForRole(db, 'whatever'), sellerDefaults);
+  assert.deepEqual(await hintsForRole(db, ''), sellerDefaults);
+});
+
+test('hintsForRole: a tip for a feature a business has not got is never served', async () => {
+  const db = bookDb(emptyBook());
+  const off = await hintsForRole(db, 'admin');                        // no features at all
+  const on = await hintsForRole(db, 'admin', { phoneVending: true });
+  assert.ok(on.length > off.length, 'the phone shop is told more than the grocery');
+  assert.match(on.map(h => h.en).join(' | '), /IMEI/);
+  assert.equal(off.some(h => /IMEI|Phone Vending/i.test(h.en + h.sw)), false, 'and the grocery is told nothing about a tab it has not got');
+  // Everything the grocery IS told, the phone shop is told too: the filter only removes.
+  for (const h of off) assert.ok(on.some(x => x.en === h.en), 'the filter must not invent a tip: ' + h.en);
+});
+
+test('hintsForRole: the table\'s own rows are filtered too, and an all-phone role goes quiet', async () => {
+  const book = emptyBook();
+  book.hints = [
+    { id: 'F1', role: 'seller', message_en: 'Everybody', message_sw: 'Wote', feature: null, active: true, sort: 0 },
+    { id: 'F2', role: 'seller', message_en: 'Phones only', message_sw: 'Simu tu', feature: 'phoneVending', active: true, sort: 1 },
+    { id: 'F3', role: 'admin', message_en: 'Phones only', message_sw: 'Simu tu', feature: 'phoneVending', active: true, sort: 2 },
+  ];
+  const db = bookDb(book);
+  assert.deepEqual((await hintsForRole(db, 'seller')).map(h => h.en), ['Everybody']);
+  assert.deepEqual((await hintsForRole(db, 'seller', { phoneVending: true })).map(h => h.en), ['Everybody', 'Phones only']);
+  /* THE ROLE WHOSE EVERY ROW WAS FILTERED OUT. Falling through to the built-ins here would put
+     the phone tips straight back -- the one way this filter could show what it exists to hide. */
+  assert.deepEqual(await hintsForRole(db, 'admin'), []);
 });
 
 test('hints: the manager sees every row grouped by role; a seller only the live rows for their role', async () => {
@@ -76,12 +108,20 @@ test('hints: the manager sees every row grouped by role; a seller only the live 
   book.hints.push({ id: 'H4', role: 'seller', message_en: 'Switched off', message_sw: '', active: false, sort: 3 });
   const db = bookDb(book);
   const all = await hints.FN.hints(db, userOf(book, MANAGER), {}, NOW);
-  assert.deepEqual(all.rows.map(r => r.id), ['H2', 'H3', 'H1', 'H4']);
-  assert.deepEqual(Object.keys(all.rows[0]).sort(), ['active', 'created_at', 'id', 'message_en', 'message_sw', 'role', 'sort']);
+  /* The manager sees EVERY row -- H5 is for phone shops only, and a tip the person who edits
+     the list cannot see is a tip they cannot fix. */
+  assert.deepEqual(all.rows.map(r => r.id), ['H6', 'H2', 'H3', 'H1', 'H5', 'H4']);
+  assert.deepEqual(Object.keys(all.rows[0]).sort(), ['active', 'created_at', 'feature', 'id', 'message_en', 'message_sw', 'role', 'sort']);
+  // A seller and an admin of the phone shop each get the tip tagged for their own role...
   const mine = await hints.FN.hints(db, userOf(book, SELLER1), {}, NOW);
-  assert.deepEqual(mine.rows.map(r => r.id), ['H1', 'H2']);
+  assert.deepEqual(mine.rows.map(r => r.id), ['H1', 'H2', 'H5']);
   const adm = await hints.FN.hints(db, userOf(book, ADMIN1), {}, NOW);
-  assert.deepEqual(adm.rows.map(r => r.id), ['H2']);
+  assert.deepEqual(adm.rows.map(r => r.id), ['H2', 'H6']);
+  // ...and the same two people at a business without Phone Vending get neither.
+  book.vendors.find(v => v.id === 'V1').permissions.phoneVending = false;
+  const off = bookDb(book);
+  assert.deepEqual((await hints.FN.hints(off, userOf(book, SELLER1), {}, NOW)).rows.map(r => r.id), ['H1', 'H2']);
+  assert.deepEqual((await hints.FN.hints(off, userOf(book, ADMIN1), {}, NOW)).rows.map(r => r.id), ['H2']);
 });
 
 test('addHints: manager only, blank English skipped, roles validated, sorted after the existing rows', async () => {
@@ -93,14 +133,15 @@ test('addHints: manager only, blank English skipped, roles validated, sorted aft
     { role: 'admin', en: ' Tip A ', sw: ' Kidokezo A ' }, { role: 'admin', en: '   ' }, { role: 'all', en: 'Tip B' },
   ] }, NOW);
   assert.equal(out.message, '2 hint(s) added.');
-  const added = db._dump('hints').slice(3);
+  const added = db._dump('hints').slice(5);
   assert.deepEqual(added.map(r => [r.role, r.message_en, r.message_sw, r.active, r.sort]),
-    [['admin', 'Tip A', 'Kidokezo A', true, 3], ['all', 'Tip B', '', true, 4]]);
+    [['admin', 'Tip A', 'Kidokezo A', true, 5], ['all', 'Tip B', '', true, 6]]);
+  assert.deepEqual(added.map(r => r.feature), [null, null], 'a tip is for everybody unless it says otherwise');
   assert.equal(added[0].created_at, new Date(NOW).toISOString());
   await rejects(hints.FN.addHints(db, mgr, { rows: [{ role: 'boss', en: 'x' }] }, NOW), 400, /hint role/);
   await rejects(hints.FN.addHints(db, mgr, { rows: [{ role: 'admin', en: '' }] }, NOW), 400, /No hints/);
   await rejects(hints.FN.addHints(db, mgr, {}, NOW), 400, /No hints/);
-  assert.equal(db._dump('hints').length, 5, 'a refused batch writes nothing');
+  assert.equal(db._dump('hints').length, 7, 'a refused batch writes nothing');
   // What was added now rotates for admins, ahead of the defaults.
   assert.deepEqual((await hintsForRole(db, 'admin')).map(h => h.en), ['Use Refresh to see the latest numbers.', 'Tip A', 'Tip B']);
 });

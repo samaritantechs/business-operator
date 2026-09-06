@@ -39,6 +39,10 @@ export { todayKey, weekMondayKey, addDaysKey, localNow };
 const OPTIONAL_COLUMNS = {
   products: ['cost_price'],
   sales: ['unit_cost', 'customer_name', 'customer_phone'],
+  /* hints.feature says which businesses a tip is FOR ('phoneVending', or null for everybody).
+     Absent, every hint is shown to everybody -- which is exactly what happened before the column
+     existed, so a database that has not run db/RUN-ME-005 is no worse off than it was. */
+  hints: ['feature'],
 };
 /* WHAT IS LEARNED HAS TO BE FORGOTTEN AGAIN. A lambda that served one request before the
    migration ran remembers the columns as missing for the rest of its life, and while a READ that
@@ -322,7 +326,27 @@ export async function setSetting(db, key, value) {
 export const DEFAULT_PERMISSIONS = {
   sellerCanDownloadReport: false, sellerReceivesEmail: false, adminReceivesDaily: true,
   adminReceivesWeekly: false, adminReceivesMonthly: false, sellerReceivesDaily: false, dashboardVisible: true,
+  /* PHONE VENDING IS OFF BY DEFAULT, and that default is the point of the flag.
+     Handsets by IMEI, a cost price per item and a discount per line all arrived with one
+     phone-retail customer, and they were shown to every business on the platform -- a grocery
+     and a bridal-wear hire were being asked what they paid for a wedding gown and offered an
+     IMEI field for sugar. Off means the general product; on means the phone-shop tools appear.
+     Nothing is deleted either way: a shop switched on today keeps the cost prices it typed
+     before, and one switched off keeps them for when it is switched back. */
+  phoneVending: false,
 };
+/* THE PROFILE IN SETTINGS APPLIES TO EVERY BUSINESS AT ONCE -- so what it is allowed to write
+   has to be the flags that are genuinely the same everywhere: who gets which email, and whether
+   a seller sees the dashboard. phoneVending is the opposite kind of flag; it is ONE shop's
+   trade. If "Apply to All Vendors" carried it, a manager saving an unrelated email preference
+   would silently switch Frank's IMEI screens off, and nothing on the page would say so.
+   Anything NOT listed here is per-vendor and setAllVendorPermissions leaves it exactly as it
+   found it. Adding a flag to DEFAULT_PERMISSIONS therefore makes it per-vendor by default --
+   the safe direction, since forgetting to list it costs a manager one extra click, while
+   listing it wrongly costs a customer a feature they paid for. */
+export const GLOBAL_PERMISSION_KEYS = ['sellerCanDownloadReport', 'sellerReceivesEmail', 'adminReceivesDaily',
+  'adminReceivesWeekly', 'adminReceivesMonthly', 'sellerReceivesDaily', 'dashboardVisible'];
+export const PER_VENDOR_PERMISSION_KEYS = Object.keys(DEFAULT_PERMISSIONS).filter(k => GLOBAL_PERMISSION_KEYS.indexOf(k) === -1);
 export function permissionsOf(vendor) {
   let p = vendor && vendor.permissions;
   if (typeof p === 'string') { try { p = JSON.parse(p); } catch { p = null; } }

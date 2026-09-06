@@ -1,0 +1,24 @@
+-- =====================================================================================
+-- RUN-ME 005 -- which businesses a hint is for.
+-- =====================================================================================
+-- ONE PART, one statement, instant on any size of hints table (a few dozen rows at most).
+-- Paste the whole file, run it once. Safe to run twice.
+--
+-- Everything works WITHOUT it. api/_lib/bo/_shared.js declares hints.feature OPTIONAL: a read
+-- that names a column this database has not got is refused WHOLE by PostgREST (42703), so the
+-- column is dropped from the select, the read is retried once, and every hint comes back with
+-- no audience -- which is exactly what happened before this column existed. Nobody sees an
+-- error and nothing stops working; the tips are simply not filtered until this is run.
+--
+-- WHAT IT IS FOR. Phone Vending (handsets by IMEI, financing partners, a cost price per product,
+-- a discount per sale line) is switched on per business, and a business that has not got it does
+-- not have those screens. A tip that says "register each handset by IMEI under Phone Vending"
+-- sent to a grocery is worse than no tip at all: they go looking for a tab that is not there and
+-- conclude the app is broken. NULL (the default, and every existing row) means everybody, so
+-- running this changes nothing on its own -- the code decides, per hint, from here on.
+--
+-- The value is the SAME string as the flag on vendors.permissions ('phoneVending'), deliberately:
+-- one name for one idea, so the tip and the screen it talks about can never disagree.
+-- =====================================================================================
+
+alter table hints add column if not exists feature text;

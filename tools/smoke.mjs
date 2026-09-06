@@ -258,6 +258,76 @@ await step('the manager can issue invoices and see who would be blocked', async 
   console.log('       ' + issued + '; would block ' + r.would_block.length + ', blocked ' + r.blocked);
 });
 
+/* THE FLAG, THROUGH THE REAL SCREENS. Phone Vending is what one phone-retail customer needed
+   -- handsets by IMEI, financing partners, a cost price per product, a discount per sale line --
+   and it was being shown to every business on the platform. Every one of those is hidden by the
+   same boot flag, in six different files, and the only way to know they all agree is to sign in
+   as the grocery and look. */
+const signIn = async (who) => {
+  await page.evaluate(() => logout(true));
+  await page.waitForSelector('#landingPage:not(.hidden), #loginPage:not(.hidden)', { timeout: 10000 });
+  await page.evaluate(() => showLogin(false));
+  await page.waitForSelector('#loginId', { state: 'visible', timeout: 8000 });
+  await page.fill('#loginId', who);
+  await page.fill('#loginPwd', 'pass1234');
+  await page.click('#loginBtn, button[onclick="doLogin()"]');
+  await page.waitForSelector('#mainApp:not(.hidden)', { timeout: 10000 });
+};
+const groceryView = async () => {
+  await page.evaluate(() => switchTab('products'));
+  await page.waitForFunction(() => (document.getElementById('productsContent') || {}).children && document.getElementById('productsContent').children.length > 0, null, { timeout: 10000 });
+  await page.evaluate(() => switchTab('sale'));
+  await page.waitForFunction(() => (document.getElementById('saleContent') || {}).children && document.getElementById('saleContent').children.length > 0, null, { timeout: 10000 });
+  await page.evaluate(() => switchTab('reports'));
+  await page.waitForFunction(() => (document.getElementById('reportsContent') || {}).children && document.getElementById('reportsContent').children.length > 0, null, { timeout: 10000 });
+  return page.evaluate(() => {
+    const nav = document.getElementById('nav-phone');
+    const disc = document.querySelector('#saleItemsBody .disc');
+    return {
+      flag: !!S.features.phone_vending,
+      navShown: !!nav && nav.style.display !== 'none',
+      // A header CELL, not a text search: innerText joins a row's cells with tabs, so a regex
+      // over it never matched and the "no Cost column" half of this check passed for free.
+      costColumn: [...document.querySelectorAll('#productsContent th')].some(th => th.textContent.trim() === 'Cost'),
+      serialBox: !!document.getElementById('newProdSerial'),
+      serialShown: !!document.getElementById('newProdSerial') && document.getElementById('newProdSerial').closest('.form-group').style.display !== 'none',
+      discInput: !!disc,                                     // must ALWAYS be there: calc() reads it
+      discShown: !!disc && disc.closest('td').style.display !== 'none',
+      imeiReport: /IMEI \/ Units List/.test(document.getElementById('reportsContent').innerText),
+      // The rotating tips themselves, as the shell holds them -- boot.hints, after the filter.
+      phoneHint: (_hintList || []).some(h => /IMEI|Phone Vending/i.test(h.en + ' ' + h.sw)),
+    };
+  });
+};
+
+const setPhoneVending = (on) => page.evaluate(async v => (await BO.srv('setVendorPhoneVending', { vendor_id: 'V2', on: v })).message, on);
+
+await step('the grocery is not shown the phone shop\'s screens', async () => {
+  /* Switched off explicitly rather than assumed off, so a second run against the same `npm run
+     dev` -- whose book is in memory and still holds what the last run did -- checks the code
+     rather than reporting the previous run's leftovers as a failure. */
+  await signIn('markii');
+  const off = await setPhoneVending(false);
+  if (!/Nothing was deleted/.test(off)) throw new Error('switching off said: ' + off);
+  await signIn('mama');
+  const v = await groceryView();
+  const want = { flag: false, navShown: false, costColumn: false, serialBox: true, serialShown: false,
+                 discInput: true, discShown: false, imeiReport: false, phoneHint: false };
+  for (const k of Object.keys(want)) if (v[k] !== want[k]) throw new Error('grocery: ' + k + ' is ' + v[k] + ', expected ' + want[k]);
+});
+
+await step('switching Phone Vending on gives that same grocery all of them', async () => {
+  await signIn('markii');
+  const msg = await setPhoneVending(true);
+  if (!/Phone Vending ON/.test(msg)) throw new Error('the manager switch said: ' + msg);
+  await signIn('mama');
+  const v = await groceryView();
+  const want = { flag: true, navShown: true, costColumn: true, serialBox: true, serialShown: true,
+                 discInput: true, discShown: true, imeiReport: true, phoneHint: true };
+  for (const k of Object.keys(want)) if (v[k] !== want[k]) throw new Error('switched on: ' + k + ' is ' + v[k] + ', expected ' + want[k]);
+  console.log('       one flag, six screens, both ways');
+});
+
 await step('desktop toggle and dark/light both paint', async () => {
   await page.evaluate(() => toggleView());
   await page.evaluate(() => toggleTheme());

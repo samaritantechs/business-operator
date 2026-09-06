@@ -37,7 +37,9 @@ export function richBook() {
   t.vendors.push(
     { id: 'V1', legacy_name: 'Fromville Phones', name: 'Fromville Phones', business_type: 'Electronics', phone: '+255 756 000 001',
       address: 'Sinza, Dar', currency: 'TZS', logo_url: null, registered_on: '2026-08-01T06:00:00.000Z', active: true, restricted: false,
-      permissions: { adminReceivesDaily: true, sellerCanDownloadReport: true, dashboardVisible: true }, created_at: '2026-08-01T06:00:00.000Z' },
+      /* THE PHONE SHOP HAS PHONE VENDING ON, and the grocery below does not -- one book, both
+         sides of the flag, so a change that only works for one of them cannot pass. */
+      permissions: { adminReceivesDaily: true, sellerCanDownloadReport: true, dashboardVisible: true, phoneVending: true }, created_at: '2026-08-01T06:00:00.000Z' },
     { id: 'V2', legacy_name: 'Mama Ntilie Grocery', name: 'Mama Ntilie Grocery', business_type: 'Groceries', phone: '255756000002',
       address: 'Kariakoo', currency: 'TZS', logo_url: 'https://drive.google.com/thumbnail?id=abc&sz=w200', registered_on: '2026-01-10T06:00:00.000Z',
       active: true, restricted: false, permissions: {}, created_at: '2026-01-10T06:00:00.000Z' },
@@ -102,7 +104,13 @@ export function richBook() {
   t.hints.push(
     { id: 'H1', role: 'seller', message_en: 'Your User ID is your login.', message_sw: 'Kitambulisho chako ndiyo login yako.', active: true, sort: 0 },
     { id: 'H2', role: 'all', message_en: 'Use Refresh to see the latest numbers.', message_sw: 'Tumia Refresh kuona namba za sasa.', active: true, sort: 1 },
-    { id: 'H3', role: 'marketplace', message_en: 'Tap any product to contact the seller.', message_sw: '', active: true, sort: 2 });
+    { id: 'H3', role: 'marketplace', message_en: 'Tap any product to contact the seller.', message_sw: '', active: true, sort: 2 },
+    /* One tip that is only for a business with Phone Vending on, so the audience filter is
+       exercised on the TABLE's own rows and not only on the built-ins. */
+    { id: 'H5', role: 'seller', message_en: 'Register each handset by IMEI under Phone Vending.',
+      message_sw: 'Sajili kila simu kwa IMEI kwenye Phone Vending.', feature: 'phoneVending', active: true, sort: 3 },
+    { id: 'H6', role: 'admin', message_en: 'Financing partners live under Phone Vending.',
+      message_sw: 'Wafadhili wa mikopo wako kwenye Phone Vending.', feature: 'phoneVending', active: true, sort: 4 });
   t.product_clicks.push(
     { id: 1, product_id: 'P3', vendor_id: 'V1', clicked_at: T(8) },
     { id: 2, product_id: 'P3', vendor_id: 'V1', clicked_at: '2026-06-01T08:00:00.000Z' },

@@ -24,9 +24,15 @@ window.BOSell = (function () {
     });
     return h + '</select>';
   }
+  /* HIDDEN, NOT REMOVED. A discount per line came in with the phone-retail work; a grocery does
+     not want the column. But three places read tr.querySelector('.disc').value, and deleting the
+     cell would make every one of them dereference null and take the whole checkout down -- which
+     is precisely how the product Edit dialog died for admins. The input stays, at zero, and the
+     column is hidden. Nothing to guard, nothing to forget. */
+  function showsDiscount() { return !!S.features.phone_vending; }
   function row() {
     rowSeq++;
-    return '<tr class="sale-row" data-row="' + rowSeq + '"><td>' + productSelect('') + '<div class="units"></div></td><td style="width:80px;"><input type="number" class="form-control qty" value="1" min="1" oninput="BOSell.calc(this)"></td><td style="width:130px;"><input type="number" class="form-control price" value="0" min="0" oninput="BOSell.calc(this)"></td><td style="width:110px;"><input type="number" class="form-control disc" value="0" min="0" oninput="BOSell.calc(this)"></td><td style="width:110px;"><span class="row-total">0</span></td><td><button class="btn-sm-danger" onclick="this.closest(\'tr\').remove();BOSell.grand()">✕</button></td></tr>';
+    return '<tr class="sale-row" data-row="' + rowSeq + '"><td>' + productSelect('') + '<div class="units"></div></td><td style="width:80px;"><input type="number" class="form-control qty" value="1" min="1" oninput="BOSell.calc(this)"></td><td style="width:130px;"><input type="number" class="form-control price" value="0" min="0" oninput="BOSell.calc(this)"></td><td style="width:110px;' + (showsDiscount() ? '' : 'display:none;') + '"><input type="number" class="form-control disc" value="0" min="0" oninput="BOSell.calc(this)"></td><td style="width:110px;"><span class="row-total">0</span></td><td><button class="btn-sm-danger" onclick="this.closest(\'tr\').remove();BOSell.grand()">✕</button></td></tr>';
   }
   function render(el) {
     var h = '<div class="section-card"><div class="section-hdr"><span>🛒</span><div class="section-hdr-title">New Sale</div></div><div class="section-body">';
@@ -47,7 +53,7 @@ window.BOSell = (function () {
       h += '<div class="form-group"><label class="form-label">Shop / Branch</label><select id="saleBranch" class="form-select" onchange="BOSell.branchChanged(this.value)"><option value="">— No shop —</option>' + opts.branches.map(function (b) { return '<option value="' + esc(b.id) + '"' + (branchId === b.id ? ' selected' : '') + '>' + esc(b.name) + '</option>'; }).join('') + '</select></div>';
     }
     h += '</div>';
-    h += '<div class="table-wrap"><table class="sale-tbl"><thead><tr><th>Product</th><th>Qty</th><th>List Price</th><th>Discount</th><th>Total</th><th></th></tr></thead><tbody id="saleItemsBody">' + row() + '</tbody></table></div>';
+    h += '<div class="table-wrap"><table class="sale-tbl"><thead><tr><th>Product</th><th>Qty</th><th>List Price</th><th' + (showsDiscount() ? '' : ' style="display:none"') + '>Discount</th><th>Total</th><th></th></tr></thead><tbody id="saleItemsBody">' + row() + '</tbody></table></div>';
     h += '<div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center;"><button class="btn-secondary" onclick="BOSell.addRow()">+ Add Item</button><button class="btn-primary" id="saleSubmitBtn" onclick="BOSell.submit()">✅ Record Sale</button><span class="muted small" id="saleGrand"></span></div>';
     h += '<div id="saleMsg" style="margin-top:12px;"></div></div></div>';
     el.innerHTML = h;
