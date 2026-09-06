@@ -73,6 +73,31 @@ for (const t of tabs) {
 }
 await page.screenshot({ path: OUT + '03-stock.png' });
 
+/* THE EDIT DIALOG, AS AN ADMIN. This is the bug this step exists for: the dialog's HTML was
+   built at module load, when S.user is still null, so the admin-only Cost Price field was left
+   out of it -- and edit() then tried to fill that missing field and threw before opening
+   anything. The button did nothing, silently, for admins and managers only.
+   No unit test could have seen it: the HTML is correct, the API is correct, and the two are
+   only wrong about each other inside a browser after a real sign-in. */
+await step('an admin can actually open the product Edit dialog', async () => {
+  await page.evaluate(() => switchTab('products'));
+  await page.waitForSelector('#productsContent table', { timeout: 10000 });
+  const err = await page.evaluate(() => {
+    try { BOProd.edit(0); return null; } catch (e) { return String(e && e.message || e); }
+  });
+  if (err) throw new Error('BOProd.edit(0) threw: ' + err);
+  /* Bootstrap comes from a CDN and this app works without it, so a modal is "open" as either
+     Bootstrap's .show or the fallback's .bo-fb. The smoke runs with the CDN blocked, so it is
+     always the latter here -- match both rather than encode which one the network allowed. */
+  await page.waitForSelector('#editProductModal.show, #editProductModal.bo-fb', { timeout: 5000 });
+  const cost = await page.evaluate(() => !!document.getElementById('editProdCost'));
+  if (!cost) throw new Error('the dialog opened without the Cost Price field an admin is allowed to see');
+  const name = await page.evaluate(() => document.getElementById('editProdName').value);
+  if (!name) throw new Error('the dialog opened empty -- nothing was filled in');
+  await page.evaluate(() => closeModal('editProductModal'));
+  console.log('       opened for "' + name + '", cost field present');
+});
+
 await step('sell a phone cover through the form', async () => {
   await page.evaluate(() => switchTab('sale'));
   await page.waitForSelector('#saleContent select, #saleContent .prod-pick', { timeout: 10000 });

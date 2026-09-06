@@ -97,7 +97,22 @@ window.BOProd = (function () {
     srv('addStock', args).then(function (r) { showToast(r.message); load(); }).catch(BO.fail);
   }
 
-  var MODAL = '<div class="modal fade" id="editProductModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">'
+  /* BUILT WHEN IT IS OPENED, NOT WHEN THE FILE LOADS.
+     This was a `var MODAL = '...'` at module scope, and the string embeds canSeeCost(). Module
+     scope runs at PAGE LOAD, when S.user is still null -- so canSeeCost() was false and the
+     Cost Price field was left out of the dialog's HTML for everybody. edit() then asked
+     canSeeCost() again, by which time an admin IS signed in, got true, and set the value of an
+     element that had never been written:
+
+         document.getElementById('editProdCost').value = ...   // null.value -> TypeError
+
+     which threw before openModal(), so the Edit button did nothing at all. Silently, and only
+     for admins and managers -- the exact people who edit products. A seller never hit it
+     because canSeeCost() was false both times and the two agreed by accident.
+
+     A function cannot go stale that way: whatever the dialog is built from is what the user
+     is, at the moment they ask for it. */
+  function modalHtml() { return '<div class="modal fade" id="editProductModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">'
     + '<div class="modal-header"><h5 class="modal-title">Edit Product</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>'
     + '<div class="modal-body"><input type="hidden" id="editProdId">'
     + '<div class="form-group" style="margin-bottom:12px;"><label class="form-label">Product Name</label><input class="form-control" id="editProdName"></div>'
@@ -114,11 +129,10 @@ window.BOProd = (function () {
         + '<button type="button" class="prod-img-x" id="prodImg' + n + 'X" style="display:none;" onclick="event.stopPropagation();BOProd.clearImage(' + n + ')">✕</button></div>'
         + '<input type="file" id="prodImg' + n + 'Input" accept="image/*" style="display:none;" onchange="BOProd.previewImage(this,' + n + ')">';
     }).join('') + '</div><div class="small muted" style="margin-top:6px;">The first photo is the one the marketplace shows. Large pictures are shrunk on this phone before they are sent.</div><div id="prodImgMsg" class="small muted" style="margin-top:8px;"></div></div>'
-    + '<div class="modal-footer"><button class="btn-secondary" data-bs-dismiss="modal">Cancel</button><button class="btn-primary" onclick="BOProd.save()">Save Changes</button></div></div></div></div>';
-
+    + '<div class="modal-footer"><button class="btn-secondary" data-bs-dismiss="modal">Cancel</button><button class="btn-primary" onclick="BOProd.save()">Save Changes</button></div></div></div></div>'; }
   function edit(i) {
     var p = list[i]; if (!p) return;
-    BO.ensureModal('editProductModal', MODAL);
+    BO.ensureModal('editProductModal', modalHtml());
     var set = function (id, v) { document.getElementById(id).value = v == null ? '' : v; };
     set('editProdId', p.id); set('editProdName', p.name); set('editProdCat', p.category); set('editProdBrand', p.brand); set('editProdModel', p.model); set('editProdPrice', p.price); set('editProdStock', p.stock); set('editProdReorder', p.reorder_point); set('editProdType', p.listing_type === 'Rent' ? 'Rent' : 'Sale'); set('editProdUnit', p.price_unit || ''); set('editProdLoc', p.location || ''); if (canSeeCost()) { set('editProdCost', p.cost_price == null ? 0 : p.cost_price); showMargin(); }
     document.getElementById('editProdStockWrap').style.display = p.is_serialized ? 'none' : '';
