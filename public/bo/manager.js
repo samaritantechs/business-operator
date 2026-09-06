@@ -141,6 +141,7 @@ window.BOMgr = (function () {
           + (v.admin_id ? '<button class="btn-sm-primary" onclick="BOMgr.editAdmin(' + i + ')">Edit</button> ' : '')
           + '<button class="btn-sm-' + (v.active ? 'warning' : 'success') + '" onclick="BOMgr.vendorActive(\'' + BO.jsq(v.id) + '\',\'' + BO.jsq(v.name) + '\',' + (v.active ? 'false' : 'true') + ')">' + (v.active ? 'Deactivate' : 'Activate') + '</button> '
           + '<button class="btn-sm-' + (v.restricted ? 'success' : 'danger') + '" onclick="BOMgr.restrict(\'' + BO.jsq(v.id) + '\',\'' + BO.jsq(v.name) + '\',' + (v.restricted ? 'false' : 'true') + ')">' + (v.restricted ? 'Reactivate' : 'Restrict') + '</button> '
+          + '<button class="btn-sm-' + (v.phone_vending ? 'success' : 'secondary') + '" onclick="BOMgr.phoneVending(\'' + BO.jsq(v.id) + '\',\'' + BO.jsq(v.name) + '\',' + (v.phone_vending ? 'false' : 'true') + ')" title="IMEI units, financing partners, cost price and per-line discounts">📱 ' + (v.phone_vending ? 'Phone: ON' : 'Phone: off') + '</button> '
           + '<button class="btn-sm-primary" onclick="BOMgr.openLogo(\'' + BO.jsq(v.id) + '\')">Logo</button></td></tr>';
       });
       el.innerHTML = h + '</tbody></table></div>';
@@ -162,6 +163,16 @@ window.BOMgr = (function () {
   function restrict(id, name, on) {
     if (!BO.confirm(on ? ('Restrict "' + name + '"?\n\nThe owner and their sellers will see a payment notice and the app becomes read-only for them until you reactivate.') : ('Reactivate "' + name + '"?\n\nFull access will be restored.'))) return;
     srv('setVendorRestricted', { vendor_id: id, restricted: on }).then(function (r) { showToast(r.message); loadSummary(); }).catch(BO.fail);
+  }
+  /* THE ONE PER-BUSINESS FEATURE SWITCH. Everything else on this row is about whether a
+     business may sign in or trade at all; this is about what its screens contain. It lives here
+     rather than in Settings' permission grid because that grid's only button applies a profile
+     to EVERY vendor, which is exactly the wrong shape for one shop's trade. */
+  function phoneVending(id, name, on) {
+    if (!BO.confirm(on
+      ? ('Switch Phone Vending ON for "' + name + '"?\n\nThey get the Phone Vending tab (units by IMEI, financing partners), a Cost Price on each product and a Discount on each sale line.')
+      : ('Switch Phone Vending OFF for "' + name + '"?\n\nThe tab and the cost / discount fields disappear from their screens. Nothing is deleted — their handsets and cost prices stay, ready for if you switch it back on.'))) return;
+    srv('setVendorPhoneVending', { vendor_id: id, on: on }).then(function (r) { showToast(r.message); loadSummary(); }).catch(BO.fail);
   }
   function openLogo(vendorId) {
     logoVendor = vendorId; pendingLogo = null;
@@ -192,5 +203,5 @@ window.BOMgr = (function () {
   }
 
   BO.tabs.manager = { load: load, sync: loadSummary };
-  return { load: load, saveBilling: saveBilling, issueInvoices: issueInvoices, previewBlock: previewBlock, runBlock: runBlock, payInvoice: payInvoice, savePayment: savePayment, waive: waive, g: g, setting: setting, saveAnnouncement: saveAnnouncement, editAdmin: editAdmin, saveAdmin: saveAdmin, vendorActive: vendorActive, restrict: restrict, openLogo: openLogo, uploadLogo: uploadLogo, email: email, loadAnalytics: loadAnalytics };
+  return { load: load, saveBilling: saveBilling, issueInvoices: issueInvoices, previewBlock: previewBlock, runBlock: runBlock, payInvoice: payInvoice, savePayment: savePayment, waive: waive, g: g, setting: setting, saveAnnouncement: saveAnnouncement, editAdmin: editAdmin, saveAdmin: saveAdmin, vendorActive: vendorActive, restrict: restrict, phoneVending: phoneVending, openLogo: openLogo, uploadLogo: uploadLogo, email: email, loadAnalytics: loadAnalytics };
 })();

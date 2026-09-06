@@ -12,9 +12,9 @@ const status = p => p.then(() => null, e => e.status);
 const vendor = (db, id) => db._dump('vendors').find(v => v.id === id);
 const profile = (db, id) => db._dump('profiles').find(p => p.id === id);
 
-test('contract: nine manager functions, four writes', () => {
-  assert.deepEqual(Object.keys(FN).sort(), ['allVendorPermissions', 'analytics', 'managerSummary', 'restrictionInfo', 'setAllVendorPermissions', 'setVendorActive', 'setVendorRestricted', 'updateAdmin', 'vendorList']);
-  assert.deepEqual([...WRITES].sort(), ['setAllVendorPermissions', 'setVendorActive', 'setVendorRestricted', 'updateAdmin']);
+test('contract: ten manager functions, five writes', () => {
+  assert.deepEqual(Object.keys(FN).sort(), ['allVendorPermissions', 'analytics', 'managerSummary', 'restrictionInfo', 'setAllVendorPermissions', 'setVendorActive', 'setVendorPhoneVending', 'setVendorRestricted', 'updateAdmin', 'vendorList']);
+  assert.deepEqual([...WRITES].sort(), ['setAllVendorPermissions', 'setVendorActive', 'setVendorPhoneVending', 'setVendorRestricted', 'updateAdmin']);
 });
 
 test('managerSummary: every business with its admin, catalogue, today\'s sales, stock value and trial days', async () => {
@@ -142,7 +142,7 @@ test('setVendorRestricted: flips the flag with the legacy wording', async () => 
   assert.equal(await status(FN.setVendorRestricted(db, user(MANAGER), { vendor_id: 'nope', restricted: true }, NOW)), 404);
 });
 
-test('allVendorPermissions / setAllVendorPermissions: seven flags, one profile for everybody, one write', async () => {
+test('allVendorPermissions / setAllVendorPermissions: seven flags, one profile for everybody, grouped writes', async () => {
   const db = bookDb();
   const { rows } = await FN.allVendorPermissions(db, user(MANAGER), {}, NOW);
   assert.deepEqual(rows.map(r => r.name), ['Fromville Phones', 'Locked Shop', 'Mama Ntilie Grocery']);
@@ -157,7 +157,9 @@ test('allVendorPermissions / setAllVendorPermissions: seven flags, one profile f
   const a = await FN.setAllVendorPermissions(db, user(MANAGER), { profile: profile1 }, NOW);
   assert.equal(a.message, 'Permissions applied to 3 of 3 business(es).');
   const want = { ...DEFAULT_PERMISSIONS, sellerCanDownloadReport: true, dashboardVisible: false };
-  for (const v of db._dump('vendors')) assert.deepEqual(v.permissions, want);
+  // The seven global flags are now the same everywhere; each business keeps its own Phone
+  // Vending, which is not on this page and must not be changed from it.
+  for (const v of db._dump('vendors')) assert.deepEqual(v.permissions, { ...want, phoneVending: v.id === 'V1' });
   const b = await FN.setAllVendorPermissions(db, user(MANAGER), { profile: profile1 }, NOW);
   assert.equal(b.message, 'Permissions applied to 0 of 3 business(es) (3 already matched).');
   vendor(db, 'V2').permissions = {};
@@ -166,6 +168,54 @@ test('allVendorPermissions / setAllVendorPermissions: seven flags, one profile f
   assert.equal(await status(FN.setAllVendorPermissions(db, user(MANAGER), { profile: [] }, NOW)), 400);
   assert.equal(await status(FN.setAllVendorPermissions(db, user(MANAGER), { profile: 'yes' }, NOW)), 400);
   assert.equal(await status(FN.setAllVendorPermissions(db, user(ADMIN1), { profile: profile1 }, NOW)), 403);
+});
+
+test('setAllVendorPermissions leaves each business\'s own Phone Vending alone', async () => {
+  /* THE BUG THIS EXISTS TO STOP. "Apply to All Vendors" builds its payload from the seven
+     switches on the Settings page, and Phone Vending is not one of them -- so writing the
+     payload whole would set phoneVending:false on every business, and the manager turning a
+     weekly email on would take the IMEI screens away from the one shop that has them. Silently:
+     nothing on that page mentions Phone Vending at all. */
+  const db = bookDb();
+  await FN.setVendorPhoneVending(db, user(MANAGER), { vendor_id: 'V1', on: true }, NOW);
+  const before = db._dump('vendors').map(v => [v.id, !!(v.permissions || {}).phoneVending]);
+  assert.deepEqual(before, [['V1', true], ['V2', false], ['V3', false]]);
+
+  const r = await FN.setAllVendorPermissions(db, user(MANAGER), { profile: { adminReceivesWeekly: true } }, NOW);
+  assert.equal(r.message, 'Permissions applied to 3 of 3 business(es).');
+  assert.deepEqual(db._dump('vendors').map(v => [v.id, !!v.permissions.phoneVending]), before, 'each kept its own');
+  for (const v of db._dump('vendors')) {
+    assert.equal(v.permissions.adminReceivesWeekly, true, 'and the profile still landed');
+    assert.deepEqual(Object.keys(v.permissions).sort(), Object.keys(DEFAULT_PERMISSIONS).sort());
+  }
+  // Idempotent: the second press changes nobody, phone shop included.
+  assert.equal((await FN.setAllVendorPermissions(db, user(MANAGER), { profile: { adminReceivesWeekly: true } }, NOW)).message,
+    'Permissions applied to 0 of 3 business(es) (3 already matched).');
+});
+
+test('setVendorPhoneVending: one business at a time, and nothing else on the row is disturbed', async () => {
+  const db = bookDb();
+  assert.equal(await status(FN.setVendorPhoneVending(db, user(ADMIN1), { vendor_id: 'V1', on: true }, NOW)), 403);
+  assert.equal(await status(FN.setVendorPhoneVending(db, user(MANAGER), { on: true }, NOW)), 400);
+  assert.equal(await status(FN.setVendorPhoneVending(db, user(MANAGER), { vendor_id: 'nope', on: true }, NOW)), 404);
+
+  const on = await FN.setVendorPhoneVending(db, user(MANAGER), { vendor_id: 'V1', on: 'true' }, NOW);
+  assert.match(on.message, /Phone Vending ON for Fromville Phones/);
+  const v1 = vendor(db, 'V1');
+  assert.equal(v1.permissions.phoneVending, true);
+  assert.equal(v1.permissions.sellerCanDownloadReport, true, 'the flags it already had are still there');
+  assert.equal(vendor(db, 'V2').permissions.phoneVending, undefined, 'and nobody else was touched');
+
+  const off = await FN.setVendorPhoneVending(db, user(MANAGER), { vendor_id: 'V1', on: false }, NOW);
+  assert.match(off.message, /Nothing was deleted/, 'switching off must say what it does NOT do');
+  assert.equal(vendor(db, 'V1').permissions.phoneVending, false);
+
+  // And the manager's own list shows the flag as a plain boolean, whatever the row holds.
+  const { rows } = await FN.managerSummary(db, user(MANAGER), {}, NOW);
+  assert.deepEqual(rows.map(r => [r.name, r.phone_vending]),
+    [['Fromville Phones', false], ['Locked Shop', false], ['Mama Ntilie Grocery', false]]);
+  await FN.setVendorPhoneVending(db, user(MANAGER), { vendor_id: 'V1', on: true }, NOW);
+  assert.equal((await FN.managerSummary(db, user(MANAGER), {}, NOW)).rows[0].phone_vending, true);
 });
 
 test('analytics: marketplace views per product and vendor, and this year\'s best sellers', async () => {

@@ -20,20 +20,37 @@ window.BOSet = (function () {
       + numCard('🔒', 'Session Timeout (auto-logout)', 'sessionTimeoutMinutes', 'Minutes idle (0 = never)', 'Signs a user out after this long with no activity.', 'idle')
       + card('🔒', 'Vendor Permission Profiles', '<div id="permissionsSection"><div class="muted">Loading…</div></div>', '<div class="small muted" style="margin-left:auto;">One click applies to all vendors</div>')
       + card('💡', 'Hint Popup Timing', '<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end;max-width:460px;"><div class="form-group"><label class="form-label">Lifetime (s)</label><input type="number" class="form-control" id="set_hintLifetime" min="1" value="' + esc(settings.hintLifetime || 5) + '"></div><div class="form-group"><label class="form-label">Interval (s)</label><input type="number" class="form-control" id="set_hintInterval" min="10" value="' + esc(settings.hintInterval || 300) + '"></div><button class="btn-primary" onclick="BOSet.saveHintTimings()">Save</button></div>')
-      + card('📝', 'Manage Hints', '<h6 style="margin-bottom:10px;">Add Multiple Hints</h6><div class="table-wrap"><table class="bo-table" id="bulkHintTable"><thead><tr><th style="width:130px;">Role</th><th>Message (EN)</th><th>Kiswahili (SW)</th><th style="width:60px;"></th></tr></thead><tbody>' + bulkRow() + '</tbody></table></div><div style="margin-top:10px;display:flex;gap:8px;"><button class="btn-secondary" onclick="BOSet.addBulkRow()">+ Add Row</button><button class="btn-primary" onclick="BOSet.saveBulk()">Save All</button></div><hr style="margin:16px 0;border-color:var(--border);"><h6 style="margin-bottom:10px;">Existing Hints</h6><div id="hintsTable" class="muted">Loading…</div>');
+      + card('📝', 'Manage Hints', '<h6 style="margin-bottom:10px;">Add Multiple Hints</h6><div class="table-wrap"><table class="bo-table" id="bulkHintTable"><thead><tr><th style="width:130px;">Role</th><th style="width:150px;">Shown to</th><th>Message (EN)</th><th>Kiswahili (SW)</th><th style="width:60px;"></th></tr></thead><tbody>' + bulkRow() + '</tbody></table></div><div style="margin-top:10px;display:flex;gap:8px;"><button class="btn-secondary" onclick="BOSet.addBulkRow()">+ Add Row</button><button class="btn-primary" onclick="BOSet.saveBulk()">Save All</button></div><hr style="margin:16px 0;border-color:var(--border);"><h6 style="margin-bottom:10px;">Existing Hints</h6><div id="hintsTable" class="muted">Loading…</div>');
     el.innerHTML = h;
   }
   function roleSelect(sel) { return '<select class="form-select hint-role" style="width:130px;">' + ROLES.map(function (r) { return '<option value="' + r + '"' + (sel === r ? ' selected' : '') + '>' + r + '</option>'; }).join('') + '</select>'; }
-  function bulkRow() { return '<tr class="bulk-hint-row"><td>' + roleSelect('seller') + '</td><td><input type="text" class="form-control hint-msg" placeholder="Hint message…"></td><td><input type="text" class="form-control hint-sw" placeholder="Ujumbe kwa Kiswahili (optional)"></td><td><button class="btn-sm-danger" onclick="this.closest(\'tr\').remove()">✕</button></td></tr>'; }
+  /* WHO A TIP IS FOR, on top of the role. Phone Vending is switched on per business, and a
+     business without it has no IMEI screen, no financing partner, no cost price and no discount
+     column -- so a tip about any of those sent to a grocery points at a tab that is not there.
+     Blank means everybody, which is what every tip was before and what every one stays unless
+     it is changed here. */
+  var FEATURES = [['', 'Everyone'], ['phoneVending', 'Phone Vending only']];
+  function featureSelect(cls, sel) { return '<select class="form-select ' + cls + '" style="width:150px;">' + FEATURES.map(function (f) { return '<option value="' + f[0] + '"' + ((sel || '') === f[0] ? ' selected' : '') + '>' + f[1] + '</option>'; }).join('') + '</select>'; }
+  function featureLabel(v) { var f = String(v || ''); for (var i = 0; i < FEATURES.length; i++) if (FEATURES[i][0] === f) return FEATURES[i][1]; return f; }
+  function bulkRow() { return '<tr class="bulk-hint-row"><td>' + roleSelect('seller') + '</td><td>' + featureSelect('hint-feature', '') + '</td><td><input type="text" class="form-control hint-msg" placeholder="Hint message…"></td><td><input type="text" class="form-control hint-sw" placeholder="Ujumbe kwa Kiswahili (optional)"></td><td><button class="btn-sm-danger" onclick="this.closest(\'tr\').remove()">✕</button></td></tr>'; }
   function addBulkRow() { var tb = document.querySelector('#bulkHintTable tbody'), tr = document.createElement('tr'); tr.className = 'bulk-hint-row'; tr.innerHTML = bulkRow().replace(/^<tr[^>]*>/, '').replace(/<\/tr>$/, ''); tb.appendChild(tr); }
   function saveBulk() {
-    var rows = []; document.querySelectorAll('.bulk-hint-row').forEach(function (tr) { var en = tr.querySelector('.hint-msg').value.trim(); if (en) rows.push({ role: tr.querySelector('.hint-role').value, en: en, sw: tr.querySelector('.hint-sw').value.trim() }); });
+    var rows = []; document.querySelectorAll('.bulk-hint-row').forEach(function (tr) { var en = tr.querySelector('.hint-msg').value.trim(); if (en) rows.push({ role: tr.querySelector('.hint-role').value, feature: tr.querySelector('.hint-feature').value, en: en, sw: tr.querySelector('.hint-sw').value.trim() }); });
     if (!rows.length) { alert('Enter at least one hint message.'); return; }
     srv('addHints', { rows: rows }).then(function (r) { showToast(r.message); document.querySelector('#bulkHintTable tbody').innerHTML = bulkRow(); loadHints(); }).catch(BO.fail);
   }
   function loadHints() {
     srv('hints', {}).then(function (r) {
       hints = r.rows || [];
+      /* THE MIGRATION MAY NOT HAVE BEEN RUN. Without hints.feature the "Shown to" choice is
+         dropped on its way to the database and every tip goes to everybody -- which is what
+         happened before the column existed, so nothing breaks, but a manager who set it and was
+         told "Updated." would have no way of knowing it did nothing. */
+      var missing = r.feature_column === false
+        ? '<div class="alert-info" style="margin-bottom:12px;"><strong>“Shown to” is not saved yet.</strong> '
+          + 'Run <span class="mono">db/RUN-ME-005-hint-audience.sql</span> in Supabase to switch it on. '
+          + 'Until then every tip is shown to every business, as before.</div>'
+        : '';
       var el = document.getElementById('hintsTable'); if (!el) return;
       if (!hints.length) {
         /* THIS EMPTY LIST IS WHY SOMEBODY ASKS "are hints there?". Thirty-eight tips are
@@ -41,7 +58,7 @@ window.BOSet = (function () {
            so is not enough on its own -- the next thing a manager does is add one, and the
            first custom hint for a role REPLACES that role's built-ins. So the way out is on
            the screen, next to the sentence that explains it. */
-        el.innerHTML = '<div class="alert-info" style="margin-bottom:12px;">'
+        el.innerHTML = missing + '<div class="alert-info" style="margin-bottom:12px;">'
           + '<strong>Your staff ARE seeing tips.</strong> The built-in ones live in the app itself, '
           + 'so they do not appear in this list — which is why it looks empty.<br>'
           + '<span class="small">Load them in to see and edit them. Careful otherwise: the first hint you add '
@@ -49,8 +66,8 @@ window.BOSet = (function () {
           + '<button class="btn-secondary" onclick="BOSet.loadDefaults(this)">Load the built-in tips into this list</button>';
         return;
       }
-      var h = '<div class="table-wrap"><table class="bo-table"><thead><tr><th>Role</th><th>Message (EN)</th><th>Kiswahili (SW)</th><th>Actions</th></tr></thead><tbody>';
-      hints.forEach(function (x, i) { h += '<tr><td><span class="badge badge-seller">' + esc(x.role) + '</span></td><td style="color:var(--text2);">' + esc(x.message_en) + '</td><td style="color:var(--text2);">' + (x.message_sw ? esc(x.message_sw) : '<span class="muted">—</span>') + '</td><td style="white-space:nowrap;"><button class="btn-sm-primary" onclick="BOSet.editHint(' + i + ')">Edit</button> <button class="btn-sm-danger" onclick="BOSet.deleteHint(\'' + BO.jsq(x.id) + '\')">Del</button></td></tr>'; });
+      var h = missing + '<div class="table-wrap"><table class="bo-table"><thead><tr><th>Role</th><th>Shown to</th><th>Message (EN)</th><th>Kiswahili (SW)</th><th>Actions</th></tr></thead><tbody>';
+      hints.forEach(function (x, i) { h += '<tr><td><span class="badge badge-seller">' + esc(x.role) + '</span></td><td class="small">' + (x.feature ? '<span class="badge badge-low">' + esc(featureLabel(x.feature)) + '</span>' : '<span class="muted">Everyone</span>') + '</td><td style="color:var(--text2);">' + esc(x.message_en) + '</td><td style="color:var(--text2);">' + (x.message_sw ? esc(x.message_sw) : '<span class="muted">—</span>') + '</td><td style="white-space:nowrap;"><button class="btn-sm-primary" onclick="BOSet.editHint(' + i + ')">Edit</button> <button class="btn-sm-danger" onclick="BOSet.deleteHint(\'' + BO.jsq(x.id) + '\')">Del</button></td></tr>'; });
       el.innerHTML = h + '</tbody></table></div>';
     }).catch(function (e) { var el = document.getElementById('hintsTable'); if (el) el.innerHTML = BO.errorBox(e); });
   }
@@ -62,10 +79,10 @@ window.BOSet = (function () {
   }
   function editHint(i) {
     var x = hints[i]; if (!x) return;
-    BO.dialog({ title: 'Edit hint', body: '<div class="form-group" style="margin-bottom:10px;"><label class="form-label">Role</label>' + roleSelect(x.role).replace('class="form-select hint-role" style="width:130px;"', 'class="form-select" id="ehRole"') + '</div><div class="form-group" style="margin-bottom:10px;"><label class="form-label">Message (English)</label><input class="form-control" id="ehEn" value="' + esc(x.message_en) + '"></div><div class="form-group"><label class="form-label">Ujumbe kwa Kiswahili</label><input class="form-control" id="ehSw" value="' + esc(x.message_sw || '') + '"></div>',
+    BO.dialog({ title: 'Edit hint', body: '<div class="form-group" style="margin-bottom:10px;"><label class="form-label">Role</label>' + roleSelect(x.role).replace('class="form-select hint-role" style="width:130px;"', 'class="form-select" id="ehRole"') + '</div><div class="form-group" style="margin-bottom:10px;"><label class="form-label">Shown to</label>' + featureSelect('', x.feature).replace('class="form-select " style="width:150px;"', 'class="form-select" id="ehFeature"') + '</div><div class="form-group" style="margin-bottom:10px;"><label class="form-label">Message (English)</label><input class="form-control" id="ehEn" value="' + esc(x.message_en) + '"></div><div class="form-group"><label class="form-label">Ujumbe kwa Kiswahili</label><input class="form-control" id="ehSw" value="' + esc(x.message_sw || '') + '"></div>',
       footer: '<button class="btn-secondary" onclick="BO.closeDialog()">Cancel</button><button class="btn-primary" onclick="BOSet.saveHint(\'' + BO.jsq(x.id) + '\')">Save</button>' });
   }
-  function saveHint(id) { srv('updateHint', { id: id, role: g('ehRole'), en: g('ehEn').trim(), sw: g('ehSw').trim() }).then(function () { BO.closeDialog(); showToast('Updated.'); loadHints(); }).catch(BO.fail); }
+  function saveHint(id) { srv('updateHint', { id: id, role: g('ehRole'), feature: g('ehFeature'), en: g('ehEn').trim(), sw: g('ehSw').trim() }).then(function () { BO.closeDialog(); showToast('Updated.'); loadHints(); }).catch(BO.fail); }
   function deleteHint(id) { if (!BO.confirm('Delete this hint?')) return; srv('deleteHint', { id: id }).then(function () { loadHints(); }).catch(BO.fail); }
   function save(key, after) {
     var v = g('set_' + key);

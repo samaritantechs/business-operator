@@ -28,6 +28,8 @@ test('seller: the full contract shape, honouring the vendor permission flags', a
   assert.deepEqual(out.hints, [
     { en: 'Your User ID is your login.', sw: 'Kitambulisho chako ndiyo login yako.' },
     { en: 'Use Refresh to see the latest numbers.', sw: 'Tumia Refresh kuona namba za sasa.' },
+    // V1 has Phone Vending on, so this seller is told about the IMEI screen they actually have.
+    { en: 'Register each handset by IMEI under Phone Vending.', sw: 'Sajili kila simu kwa IMEI kwenye Phone Vending.' },
   ]);
   assert.deepEqual(out.timings, { hintLifetime: 5, hintInterval: 300, autoSyncSeconds: 120, sessionTimeoutMinutes: 0, loadingTime: 0 });
   for (const v of Object.values(out.timings)) assert.equal(typeof v, 'number');
@@ -35,7 +37,9 @@ test('seller: the full contract shape, honouring the vendor permission flags', a
   assert.deepEqual(out.branches.map(b => b.name), ['Kariakoo', 'Sinza']);
   assert.deepEqual(Object.keys(out.branches[0]).sort(), ['active', 'created_at', 'id', 'location', 'name', 'vendor_id']);
   assert.deepEqual(out.partners.map(p => p.name), ['MOGO', 'Watu Simu']);
-  assert.deepEqual(out.features, { has_branches: true, has_serialized: true });
+  /* phone_vending is a DELIBERATE per-vendor flag, off until a manager turns it on, so a
+     grocery is never shown IMEI fields or asked what it paid for a wedding gown. */
+  assert.deepEqual(out.features, { has_branches: true, has_serialized: true, phone_vending: true }, 'V1 is the phone shop');
   assert.deepEqual(out.announcement, { enabled: false, title: "What's New", text: '', audience: 'both', version: '' });
   assert.equal(out.whatsapp, '255756749261');
 });
@@ -52,16 +56,19 @@ test('seller flags off: no report, no dashboard', async () => {
   assert.deepEqual(out2.perms, { canDownloadReport: false, showDashboard: false });
 });
 
-test('admin: everything allowed; hints are the "all" rows when the role has none of its own', async () => {
+test('admin: everything allowed; the "all" rows, plus the ones this business can act on', async () => {
   const book = richBook();
   const out = await buildBoot(bookDb(book), userOf(book, ADMIN1), NOW);
   assert.deepEqual(out.perms, { canDownloadReport: true, showDashboard: true });
-  assert.deepEqual(out.hints.map(h => h.en), ['Use Refresh to see the latest numbers.']);
+  assert.deepEqual(out.hints.map(h => h.en), ['Use Refresh to see the latest numbers.', 'Financing partners live under Phone Vending.']);
   assert.equal(out.features.has_serialized, true);
   const plain = await buildBoot(bookDb(book), userOf(book, ADMIN2), NOW);
   assert.deepEqual(plain.branches, []);
   assert.deepEqual(plain.partners.map(p => p.name), ['Watu Simu'], 'only the global partner');
-  assert.deepEqual(plain.features, { has_branches: false, has_serialized: false });
+  assert.deepEqual(plain.features, { has_branches: false, has_serialized: false, phone_vending: false });
+  /* THE SAME TABLE, THE SAME ROLE, A DIFFERENT BUSINESS. The grocery has no Phone Vending, so
+     it is not told where the financing partners are -- it has not got any. */
+  assert.deepEqual(plain.hints.map(h => h.en), ['Use Refresh to see the latest numbers.']);
 });
 
 test('manager: no vendor, no branches, global partners only, never restricted', async () => {
@@ -72,7 +79,7 @@ test('manager: no vendor, no branches, global partners only, never restricted', 
   assert.deepEqual(out.perms, { canDownloadReport: true, showDashboard: true });
   assert.deepEqual(out.branches, []);
   assert.deepEqual(out.partners.map(p => p.name), ['Watu Simu']);
-  assert.deepEqual(out.features, { has_branches: false, has_serialized: false });
+  assert.deepEqual(out.features, { has_branches: false, has_serialized: false, phone_vending: false });
   assert.deepEqual(out.restriction, { restricted: false, notice: '' });
   assert.deepEqual(out.hints.map(h => h.en), ['Use Refresh to see the latest numbers.']);
 });
@@ -129,7 +136,18 @@ test('an empty hints table answers the legacy defaults; password fields never le
   book.hints = [];
   const user = { ...userOf(book, SELLER1), password_hash: 'h', password_salt: 's' };
   const out = await buildBoot(bookDb(book), user, NOW);
+  // SELLER1 works at the phone shop, so every seller tip reaches them, phone ones included.
   assert.deepEqual(out.hints, DEFAULT_HINTS.seller.map(([en, sw]) => ({ en, sw })));
+  assert.ok(DEFAULT_HINTS.seller.some(([, , f]) => f === 'phoneVending'), 'and one of them is phone-only');
+
+  /* The same seller at the grocery counter is told less: the tip about the Discount column is
+     about a column their screens have not got. */
+  const grocery = richBook();
+  grocery.hints = [];
+  grocery.vendors.find(v => v.id === 'V1').permissions.phoneVending = false;
+  const plain = await buildBoot(bookDb(grocery), userOf(grocery, SELLER1), NOW);
+  assert.deepEqual(plain.hints, DEFAULT_HINTS.seller.filter(([, , f]) => !f).map(([en, sw]) => ({ en, sw })));
+  assert.equal(plain.hints.some(h => /Discount|Punguzo/.test(h.en + h.sw)), false);
   assert.equal('password_hash' in out.user, false);
   assert.equal('password_salt' in out.user, false);
   assert.equal(user.password_hash, 'h', 'the caller object is not mutated');
@@ -156,4 +174,22 @@ test('FN.boot is buildBoot; FN.suggestion is the one write', async () => {
   assert.equal(r2.category, 'General');
   assert.equal(r2.vendor_id, null);
   await assert.rejects(FN.suggestion(db, userOf(book, SELLER1), { category: 'Idea', message: '  ' }, NOW), e => e.status === 400);
+});
+
+test('phone_vending follows the vendor permission, not the data', async () => {
+  /* has_serialized is derived from what has been registered, so a brand-new phone shop would
+     look like a grocery on its first day -- exactly when it needs the IMEI screen most. This
+     flag is set deliberately and stays set. */
+  const book = richBook();
+  const on = await buildBoot(bookDb(book), userOf(book, ADMIN1), NOW);
+  assert.equal(on.features.phone_vending, true, 'V1 is switched on and has handsets');
+
+  /* Switched off, with the SAME serialized products still in the book: the flag is what decides,
+     not the data. (And the other way round is the reason it is a flag at all -- a phone shop on
+     its first day has registered no handsets yet, and is exactly when it needs the screen.) */
+  const book2 = richBook();
+  book2.vendors.find(x => x.id === 'V1').permissions.phoneVending = false;
+  const off = await buildBoot(bookDb(book2), userOf(book2, ADMIN1), NOW);
+  assert.equal(off.features.has_serialized, true, 'the handsets are still there');
+  assert.equal(off.features.phone_vending, false);
 });
