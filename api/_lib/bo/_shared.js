@@ -393,20 +393,44 @@ export function trialDaysRemaining(registeredOn, days, nowMs = Date.now()) {
 }
 /** The start of the vendor's CURRENT monthly billing cycle, anchored on registered_on -- the
     same walk the Apps Script _cyclePeriodStart did. Falls back to the 1st of the month. */
-export function cyclePeriodStart(anchor, nowMs = Date.now()) {
-  const now = new Date(nowMs);
-  const first = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-  if (!anchor) return first;
-  const a = new Date(anchor);
-  if (!Number.isFinite(a.getTime())) return first;
-  if (a > now) return a;
-  let d = new Date(a.getTime());
-  for (let i = 0; i < 1200; i++) {
-    const nx = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate(), d.getUTCHours(), d.getUTCMinutes(), d.getUTCSeconds()));
-    if (nx > now) break;
-    d = nx;
-  }
-  return d;
+/* THE ANCHOR DAY MUST SURVIVE A SHORT MONTH.
+   The step used to be Date.UTC(y, m + 1, d) with d taken from the PREVIOUS step's result. For a
+   vendor anchored on the 31st that overflows February into March and then keeps stepping from
+   the corrupted date, so the periods ran 31 Jan -> 3 Mar -> 3 Apr -> 3 May, for ever. Anchored
+   on the 30th you land on the 2nd. Verified by running it; nobody would have reported it as a
+   bug, they would have said the invoice looked odd.
+   The day now comes from the ANCHOR every time and is clamped to the target month's length, so
+   February borrows the 28th and March gets the 31st back. */
+/* THE ARITHMETIC IS DONE ON EAST AFRICAN DATES, NOT UTC INSTANTS.
+   registered_on is a timestamptz, so a shop that signed up at 9am EAT had periods running
+   09:00 to 09:00 -- which lines up with no report anybody can pull. The Sales report a vendor
+   checks the invoice against is EAT-day aligned (eatStart/eatEnd), and DECISIONS says time is
+   East Africa Time everywhere; this was the one place it was not. A period that ends mid-morning
+   cannot be reconciled against a day that ends at midnight, so the shop simply cannot check it.
+   Keys are 'YYYY-MM-DD' in EAT, and the month step clamps to the target month's length. */
+function addMonthsToKey(key, months) {
+  const y = +key.slice(0, 4), m = +key.slice(5, 7) - 1, d = +key.slice(8, 10);
+  const ty = y + Math.floor((m + months) / 12), tm = ((m + months) % 12 + 12) % 12;
+  const lastDay = new Date(Date.UTC(ty, tm + 1, 0)).getUTCDate();
+  return ty + '-' + String(tm + 1).padStart(2, '0') + '-' + String(Math.min(d, lastDay)).padStart(2, '0');
+}
+export function cyclePeriodStart(anchor, nowMs = Date.now()) { return cyclePeriod(anchor, nowMs).start; }
+
+/** { start, end } for the period `nowMs` falls in. HALF-OPEN: a sale at exactly `end` belongs to
+    the next period, so no sale is billed twice and none falls between two invoices. */
+export function cyclePeriod(anchor, nowMs = Date.now()) {
+  const a = anchor ? new Date(anchor) : null;
+  const baseKey = (a && Number.isFinite(a.getTime())) ? todayKey(a.getTime()) : todayKey(nowMs).slice(0, 7) + '-01';
+  const inst = key => new Date(eatStart(key));
+  if (inst(baseKey) > new Date(nowMs)) return { start: inst(baseKey), end: inst(addMonthsToKey(baseKey, 1)) };
+  /* Count whole months from the anchor rather than stepping a mutable date: stepping from the
+     previous RESULT is what let one short month poison every period after it. */
+  const nowKey = todayKey(nowMs);
+  let n = (+nowKey.slice(0, 4) - +baseKey.slice(0, 4)) * 12 + (+nowKey.slice(5, 7) - +baseKey.slice(5, 7));
+  if (n < 0) n = 0;
+  while (n > 0 && inst(addMonthsToKey(baseKey, n)) > new Date(nowMs)) n--;
+  while (inst(addMonthsToKey(baseKey, n + 1)) <= new Date(nowMs)) n++;
+  return { start: inst(addMonthsToKey(baseKey, n)), end: inst(addMonthsToKey(baseKey, n + 1)) };
 }
 
 /* ------------------------------------------------------------------ products */
@@ -530,12 +554,64 @@ export const DEFAULT_PAYMENT_TEXT = '⚠️ Your account is currently restricted
 
 /** Commission due this billing cycle for one vendor: completed sales since the cycle start
     (anchored on registered_on) x the commission rate. `settings` = getSettings() output. */
+/* WHAT ONE VENDOR OWES FOR ONE PERIOD.
+   The read used to be `.gte(cycle_start)` and nothing else -- "everything since this period
+   opened". That is right for the banner telling a shop what it owes right now, and wrong for an
+   invoice: the same period re-rendered a week later carried a bigger number, because sales from
+   the NEW period kept landing inside the old query. A document a business keeps must give the
+   same answer every time it is asked. The period is now closed at both ends and half-open, so a
+   sale belongs to exactly one of them. */
 export async function commissionDue(db, vendor, settings, nowMs = Date.now()) {
-  const rate = num(settings.commissionRate);
-  const start = cyclePeriodStart(vendor.registered_on, nowMs).toISOString();
-  const list = await rowsAll(db, 'sales', q => q.select('total').eq('vendor_id', vendor.id).eq('status', 'completed').gte('sold_at', start));
+  const raw = num(settings.commissionRate);
+  const rate = Number.isFinite(raw) && raw > 0 ? raw : 0;
+  const { start, end } = cyclePeriod(vendor.registered_on, nowMs);
+  const from = start.toISOString(), to = end.toISOString();
+  /* Scoped at the database, and only completed sales: a cancelled sale is not revenue, so
+     charging commission on it would bill a shop for a sale it refunded. */
+  const list = await rowsAll(db, 'sales', q => q.select('total').eq('vendor_id', vendor.id)
+    .eq('status', 'completed').gte('sold_at', from).lt('sold_at', to));
   const total = list.reduce((a, s) => a + num(s.total), 0);
-  return { total, rate, due: money(total * rate / 100), cycle_start: start };
+  return {
+    total, rate, due: money(total * rate / 100),
+    period_start: start, period_end: end,
+    cycle_start: from,                       // the old name, still used by the restriction notice
+  };
+}
+
+/* THE INVOICE, AS A DOCUMENT RATHER THAN A NUMBER.
+   Built from commissionDue, so the figure on the page is the one the banner shows and the one
+   the email quotes -- one definition, in one place. Its number is derived from the vendor and
+   the period, not from a counter, so re-issuing the same period yields the SAME invoice number
+   rather than a second invoice for money already owed once. */
+export function invoiceNumber(vendor, periodStart) {
+  /* From the EAT date, so the number on the invoice matches the period printed beneath it. The
+     UTC face of an EAT-midnight instant is the previous day, which would have numbered a
+     period starting on the 2nd as ...0901 -- a mismatch somebody would eventually query. */
+  const ym = todayKey(new Date(periodStart).getTime()).replace(/-/g, '');
+  return 'INV-' + String(vendor.legacy_name || vendor.name || 'V').replace(/[^A-Za-z0-9]/g, '').slice(0, 6).toUpperCase() + '-' + ym;
+}
+
+export async function commissionInvoice(db, vendor, settings, nowMs = Date.now()) {
+  const c = await commissionDue(db, vendor, settings, nowMs);
+  const cur = currencyOf(vendor);
+  /* IN EAT, like the period itself and like every report this will be checked against. Taking
+     the UTC face of an EAT-midnight instant reads it as the previous day, which would print an
+     invoice covering "1 Sep to 1 Oct" for a period that actually runs the 2nd to the 2nd. */
+  const fmtDay = d => todayKey(new Date(d).getTime());
+  /* The period is stated on its face, and it is the period the money was earned in -- not
+     "September", which is what the old email said whatever it had actually counted. A shop
+     reconciles this against its own Sales report for the same dates, or it argues with it. */
+  return {
+    number: invoiceNumber(vendor, c.period_start),
+    vendor_name: vendor.name || '',
+    currency: cur,
+    period_start: fmtDay(c.period_start),
+    period_end: fmtDay(new Date(c.period_end.getTime() - 1)),   // shown inclusive: a person reads "to the 13th", not "before the 14th"
+    sales_total: c.total,
+    rate: c.rate,
+    due: c.due,
+    issued_on: fmtDay(nowMs),
+  };
 }
 
 /** { restricted, notice } for a vendor -- the payment message with its placeholders filled
