@@ -236,6 +236,28 @@ await step('manager signs in and the manager tabs render', async () => {
 });
 await page.screenshot({ path: OUT + '04-manager.png', fullPage: false });
 
+/* BILLING, THROUGH THE REAL BUTTONS. The unit tests prove the guards; this proves the wiring
+   between them and the screen -- which is exactly what no unit test can see, as the product Edit
+   dialog demonstrated by being dead for admins while every test passed. */
+await step('the manager can issue invoices and see who would be blocked', async () => {
+  await page.evaluate(() => switchTab('manager'));
+  await page.waitForSelector('#invoicesWrap', { timeout: 10000 });
+  const issued = await page.evaluate(async () => {
+    await BO.srv('settingSet', { key: 'commissionRate', value: '0.6' });
+    await BO.srv('settingSet', { key: 'trialDays', value: '0' });
+    await BO.srv('settingSet', { key: 'minInvoiceAmount', value: '1' });
+    return (await BO.srv('issueInvoices', {})).message;
+  });
+  const list = await page.evaluate(async () => (await BO.srv('invoices', {})).rows.length);
+  if (!list) throw new Error('issued but the invoice list came back empty: ' + issued);
+
+  /* The switch is OFF, so this must block nobody while still naming who qualifies. */
+  const r = await page.evaluate(async () => await BO.srv('runAutoBlock', {}));
+  if (r.enabled) throw new Error('automatic blocking should default to OFF');
+  if (r.blocked !== 0) throw new Error('blocking is off, yet it blocked ' + r.blocked);
+  console.log('       ' + issued + '; would block ' + r.would_block.length + ', blocked ' + r.blocked);
+});
+
 await step('desktop toggle and dark/light both paint', async () => {
   await page.evaluate(() => toggleView());
   await page.evaluate(() => toggleTheme());

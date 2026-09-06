@@ -288,10 +288,18 @@ export const digitsOnly = v => String(v == null ? '' : v).replace(/[^0-9]/g, '')
 export const uuidLike = v => /^[0-9a-f-]{8,}$/i.test(String(v || ''));
 
 /* ------------------------------------------------------------------ settings */
-export const SETTING_KEYS = ['FreeRegistration', 'commissionRate', 'trialDays', 'hintLifetime', 'hintInterval',
+export const SETTING_KEYS = ['FreeRegistration', 'commissionRate', 'trialDays',
+  'autoBlockEnabled', 'invoiceGraceDays', 'minInvoiceAmount', 'hintLifetime', 'hintInterval',
   'loadingTime', 'autoSyncSeconds', 'sessionTimeoutMinutes', 'paymentReminderText', 'lendingReminderText',
   'announcement_enabled', 'announcement_title', 'announcement_text', 'announcement_audience', 'announcement_version'];
 export const SETTING_DEFAULTS = {
+  /* THE AUTO-BLOCK IS OFF UNTIL SOMEBODY TURNS IT ON, and that default is load-bearing rather
+     than timid: a restricted vendor is refused every write, so switching this on is switching
+     off other people's tills. It must never arrive by inheriting a default.
+     Grace is counted from the END of the period being billed, not from the issue date, so a
+     late run cannot shorten anybody's week. The minimum stops a till being locked over 300
+     shillings, which costs the shop a day's trade and the owner a customer. */
+  autoBlockEnabled: 'No', invoiceGraceDays: '7', minInvoiceAmount: '1000',
   FreeRegistration: 'Yes', commissionRate: '0', trialDays: '60', hintLifetime: '5', hintInterval: '300',
   loadingTime: '0', autoSyncSeconds: '120', sessionTimeoutMinutes: '0', paymentReminderText: '', lendingReminderText: '',
   announcement_enabled: 'No', announcement_title: "What's New", announcement_text: '', announcement_audience: 'both', announcement_version: '',

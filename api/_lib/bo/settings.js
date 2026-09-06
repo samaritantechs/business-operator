@@ -43,6 +43,24 @@ function validateSetting(key, value) {
     if (!Number.isFinite(n) || n < 0) throw badRequest('Commission rate must be a number of 0 or more (percent).');
     return String(n);
   }
+  if (key === 'autoBlockEnabled') {
+    const v = text(value);
+    if (v !== 'Yes' && v !== 'No') throw badRequest("Automatic blocking is 'Yes' or 'No'.");
+    return v;
+  }
+  if (key === 'invoiceGraceDays') {
+    const n = parseInt(String(value == null ? '' : value).trim(), 10);
+    /* A zero here means "block the moment the period ends", which is legal but severe, so it is
+       allowed and not the default. The ceiling stops a typo (70 for 7) quietly disabling
+       collection for two months. */
+    if (!Number.isFinite(n) || n < 0 || n > 60) throw badRequest('Grace days must be a whole number from 0 to 60.');
+    return String(n);
+  }
+  if (key === 'minInvoiceAmount') {
+    const n = Number(String(value == null ? '' : value).trim());
+    if (!Number.isFinite(n) || n < 0) throw badRequest('The minimum invoice amount must be 0 or more.');
+    return String(n);
+  }
   if (key === 'FreeRegistration') {
     const s = text(value);
     if (s !== 'Yes' && s !== 'No') throw badRequest("Free registration is 'Yes' or 'No'.");
