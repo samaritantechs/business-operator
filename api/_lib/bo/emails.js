@@ -1,5 +1,5 @@
 import { rowsAll, getSettings, permissionsOf, currencyOf, vendorsList, vendorSalesSummary, stockValueByVendor,
-  commissionDue, restrictionInfo, trialDays, trialDaysRemaining, fmtMoney, todayKey, addDaysKey, eatStart, eatEnd,
+  commissionDue, commissionInvoice, restrictionInfo, trialDays, trialDaysRemaining, fmtMoney, todayKey, addDaysKey, eatStart, eatEnd,
   num, PROFILE_COLS } from './_shared.js';
 import { requireManager } from '../auth.js';
 import { sendEmail, signature } from '../email.js';
@@ -120,13 +120,20 @@ async function emailCommission(db, user, args, nowMs) {
     if (left != null && left > 0) continue;            // still on trial: nothing is owed yet
     const c = await commissionDue(db, v, settings, nowMs);
     if (c.due <= 0) continue;
-    const month = new Date(nowMs + 3 * 3600000).toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+    /* THE PERIOD IT ACTUALLY COVERS, not the month it happens to be sent in. This said
+       "September 2026" whatever dates it had counted, so a shop reconciling the figure against
+       its own Sales report had nothing to filter by. Billing periods run from the day the
+       business registered, so they very often straddle two calendar months. */
+    const inv = await commissionInvoice(db, v, settings, nowMs);
+    const month = inv.period_start + ' to ' + inv.period_end;
     try {
       await sendEmail({
         to: admin.email, bcc: managerEmail(),
-        subject: '💼 Commission Invoice – ' + v.name + ' – ' + month,
+        subject: '💼 Commission Invoice ' + inv.number + ' – ' + v.name + ' – ' + month,
         html: '<h2>Commission Notice</h2><p>Dear ' + esc(admin.name) + ',</p>'
           + '<table border="1" cellpadding="6" style="border-collapse:collapse;">'
+          + '<tr><th>Invoice</th><td>' + esc(inv.number) + '</td></tr>'
+          + '<tr><th>Period</th><td>' + inv.period_start + ' to ' + inv.period_end + '</td></tr>'
           + '<tr><th>Total Sales</th><td>' + fmtMoney(c.total) + ' ' + currencyOf(v) + '</td></tr>'
           + '<tr><th>Rate</th><td>' + rate + '%</td></tr>'
           + '<tr><th>Due</th><td><strong>' + fmtMoney(c.due) + ' ' + currencyOf(v) + '</strong></td></tr></table>'
