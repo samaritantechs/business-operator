@@ -11,7 +11,7 @@ window.BOMgr = (function () {
     var el = document.getElementById('managerContent'); if (!el) return;
     if (!isManager()) { el.innerHTML = '<div class="empty">Managers only.</div>'; return; }
     el.innerHTML = '<div class="empty">Loading…</div>';
-    srv('settingsGet', {}).then(function (r) { settings = r.settings || {}; render(el); loadSummary(); loadAnalytics(); }).catch(function (e) { el.innerHTML = BO.errorBox(e); });
+    srv('settingsGet', {}).then(function (r) { settings = r.settings || {}; render(el); loadSummary(); loadAnalytics(); loadInvoices(); }).catch(function (e) { el.innerHTML = BO.errorBox(e); });
   }
   function render(el) {
     var s = settings;
@@ -26,9 +26,105 @@ window.BOMgr = (function () {
       + emailBtn('emailCommission', '💼', 'Send Commission Demands', 'Invoices for the current cycle') + emailBtn('emailPaymentReminders', '🔒', 'Send Payment Reminders', 'To restricted accounts only') + emailBtn('emailLendingReminders', '⏰', 'Send Lending Reminders', 'All active borrowers, all vendors') + emailBtn('emailManagerSummary', '🧾', 'Email Me Vendor Summary', 'Daily summary to manager inbox')
       + '</div><div id="emailCenterMsg" style="margin-top:12px;font-size:.84rem;"></div></div>', '<div class="small muted" style="margin-left:auto;">You control all emails</div>');
     h += card('📣', "Announcement / What's New", '<div class="section-body"><div class="fg2" style="margin-bottom:10px;"><div class="form-group"><label class="form-label">Title</label><input class="form-control" id="annTitle" value="' + esc(s.announcement_title || "What's New") + '"></div><div class="form-group"><label class="form-label">Audience</label><select class="form-select" id="annAudience"><option value="both"' + (s.announcement_audience === 'both' ? ' selected' : '') + '>Everyone</option><option value="vendors"' + (s.announcement_audience === 'vendors' ? ' selected' : '') + '>Businesses only</option><option value="marketplace"' + (s.announcement_audience === 'marketplace' ? ' selected' : '') + '>Marketplace visitors</option></select></div></div><div class="form-group"><label class="form-label">Text</label><textarea class="form-control" id="annText" rows="3">' + esc(s.announcement_text || '') + '</textarea></div><div style="margin-top:10px;display:flex;gap:12px;align-items:center;"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="annEnabled"' + (s.announcement_enabled === 'Yes' ? ' checked' : '') + ' style="margin-right:8px;"><label class="form-check-label" for="annEnabled">Show it</label></div><button class="btn-primary" onclick="BOMgr.saveAnnouncement()">Save Announcement</button></div></div>');
+    /* THE BILLING CARD SITS NEXT TO THE RATE THAT DRIVES IT, deliberately: the switch that can
+       stop other people trading should not be a click away from the number it collects. */
+    h += card('🧾', 'Invoices &amp; automatic blocking',
+      '<div class="section-body">'
+      + '<div class="alert-warning" style="margin-bottom:12px;font-size:.82rem;">'
+      + '<strong>A blocked business cannot sell at all.</strong> Not a banner \u2014 every till, every shop, until the invoice is settled. '
+      + 'Issue invoices first, look at who would be blocked, and only then switch blocking on.</div>'
+      + '<div class="fg2" style="margin-bottom:10px;">'
+      + '<div class="form-group"><label class="form-label">Automatic blocking</label><select class="form-select" id="autoBlock">'
+      + '<option value="No"' + (settings.autoBlockEnabled !== 'Yes' ? ' selected' : '') + '>Off \u2014 invoice only</option>'
+      + '<option value="Yes"' + (settings.autoBlockEnabled === 'Yes' ? ' selected' : '') + '>On \u2014 block unpaid accounts</option>'
+      + '</select></div>'
+      + '<div class="form-group"><label class="form-label">Grace days after the period ends</label>'
+      + '<input type="number" class="form-control" id="graceDays" min="0" max="60" value="' + esc(settings.invoiceGraceDays || 7) + '"></div>'
+      + '<div class="form-group"><label class="form-label">Never block below (amount)</label>'
+      + '<input type="number" class="form-control" id="minInvoice" min="0" value="' + esc(settings.minInvoiceAmount || 1000) + '"></div>'
+      + '<button class="btn-primary" onclick="BOMgr.saveBilling()">Save</button></div>'
+      + '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">'
+      + '<button class="btn-secondary" onclick="BOMgr.issueInvoices()">Issue invoices for closed periods</button>'
+      + '<button class="btn-secondary" onclick="BOMgr.previewBlock()">Who would be blocked?</button>'
+      + '<button class="btn-warning" onclick="BOMgr.runBlock()">Run blocking now</button></div>'
+      + '<div id="billingMsg" class="small" style="margin-bottom:10px;"></div>'
+      + '<div id="invoicesWrap"><div class="muted">Loading\u2026</div></div></div>');
+
     h += card('📈', 'Marketplace Analytics', '<div class="section-body" id="analyticsWrap"><div class="muted">Loading…</div></div>', '<div style="margin-left:auto;"><button class="btn-sm-primary" onclick="BOMgr.loadAnalytics()">↻ Refresh</button></div>');
     el.innerHTML = h;
   }
+  /* ---------------------------------------------------------------- billing */
+  function billMsg(html) { var e = document.getElementById('billingMsg'); if (e) e.innerHTML = html; }
+  function saveBilling() {
+    var on = g('autoBlock');
+    if (on === 'Yes' && !BO.confirm('Switch ON automatic blocking?\n\nAn unpaid business will be unable to sell anything until it pays. Make sure you have looked at "Who would be blocked?" first.')) return;
+    srv('settingSet', { key: 'invoiceGraceDays', value: g('graceDays') })
+      .then(function () { return srv('settingSet', { key: 'minInvoiceAmount', value: g('minInvoice') }); })
+      .then(function () { return srv('settingSet', { key: 'autoBlockEnabled', value: on }); })
+      .then(function () { settings.autoBlockEnabled = on; settings.invoiceGraceDays = g('graceDays'); settings.minInvoiceAmount = g('minInvoice'); showToast('Billing settings saved.'); loadInvoices(); })
+      .catch(BO.fail);
+  }
+  function issueInvoices() {
+    if (!BO.confirm('Issue invoices for every period that has closed?\n\nNothing is sent and nobody is blocked by this — it only writes the invoices.')) return;
+    srv('issueInvoices', {}).then(function (r) { billMsg('<div class="alert-success">' + esc(r.message) + '</div>'); loadInvoices(); }).catch(BO.fail);
+  }
+  /* PREVIEW IS NOT A WRITE. runAutoBlock blocks nobody while the setting is Off, so the honest
+     preview is simply running it with the switch off -- one code path, not a second one that
+     could disagree with what actually happens. */
+  function previewBlock() {
+    srv('runAutoBlock', {}).then(function (r) { billMsg(blockReport(r)); loadInvoices(); }).catch(BO.fail);
+  }
+  function runBlock() {
+    if (settings.autoBlockEnabled !== 'Yes') { billMsg('<div class="alert-info">Automatic blocking is off, so this only reports. Switch it on above to actually block.</div>'); }
+    else if (!BO.confirm('Block every business whose invoice is past its grace period?\n\nThey will not be able to sell until they pay.')) return;
+    srv('runAutoBlock', {}).then(function (r) { billMsg(blockReport(r)); loadInvoices(); loadSummary(); }).catch(BO.fail);
+  }
+  function blockReport(r) {
+    var h = '<div class="alert-' + (r.refused_too_many ? 'danger' : r.blocked ? 'warning' : 'info') + '">' + esc(r.message) + '</div>';
+    if (r.would_block && r.would_block.length) {
+      h += '<div class="table-wrap" style="margin-top:8px;"><table class="bo-table"><thead><tr><th>Business</th><th>Invoice</th><th>Outstanding</th><th>Overdue since</th></tr></thead><tbody>'
+        + r.would_block.map(function (w) { return '<tr><td>' + esc(w.vendor) + '</td><td class="mono small">' + esc(w.invoice) + '</td><td class="mono">' + BO.fmtFull(w.outstanding) + '</td><td class="small muted">' + BO.fmtDate(w.since) + '</td></tr>'; }).join('')
+        + '</tbody></table></div>';
+    }
+    return h;
+  }
+  function loadInvoices() {
+    var el = document.getElementById('invoicesWrap'); if (!el) return;
+    srv('invoices', {}).then(function (r) {
+      if (r.missing_table) { el.innerHTML = '<div class="alert-warning">' + esc(r.notice) + '</div>'; return; }
+      if (!r.rows.length) { el.innerHTML = '<div class="muted">No invoices yet. Use “Issue invoices for closed periods”.</div>'; return; }
+      el.innerHTML = '<div class="table-wrap"><table class="bo-table"><thead><tr><th>Invoice</th><th>Period</th><th>Sales</th><th>Due</th><th>Paid</th><th>Status</th><th></th></tr></thead><tbody>'
+        + r.rows.map(function (i) {
+          var badge = i.status === 'paid' ? 'badge-active' : i.status === 'waived' ? 'badge-seller' : i.status === 'part_paid' ? 'badge-low' : 'badge-out';
+          return '<tr><td class="mono small">' + esc(i.number) + '</td>'
+            + '<td class="small muted">' + BO.fmtDate(i.period_start) + ' – ' + BO.fmtDate(i.period_end) + '</td>'
+            + '<td class="mono">' + BO.fmtFull(i.sales_total) + '</td>'
+            + '<td class="mono">' + BO.fmtFull(i.due) + '</td>'
+            + '<td class="mono">' + BO.fmtFull(i.amount_paid) + '</td>'
+            + '<td><span class="badge ' + badge + '">' + esc(i.status) + '</span>' + (i.blocked_at && !i.unblocked_at ? ' <span class="badge badge-out">blocked</span>' : '') + '</td>'
+            + '<td style="white-space:nowrap;">' + (i.status === 'paid' || i.status === 'waived' ? '' :
+              '<button class="btn-sm-primary" onclick="BOMgr.payInvoice(\'' + BO.jsq(i.id) + '\',' + Number(i.outstanding) + ')">Record payment</button> '
+              + '<button class="btn-sm-warning" onclick="BOMgr.waive(\'' + BO.jsq(i.id) + '\')">Waive</button>') + '</td></tr>';
+        }).join('') + '</tbody></table></div>';
+    }).catch(function (e) { el.innerHTML = BO.errorBox(e); });
+  }
+  function payInvoice(id, outstanding) {
+    BO.dialog({ title: 'Record a payment', body:
+      '<div class="form-group" style="margin-bottom:10px;"><label class="form-label">Amount received</label><input type="number" class="form-control" id="payAmt" value="' + Number(outstanding) + '"></div>'
+      + '<div class="form-group" style="margin-bottom:10px;"><label class="form-label">How</label><select class="form-select" id="payMethod"><option>Lipa Number</option><option>Cash</option><option>Bank</option></select></div>'
+      + '<div class="form-group"><label class="form-label">Reference</label><input class="form-control" id="payRef" placeholder="M-Pesa / Tigo Pesa transaction id">'
+      + '<div class="small muted" style="margin-top:4px;">Required. With no payment system inside the app, this is the only record that the money arrived.</div></div>',
+      footer: '<button class="btn-secondary" onclick="BO.closeDialog()">Cancel</button><button class="btn-primary" onclick="BOMgr.savePayment(\'' + BO.jsq(id) + '\')">Save</button>' });
+  }
+  function savePayment(id) {
+    srv('recordInvoicePayment', { id: id, amount: Number(g('payAmt')), method: g('payMethod'), reference: g('payRef').trim() })
+      .then(function (r) { BO.closeDialog(); showToast(r.message); loadInvoices(); loadSummary(); }).catch(BO.fail);
+  }
+  function waive(id) {
+    var reason = prompt('Why is this invoice being waived?'); if (reason == null || !reason.trim()) return;
+    srv('waiveInvoice', { id: id, reason: reason.trim() }).then(function (r) { showToast(r.message); loadInvoices(); loadSummary(); }).catch(BO.fail);
+  }
+
   function setting(key, value) { srv('settingSet', { key: key, value: value }).then(function () { settings[key] = value; showToast('Saved: ' + key); }).catch(BO.fail); }
   function saveAnnouncement() { srv('setAnnouncement', { title: g('annTitle').trim(), text: g('annText').trim(), enabled: document.getElementById('annEnabled').checked, audience: g('annAudience') }).then(function (r) { showToast(r.message); }).catch(BO.fail); }
 
@@ -96,5 +192,5 @@ window.BOMgr = (function () {
   }
 
   BO.tabs.manager = { load: load, sync: loadSummary };
-  return { load: load, g: g, setting: setting, saveAnnouncement: saveAnnouncement, editAdmin: editAdmin, saveAdmin: saveAdmin, vendorActive: vendorActive, restrict: restrict, openLogo: openLogo, uploadLogo: uploadLogo, email: email, loadAnalytics: loadAnalytics };
+  return { load: load, saveBilling: saveBilling, issueInvoices: issueInvoices, previewBlock: previewBlock, runBlock: runBlock, payInvoice: payInvoice, savePayment: savePayment, waive: waive, g: g, setting: setting, saveAnnouncement: saveAnnouncement, editAdmin: editAdmin, saveAdmin: saveAdmin, vendorActive: vendorActive, restrict: restrict, openLogo: openLogo, uploadLogo: uploadLogo, email: email, loadAnalytics: loadAnalytics };
 })();

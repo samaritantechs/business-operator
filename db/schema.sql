@@ -525,6 +525,43 @@ create table if not exists pending_sale_items (
 create index if not exists idx_pending_items on pending_sale_items(pending_id);
 
 -- =====================================================================================
+-- COMMISSION INVOICES, and the automatic block that follows an unpaid one.
+-- =====================================================================================
+-- Frozen at issue rather than recomputed, for three reasons: vendors.registered_on is reset on
+-- reactivation and every billing period is anchored on it (so recomputing moves history and no
+-- past invoice could be reproduced); the auto-block can then decide who to block from one
+-- indexed read instead of re-scanning every sale; and issuing twice for one period is a second
+-- demand for money already owed once, which the unique index below makes impossible.
+create table if not exists invoices (
+  id uuid primary key default gen_random_uuid(),
+  number text not null,
+  vendor_id uuid not null references vendors(id),
+  period_start timestamptz not null,             -- inclusive
+  period_end timestamptz not null,               -- EXCLUSIVE: a sale at exactly this instant is the next invoice's
+  sales_total numeric(14,2) not null default 0,
+  rate numeric(8,4) not null default 0,          -- percent, e.g. 0.6000
+  due numeric(14,2) not null default 0,
+  currency text,
+  status text not null default 'unpaid',         -- unpaid | part_paid | paid | waived
+  amount_paid numeric(14,2) not null default 0,
+  paid_at timestamptz,
+  paid_method text,
+  paid_reference text,                           -- the mobile-money id: the only audit trail there is
+  paid_by text,
+  waived_reason text,
+  issued_at timestamptz not null default now(),
+  blocked_at timestamptz,
+  unblocked_at timestamptz,
+  constraint invoices_status_ck check (status in ('unpaid','part_paid','paid','waived')),
+  constraint invoices_period_ck check (period_end > period_start),
+  constraint invoices_amounts_ck check (due >= 0 and amount_paid >= 0 and sales_total >= 0)
+);
+create unique index if not exists invoices_vendor_period_idx on invoices (vendor_id, period_start);
+create unique index if not exists invoices_number_idx on invoices (number);
+create index if not exists idx_invoices_unpaid on invoices (status, period_end) where status in ('unpaid','part_paid');
+create index if not exists idx_invoices_vendor on invoices (vendor_id, period_start desc);
+
+-- =====================================================================================
 -- THE ANDROID APP'S RELEASES.
 -- =====================================================================================
 -- The app on a phone is a window onto this website, so ordinary updates need no new APK at
