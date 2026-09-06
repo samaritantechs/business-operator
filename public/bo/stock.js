@@ -1,22 +1,52 @@
-/* STOCK & SHOPS -- Frank Amos's phone-retail asks: IMEI units, shops (branches), stock per shop,
-   transfers between shops, the movement ledger, and the financing partners. */
+/* STOCK & SHOPS, AND PHONE VENDING -- two tabs, one module.
+   =====================================================================================
+   This file's own first line used to read "Frank Amos's phone-retail asks", and that is exactly
+   the problem it now solves. Everything here arrived with one customer's ten requirements:
+   IMEI-serialized units, shops, transfers between them, the movement ledger, and the financing
+   partners who fund a phone on credit. It was all bolted into ONE screen, so every business on
+   the platform -- a grocery, a bridal-wear hire -- had IMEI and MOGO in front of them.
+
+   The split is by who needs it, not by what happens to be in this file:
+     STOCK & SHOPS   shops, stock per shop, transfers, the movement ledger.
+                     A grocery with two branches needs every one of these.
+     PHONE VENDING   units by IMEI, and the financing partners.
+                     Meaningless unless you sell serialized goods on credit.
+
+   The two share one closure because they share products, branches and the movement helpers --
+   splitting the FILE would mean two copies of those, and two copies of a rule is how the two
+   answers start disagreeing. What is split is the navigation, which is what was distracting. */
 window.BOStock = (function () {
-  var view = 'units', products = [], serialized = [];
-  var VIEWS = [['units', '📱 Units (IMEI)'], ['branches', '🏬 Shops'], ['branchstock', '📊 Stock per shop'], ['transfer', '🔁 Transfer'], ['movements', '📒 Movements'], ['partners', '🏦 Financing partners']];
+  var view = 'branches', products = [], serialized = [], mounted = 'stock';
+  var VIEWS_GENERAL = [['branches', '🏬 Shops'], ['branchstock', '📊 Stock per shop'], ['transfer', '🔁 Transfer'], ['movements', '📒 Movements']];
+  var VIEWS_PHONE = [['units', '📱 Units (IMEI)'], ['partners', '🏦 Financing partners']];
+  /* Which chips a tab shows, and which view it opens on. Keyed by the tab, so show() can paint
+     the right chip bar without either tab having to know the other exists. */
+  var MOUNTS = { stock: { views: VIEWS_GENERAL, first: 'branches' }, phone: { views: VIEWS_PHONE, first: 'units' } };
   var TYPES = ['received', 'sold', 'transfer_out', 'transfer_in', 'returned', 'adjustment_in', 'adjustment_out', 'adjustment', 'cancelled_restock', 'lent'];
 
-  function load() {
-    var el = document.getElementById('stockContent'); if (!el) return;
-    if (!isAdmin()) { el.innerHTML = '<div class="empty">Only the business admin manages stock and shops.</div>'; return; }
+  function load() { return mount('stock'); }
+  function loadPhone() { return mount('phone'); }
+  /* ONE READ, WHICHEVER TAB ASKED. Both tabs need the product list and nothing else, so the
+     mount is shared and neither tab pays for the other's chips. `mounted` is what makes the ids
+     unique: both tab divs live in the DOM at once (switchTab hides, it does not remove), so a
+     shared "stockTabs" id would have two elements and getElementById would paint the hidden
+     one. That is the bug this parameter exists to prevent. */
+  function mount(which) {
+    mounted = which;
+    var el = document.getElementById(which + 'Content'); if (!el) return;
+    if (!isAdmin()) { el.innerHTML = '<div class="empty">Only the business admin manages ' + (which === 'phone' ? 'phone vending.' : 'stock and shops.') + '</div>'; return; }
     el.innerHTML = '<div class="empty">Loading…</div>';
-    srv('products', {}).then(function (r) {
+    return srv('products', {}).then(function (r) {
       products = r.rows || []; serialized = products.filter(function (p) { return p.is_serialized; });
-      el.innerHTML = '<div class="tabs-row" id="stockTabs"></div><div id="stockView"></div>';
-      show(view);
+      el.innerHTML = '<div class="tabs-row" id="' + which + 'Tabs"></div><div id="' + which + 'View"></div>';
+      show(MOUNTS[which].first);
     }).catch(function (e) { el.innerHTML = BO.errorBox(e); });
   }
-  function tabs() { document.getElementById('stockTabs').innerHTML = VIEWS.map(function (v) { return '<button class="tab-chip' + (view === v[0] ? ' active' : '') + '" onclick="BOStock.show(\'' + v[0] + '\')">' + v[1] + '</button>'; }).join(''); }
-  function show(v) { view = v; tabs(); var el = document.getElementById('stockView'); el.innerHTML = '<div class="empty">Loading…</div>'; ({ units: units, branches: branches, branchstock: branchStock, transfer: transfer, movements: movements, partners: partners })[v](el); }
+  function tabs() {
+    var bar = document.getElementById(mounted + 'Tabs'); if (!bar) return;
+    bar.innerHTML = MOUNTS[mounted].views.map(function (v) { return '<button class="tab-chip' + (view === v[0] ? ' active' : '') + '" onclick="BOStock.show(\'' + v[0] + '\')">' + v[1] + '</button>'; }).join('');
+  }
+  function show(v) { view = v; tabs(); var el = document.getElementById(mounted + 'View'); if (!el) return; el.innerHTML = '<div class="empty">Loading…</div>'; ({ units: units, branches: branches, branchstock: branchStock, transfer: transfer, movements: movements, partners: partners })[v](el); }
   function shopOpts(sel, allLabel) { return (allLabel ? '<option value="">' + allLabel + '</option>' : '') + S.branches.map(function (b) { return '<option value="' + esc(b.id) + '"' + (sel === b.id ? ' selected' : '') + '>' + esc(b.name) + '</option>'; }).join(''); }
   function prodOpts(list, sel) { return '<option value="">Select…</option>' + list.map(function (p) { return '<option value="' + esc(p.id) + '"' + (sel === p.id ? ' selected' : '') + '>' + esc(p.name) + (p.legacy_id ? ' (' + esc(p.legacy_id) + ')' : '') + '</option>'; }).join(''); }
   function g(id) { var e = document.getElementById(id); return e ? e.value : ''; }
@@ -166,5 +196,6 @@ window.BOStock = (function () {
   }
 
   BO.tabs.stock = { load: load };
-  return { load: load, show: show, listUnits: listUnits, addUnits: addUnits, editUnit: editUnit, saveUnit: saveUnit, history: history, editBranch: editBranch, saveBranch: saveBranch, transferProduct: transferProduct, doTransfer: doTransfer, adjust: adjust, listMovements: listMovements, editPartner: editPartner, savePartner: savePartner };
+  BO.tabs.phone = { load: loadPhone };
+  return { load: load, loadPhone: loadPhone, show: show, listUnits: listUnits, addUnits: addUnits, editUnit: editUnit, saveUnit: saveUnit, history: history, editBranch: editBranch, saveBranch: saveBranch, transferProduct: transferProduct, doTransfer: doTransfer, adjust: adjust, listMovements: listMovements, editPartner: editPartner, savePartner: savePartner };
 })();

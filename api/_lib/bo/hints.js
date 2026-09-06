@@ -76,6 +76,10 @@ export const DEFAULT_HINTS = {
      '\ud83d\udccb Tumia Mikopo ya bidhaa kurekodi na kufuatilia vilivyoazimwa.'],
     ['\ud83d\udce5 Download sales, stock, profit or cash due reports anytime.',
      '\ud83d\udce5 Pakua ripoti za mauzo, stoo, faida au madeni wakati wowote.'],
+    ['\ud83d\udcf1 Selling phones? Register each handset by IMEI under Phone Vending, then sell that exact one.',
+     '\ud83d\udcf1 Unauza simu? Sajili kila simu kwa IMEI kwenye Phone Vending, kisha uuze ile ile hasa.'],
+    ['\ud83c\udfe6 Financing partners (MOGO, Watu) live under Phone Vending \u2013 pick one when you sell on credit.',
+     '\ud83c\udfe6 Wafadhili wa mikopo (MOGO, Watu) wako kwenye Phone Vending \u2013 chagua mmoja unapouza kwa mkopo.'],
   ],
   'assistant-admin': [
     ['\ud83d\udc65 You can manage sellers under your admin.',
@@ -90,6 +94,8 @@ export const DEFAULT_HINTS = {
      '\ud83d\ude9a Pokea bidhaa kwenye Oda za manunuzi \u2013 andika zilizofika kweli, si zilizoagizwa.'],
     ['\ud83d\udd16 Holds keep stock off the shelf for a customer who is coming back.',
      '\ud83d\udd16 Zilizowekwa huhifadhi bidhaa kwa mteja atakayerudi.'],
+    ['\ud83d\udcf1 Handsets tracked one by one live under Phone Vending, not Stock & Shops.',
+     '\ud83d\udcf1 Simu zinazofuatiliwa moja moja ziko kwenye Phone Vending, si Stock & Shops.'],
   ],
   'assistant-manager': [
     ['\ud83c\udfe2 View all vendor performance.',
