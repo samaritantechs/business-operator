@@ -311,7 +311,9 @@ await step('the grocery is not shown the phone shop\'s screens', async () => {
   if (!/Nothing was deleted/.test(off)) throw new Error('switching off said: ' + off);
   await signIn('mama');
   const v = await groceryView();
-  const want = { flag: false, navShown: false, costColumn: false, serialBox: true, serialShown: false,
+  // costColumn is TRUE here on purpose: cost price is every business's, and optional -- only
+  // the IMEI screens and the discount column belong to the switch.
+  const want = { flag: false, navShown: false, costColumn: true, serialBox: true, serialShown: false,
                  discInput: true, discShown: false, imeiReport: false, phoneHint: false };
   for (const k of Object.keys(want)) if (v[k] !== want[k]) throw new Error('grocery: ' + k + ' is ' + v[k] + ', expected ' + want[k]);
 });

@@ -141,7 +141,7 @@ window.BOMgr = (function () {
           + (v.admin_id ? '<button class="btn-sm-primary" onclick="BOMgr.editAdmin(' + i + ')">Edit</button> ' : '')
           + '<button class="btn-sm-' + (v.active ? 'warning' : 'success') + '" onclick="BOMgr.vendorActive(\'' + BO.jsq(v.id) + '\',\'' + BO.jsq(v.name) + '\',' + (v.active ? 'false' : 'true') + ')">' + (v.active ? 'Deactivate' : 'Activate') + '</button> '
           + '<button class="btn-sm-' + (v.restricted ? 'success' : 'danger') + '" onclick="BOMgr.restrict(\'' + BO.jsq(v.id) + '\',\'' + BO.jsq(v.name) + '\',' + (v.restricted ? 'false' : 'true') + ')">' + (v.restricted ? 'Reactivate' : 'Restrict') + '</button> '
-          + '<button class="btn-sm-' + (v.phone_vending ? 'success' : 'secondary') + '" onclick="BOMgr.phoneVending(\'' + BO.jsq(v.id) + '\',\'' + BO.jsq(v.name) + '\',' + (v.phone_vending ? 'false' : 'true') + ')" title="IMEI units, financing partners, cost price and per-line discounts">📱 ' + (v.phone_vending ? 'Phone: ON' : 'Phone: off') + '</button> '
+          + '<button class="btn-sm-' + (v.phone_vending ? 'success' : 'secondary') + '" onclick="BOMgr.phoneVending(\'' + BO.jsq(v.id) + '\',\'' + BO.jsq(v.name) + '\',' + (v.phone_vending ? 'false' : 'true') + ')" title="IMEI units, financing partners and per-line discounts">📱 ' + (v.phone_vending ? 'Phone: ON' : 'Phone: off') + '</button> '
           + '<button class="btn-sm-primary" onclick="BOMgr.openLogo(\'' + BO.jsq(v.id) + '\')">Logo</button></td></tr>';
       });
       el.innerHTML = h + '</tbody></table></div>';
@@ -170,8 +170,8 @@ window.BOMgr = (function () {
      to EVERY vendor, which is exactly the wrong shape for one shop's trade. */
   function phoneVending(id, name, on) {
     if (!BO.confirm(on
-      ? ('Switch Phone Vending ON for "' + name + '"?\n\nThey get the Phone Vending tab (units by IMEI, financing partners), a Cost Price on each product and a Discount on each sale line.')
-      : ('Switch Phone Vending OFF for "' + name + '"?\n\nThe tab and the cost / discount fields disappear from their screens. Nothing is deleted — their handsets and cost prices stay, ready for if you switch it back on.'))) return;
+      ? ('Switch Phone Vending ON for "' + name + '"?\n\nThey get the Phone Vending tab (units by IMEI, financing partners) and a Discount on each sale line.')
+      : ('Switch Phone Vending OFF for "' + name + '"?\n\nThe tab and the discount column disappear from their screens. Nothing is deleted — their handsets stay, ready for if you switch it back on.'))) return;
     srv('setVendorPhoneVending', { vendor_id: id, on: on }).then(function (r) { showToast(r.message); loadSummary(); }).catch(BO.fail);
   }
   function openLogo(vendorId) {

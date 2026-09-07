@@ -12,14 +12,17 @@ window.BOProd = (function () {
   /* WHAT THE SHOP PAID. The server strips cost_price from anything a seller reads
      (api/_lib/bo/_shared.js -> stripCost), so this is not the security boundary -- it is the
      screen agreeing with the server, so a seller is not shown an empty column they cannot fill. */
-  /* TWO SEPARATE QUESTIONS, kept separate. canSeeCost is about the ROLE -- a seller may never
-     see what the shop paid, because the next shop is fifty metres away. showsCost adds the
-     BUSINESS: a cost price per item came in with the phone-retail work, and asking a bridal-wear
-     hire what it paid for each gown is somebody else's product leaking into theirs.
-     Conflating them into one function would mean a change to either rule silently moved the
-     other. The column stays in the database, so switching a shop on later still has its history. */
+  /* COST PRICE IS FOR EVERY BUSINESS, AND OPTIONAL. It was briefly put behind the Phone Vending
+     switch with the IMEI screens, on the reading that it had arrived with the phone-retail work.
+     The owner's ruling was the opposite: what a shop paid for its stock is every shop's business
+     -- a grocery has a margin too -- it is just not COMPULSORY, and the label says so. The only
+     thing that decides whether the field is drawn is the ROLE: a seller may never see what the
+     shop paid, because the next shop is fifty metres away. (The server strips the column for
+     sellers too -- stripCost in _shared.js -- so this is the screen agreeing with the server, not
+     the security boundary.) showsCost is kept as the one name the rest of this file asks, so the
+     rule lives in one place if it ever changes again. */
   function canSeeCost() { return isAdmin() || isManager(); }
-  function showsCost() { return canSeeCost() && !!S.features.phone_vending; }
+  function showsCost() { return canSeeCost(); }
   /* "Track each unit by IMEI / serial" is the same story: a customer was being offered an IMEI
      field for a bag of sugar. HIDDEN, not removed -- add() reads .checked on this box every
      time, and a missing box would throw before the product was ever sent. */
