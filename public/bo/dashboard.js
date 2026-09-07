@@ -9,6 +9,11 @@ window.BODash = (function () {
     return '<div class="section-card"><div class="section-hdr"><span>' + icon + '</span><div class="section-hdr-title">' + title + '</div>' + (extra || '') + '</div>' + body + '</div>';
   }
   function due(v) { return '<td class="mono" style="color:' + (v > 0 ? '#ef4444' : '#06d6a0') + ';">' + fmtFull(v) + '</td>'; }
+  /* IMEI and Disc are the phone shop's two columns. On a grocery's drill-down they were an empty
+     column and a column of dashes on every row of every seller, every day. Nothing here is read
+     back, so these cells are left out rather than hidden -- the count still matches because the
+     header and the row are built from the same test. */
+  function phoneCols() { return !!S.features.phone_vending; }
 
   function load(silent) {
     var el = document.getElementById('dashboardContent');
@@ -123,8 +128,8 @@ window.BODash = (function () {
       } else {
         d.groups.forEach(function (g) {
           body += '<h6 style="margin:16px 0 8px;color:var(--text);">🧑 ' + esc(g.seller_name) + ' – <span style="color:var(--accent2);">' + fmtFull(g.total) + ' ' + esc(d.currency) + '</span></h6>';
-          body += '<div class="table-wrap"><table class="bo-table"><thead><tr><th>Time</th><th>Product</th><th>IMEI</th><th>Qty</th><th>Price</th><th>Disc</th><th>Total</th><th>Payment</th><th>Shop</th><th></th></tr></thead><tbody>';
-          g.rows.forEach(function (r) { body += '<tr><td class="small">' + BO.fmtDT(r.sold_at) + '</td><td>' + esc(r.product_name) + '</td><td class="mono small">' + esc(r.imei || '') + '</td><td>' + r.qty + '</td><td class="mono">' + fmtFull(r.price) + '</td><td class="mono">' + (r.discount ? fmtFull(r.discount) : '–') + '</td><td class="mono">' + fmtFull(r.total) + '</td><td><span class="badge ' + BO.badgeFor(r.payment_method) + '">' + esc(r.payment_method) + '</span>' + (r.partner_name ? ' <span class="small muted">' + esc(r.partner_name) + '</span>' : '') + '</td><td class="small">' + esc(r.branch_name || '') + '</td><td><button class="btn-sm-primary" title="Receipt" onclick="BORcpt.open({group_id:\'' + BO.jsq(r.group_id) + '\'})">🧾</button></td></tr>'; });
+          body += '<div class="table-wrap"><table class="bo-table"><thead><tr><th>Time</th><th>Product</th>' + (phoneCols() ? '<th>IMEI</th>' : '') + '<th>Qty</th><th>Price</th>' + (phoneCols() ? '<th>Disc</th>' : '') + '<th>Total</th><th>Payment</th><th>Shop</th><th></th></tr></thead><tbody>';
+          g.rows.forEach(function (r) { body += '<tr><td class="small">' + BO.fmtDT(r.sold_at) + '</td><td>' + esc(r.product_name) + '</td>' + (phoneCols() ? '<td class="mono small">' + esc(r.imei || '') + '</td>' : '') + '<td>' + r.qty + '</td><td class="mono">' + fmtFull(r.price) + '</td>' + (phoneCols() ? '<td class="mono">' + (r.discount ? fmtFull(r.discount) : '–') + '</td>' : '') + '<td class="mono">' + fmtFull(r.total) + '</td><td><span class="badge ' + BO.badgeFor(r.payment_method) + '">' + esc(r.payment_method) + '</span>' + (r.partner_name ? ' <span class="small muted">' + esc(r.partner_name) + '</span>' : '') + '</td><td class="small">' + esc(r.branch_name || '') + '</td><td><button class="btn-sm-primary" title="Receipt" onclick="BORcpt.open({group_id:\'' + BO.jsq(r.group_id) + '\'})">🧾</button></td></tr>'; });
           body += '</tbody></table></div>';
         });
         body += '<div style="text-align:right;margin-top:16px;font-weight:700;font-size:1.05rem;">Grand Total: ' + fmtFull(d.grand_total) + ' ' + esc(d.currency) + '</div>';

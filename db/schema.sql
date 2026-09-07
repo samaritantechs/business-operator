@@ -315,6 +315,11 @@ create table if not exists hints (
   role text not null,
   message_en text not null,
   message_sw text,
+  -- Which businesses this tip is for: null = everybody, 'phoneVending' = only a business the
+  -- manager has switched Phone Vending on for. Same string as the vendors.permissions flag.
+  -- Added by db/RUN-ME-005; optional in code, so a database without it shows every tip to
+  -- everybody exactly as it did before.
+  feature text,
   active boolean not null default true,
   sort integer not null default 0,
   created_at timestamptz not null default now()

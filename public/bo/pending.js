@@ -36,7 +36,7 @@ window.BOHold = (function () {
       + shopSelect('hdBranch')
       + '<div class="form-group" style="grid-column:span 2;"><label class="form-label">Notes</label><input class="form-control" id="hdNotes" placeholder="Anything the person handing it over should know"></div>'
       + '</div>';
-    h += '<div class="table-wrap"><table class="sale-tbl"><thead><tr><th>Product</th><th>Qty</th><th>Price</th><th>Discount</th><th>Total</th><th></th></tr></thead><tbody id="hdItemsBody">' + row() + '</tbody></table></div>';
+    h += '<div class="table-wrap"><table class="sale-tbl"><thead><tr><th>Product</th><th>Qty</th><th>Price</th><th' + (showsDiscount() ? '' : ' style="display:none"') + '>Discount</th><th>Total</th><th></th></tr></thead><tbody id="hdItemsBody">' + row() + '</tbody></table></div>';
     h += '<div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center;"><button class="btn-secondary" onclick="BOHold.addRow()">+ Add Item</button><button class="btn-primary" id="hdSubmitBtn" onclick="BOHold.create()">🔖 Hold It</button><span class="muted small" id="hdGrand"></span></div>';
     h += '<div class="small muted" style="margin-top:8px;">The stock comes off the shelf now, so nobody can sell it out from under them.</div>';
     h += '<div id="hdMsg" style="margin-top:12px;"></div></div></div>';
@@ -65,11 +65,16 @@ window.BOHold = (function () {
         return '<option value="' + esc(p.id) + '"' + (stock <= 0 ? ' disabled' : '') + '>' + esc(p.name) + ' — free ' + stock + (p.is_serialized ? ' · IMEI' : '') + '</option>';
       }).join('') + '</select>';
   }
+  /* Same rule and same reason as the sell screen: the discount per line arrived with the
+     phone-retail work, so a business that is not in it does not see the column. Hidden, never
+     removed -- calc() and create() both read .hdDisc on every row, and a missing cell would
+     throw on the first keystroke and take the whole hold screen down. */
+  function showsDiscount() { return !!S.features.phone_vending; }
   function row() {
     return '<tr class="hd-row"><td>' + productSelect() + '<div class="units"></div></td>'
       + '<td style="width:80px;"><input type="number" class="form-control hdQty" value="1" min="1" oninput="BOHold.calc()"></td>'
       + '<td style="width:130px;"><input type="number" class="form-control hdPrice" value="0" min="0" oninput="BOHold.calc()"></td>'
-      + '<td style="width:110px;"><input type="number" class="form-control hdDisc" value="0" min="0" oninput="BOHold.calc()"></td>'
+      + '<td style="width:110px;' + (showsDiscount() ? '' : 'display:none;') + '"><input type="number" class="form-control hdDisc" value="0" min="0" oninput="BOHold.calc()"></td>'
       + '<td style="width:110px;"><span class="hd-line mono">0</span></td>'
       + '<td><button class="btn-sm-danger" onclick="this.closest(\'tr\').remove();BOHold.calc()">✕</button></td></tr>';
   }

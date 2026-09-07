@@ -56,7 +56,12 @@ export async function buildBoot(db, user, nowMs = Date.now()) {
   const vendorId = user.is_manager ? null : (user.vendor_id || null);
 
   const settings = await getSettings(db);
-  const hints = await hintsForRole(db, user.role);
+  /* WORKED OUT BEFORE THE HINTS ARE READ, because the hints depend on it: a tip that says
+     "register each handset by IMEI under Phone Vending" must not reach a grocery, which would
+     go looking for a tab that is not on their screen and conclude the app is broken. It costs
+     no read -- the vendor row is already in the session. */
+  const phoneVending = !!permissionsOf(vendor).phoneVending;
+  const hints = await hintsForRole(db, user.role, { phoneVending });
 
   let restriction = { restricted: false, notice: '' };
   if (vendor && vendor.restricted && !user.is_manager) {
@@ -87,7 +92,10 @@ export async function buildBoot(db, user, nowMs = Date.now()) {
     restriction,
     branches,
     partners,
-    features: { has_branches: branches.length > 0, has_serialized: serialized > 0 },
+    /* phone_vending is DELIBERATE, not inferred. has_serialized is derived from data, so a new
+       phone shop with no handsets registered yet would look like a grocery on its first day --
+       exactly when it needs the IMEI screen most. */
+    features: { has_branches: branches.length > 0, has_serialized: serialized > 0, phone_vending: phoneVending },
     announcement: announcementOf(settings),
     whatsapp: process.env.WHATSAPP_NUMBER || WHATSAPP_DEFAULT,
   };

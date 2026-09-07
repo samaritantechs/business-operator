@@ -237,7 +237,13 @@ test('an empty database can still register its first business and sign in', asyn
   assert.equal(out.user.handle, 'neema');
   assert.deepEqual(out.branches, []);
   assert.deepEqual(out.partners, []);
-  assert.equal(out.hints.length, DEFAULT_HINTS.admin.length, 'the admin default hints');
+  /* The admin defaults MINUS the phone-shop ones: a business is registered with Phone Vending
+     off, so the tips about a cost price, IMEI registration and financing partners -- none of
+     which are on its screens -- are not served to it. A tip pointing at a tab that is not there
+     is worse than no tip: they go looking, do not find it, and conclude the app is broken. */
+  assert.deepEqual(out.hints.map(h => h.en), DEFAULT_HINTS.admin.filter(([, , f]) => !f).map(([en]) => en), 'the admin default hints, less the phone ones');
+  assert.ok(out.hints.length < DEFAULT_HINTS.admin.length, 'and there were some to leave out');
+  assert.equal(out.hints.some(h => /IMEI|Phone Vending/i.test(h.en + h.sw)), false, 'nothing about a tab they have not got');
   assert.ok(out.hints.every(h => h.en && h.sw), 'and every one of them in both languages');
 });
 

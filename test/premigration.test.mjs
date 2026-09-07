@@ -19,7 +19,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { richBook, userOf, NOW, TABLES } from './_book.mjs';
 import { fakeDb } from './fake-db.mjs';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 
 const { absentColumns } = await import('../api/_lib/bo/_shared.js');
 const { boApi } = await import('../api/_lib/bo-core.js');
@@ -189,26 +189,61 @@ test('once the migration is run, the very next read uses the full column list ag
   assert.equal(absentColumns.list().length, 0, 'and nothing was refused');
 });
 
-test('the optional list is exactly what the migration adds — no more, no less', () => {
+test('the optional list is exactly what the RUN-ME files add — no more, no less', () => {
   /* The narrowing is a loaded gun: a column named optional here that is actually REQUIRED would
      be dropped silently and for ever, and the screen would just be missing a number nobody could
-     explain. So the list is pinned to the migration file, and adding a column to one without the
-     other turns this red. image3_url is excluded on purpose: it predates this migration and the
-     file only re-adds it for a database old enough to have missed it. */
-  const mig = readFileSync(new URL('../db/RUN-ME-002-profit-holds-purchasing.sql', import.meta.url).pathname, 'utf8');
-  const added = [...mig.matchAll(/alter table if exists\s+(\w+)\s+add column if not exists\s+(\w+)/g)]
-    .map(m => m[1] + '.' + m[2])
+     explain. So the list is pinned to the migration files -- ALL of them, so a later RUN-ME
+     adding a column cannot quietly escape the check -- and adding a column to one without the
+     other turns this red. image3_url is excluded on purpose: it predates this and the file only
+     re-adds it for a database old enough to have missed it. */
+  const dir = new URL('../db/', import.meta.url).pathname;
+  const files = readdirSync(dir).filter(f => /^RUN-ME-.*\.sql$/.test(f)).sort();
+  assert.ok(files.length >= 4, 'the migration files stopped being found');
+  const added = files.flatMap(f => [...readFileSync(dir + f, 'utf8')
+    .matchAll(/alter table (?:if exists\s+)?(\w+)\s+add column (?:if not exists\s+)?(\w+)/gi)]
+    .map(m => m[1] + '.' + m[2]))
     .filter(c => c !== 'products.image3_url');
   assert.ok(added.length, 'the migration scanner stopped seeing ALTER TABLE lines');
-  const declared = ['products.cost_price', 'sales.unit_cost', 'sales.customer_name', 'sales.customer_phone'];
+  const declared = ['products.cost_price', 'sales.unit_cost', 'sales.customer_name', 'sales.customer_phone', 'hints.feature'];
   assert.deepEqual(added.sort(), declared.slice().sort(),
-    'OPTIONAL_COLUMNS in api/_lib/bo/_shared.js must name exactly the columns db/RUN-ME-002 adds');
+    'OPTIONAL_COLUMNS in api/_lib/bo/_shared.js must name exactly the columns the RUN-ME files add');
 
   const shared = readFileSync(new URL('../api/_lib/bo/_shared.js', import.meta.url).pathname, 'utf8');
   for (const c of declared) {
     const [, col] = c.split('.');
     assert.match(shared, new RegExp("'" + col + "'"), col + ' must be in OPTIONAL_COLUMNS');
   }
+});
+
+test('hints still rotate on a database with no feature column — everybody sees everything', async () => {
+  /* db/RUN-ME-005 adds hints.feature. Until it is run, naming it in the select would be refused
+     WHOLE (42703) -- and this select is on boot's own path, so the failure would not be "no
+     tips", it would be "nobody can sign in". Narrowed, every hint comes back with no audience
+     and is shown to everybody: exactly what happened before the column existed. */
+  // A migrated database first, while this process has learned nothing: the screen is told the
+  // column is there. (Asked after, it would still read as absent for the ten-minute TTL.)
+  assert.equal((await boApi(fakeDb(richBook()), MGR(), 'hints', {}, NOW)).feature_column, true);
+  absentColumns.clear();
+
+  const book = richBook();
+  book.hints = (book.hints || []).map(h => { const c = { ...h }; delete c.feature; return c; });
+  const db = fakeDb(book, { missingColumns: { hints: ['feature'] } });
+  const out = await boApi(db, ADM(), 'boot', {}, NOW);
+  assert.ok(out.hints.length, 'the tips still arrive');
+  assert.equal(absentColumns.has('hints', 'feature'), true, 'and the column was learned, once');
+
+  // The manager's Manage Hints list narrows the same way rather than showing an error.
+  const list = await boApi(db, MGR(), 'hints', {}, NOW);
+  assert.ok(list.rows.length);
+  assert.equal('feature' in list.rows[0], false, 'the column simply is not there yet');
+  /* AND THE SCREEN IS TOLD. Without this the manager sets "Shown to", is told "Updated.", and
+     the value is dropped on the way to the database with nothing to say so. */
+  assert.equal(list.feature_column, false);
+
+  // And the built-ins, on a database with no hint rows at all, are not filtered into silence.
+  const empty = fakeDb({ ...richBook(), hints: [] }, { missingColumns: { hints: ['feature'] } });
+  const boot = await boApi(empty, ADM(), 'boot', {}, NOW);
+  assert.ok(boot.hints.length >= 3, 'the built-in tips still answer');
 });
 
 test('setting a cost price on the old schema is REFUSED, not silently swallowed', async () => {

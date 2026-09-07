@@ -12,7 +12,18 @@ window.BOProd = (function () {
   /* WHAT THE SHOP PAID. The server strips cost_price from anything a seller reads
      (api/_lib/bo/_shared.js -> stripCost), so this is not the security boundary -- it is the
      screen agreeing with the server, so a seller is not shown an empty column they cannot fill. */
+  /* TWO SEPARATE QUESTIONS, kept separate. canSeeCost is about the ROLE -- a seller may never
+     see what the shop paid, because the next shop is fifty metres away. showsCost adds the
+     BUSINESS: a cost price per item came in with the phone-retail work, and asking a bridal-wear
+     hire what it paid for each gown is somebody else's product leaking into theirs.
+     Conflating them into one function would mean a change to either rule silently moved the
+     other. The column stays in the database, so switching a shop on later still has its history. */
   function canSeeCost() { return isAdmin() || isManager(); }
+  function showsCost() { return canSeeCost() && !!S.features.phone_vending; }
+  /* "Track each unit by IMEI / serial" is the same story: a customer was being offered an IMEI
+     field for a bag of sugar. HIDDEN, not removed -- add() reads .checked on this box every
+     time, and a missing box would throw before the product was ever sent. */
+  function showsSerial() { return !!S.features.phone_vending; }
   function marginOf(price, cost) {
     price = Number(price) || 0; cost = Number(cost) || 0;
     if (!cost) return { text: '—', cls: 'muted', pct: null };            // no cost recorded: unknown, not "all profit"
@@ -20,7 +31,7 @@ window.BOProd = (function () {
     return { text: fmtFull(m) + ' (' + pct.toFixed(0) + '%)', cls: m < 0 ? 'rose' : 'ok', pct: pct };
   }
   function costCells(p) {
-    if (!canSeeCost()) return '';
+    if (!showsCost()) return '';
     var m = marginOf(p.price, p.cost_price);
     return '<td class="mono muted">' + (Number(p.cost_price) ? fmtFull(p.cost_price) : '—') + '</td>'
       + '<td class="mono small"' + (m.cls === 'rose' ? ' style="color:var(--rose);font-weight:700;"' : '') + '>' + esc(m.text) + '</td>';
@@ -46,18 +57,18 @@ window.BOProd = (function () {
       + '<div class="form-group"><label class="form-label">Brand</label><input class="form-control" id="newProdBrand" placeholder="e.g. Samsung"></div>'
       + '<div class="form-group"><label class="form-label">Model</label><input class="form-control" id="newProdModel" placeholder="e.g. A05"></div>'
       + '<div class="form-group"><label class="form-label">Price</label><input class="form-control" type="number" id="newProdPrice" min="0"></div>'
-      + (canSeeCost() ? '<div class="form-group"><label class="form-label">Cost Price <span class="muted small">(what you paid)</span></label><input class="form-control" type="number" id="newProdCost" min="0" value="0"></div>' : '')
+      + (showsCost() ? '<div class="form-group"><label class="form-label">Cost Price <span class="muted small">(what you paid)</span></label><input class="form-control" type="number" id="newProdCost" min="0" value="0"></div>' : '')
       + '<div class="form-group"><label class="form-label">Stock</label><input class="form-control" type="number" id="newProdStock" min="0" value="0"></div>'
       + '<div class="form-group"><label class="form-label">Reorder Pt</label><input class="form-control" type="number" id="newProdReorder" value="20" min="0"></div>'
       + '<div class="form-group"><label class="form-label">Type</label><select class="form-select" id="newProdType"><option value="Sale">For Sale</option><option value="Rent">For Rent</option></select></div>'
       + '<div class="form-group"><label class="form-label">Price Unit (rent)</label><select class="form-select" id="newProdUnit"><option value="">—</option><option value="per day">per day</option><option value="per week">per week</option><option value="per month">per month</option><option value="per event">per event</option></select></div>'
       + '<div class="form-group"><label class="form-label">Location (optional)</label><input class="form-control" id="newProdLoc" placeholder="e.g. Kariakoo, Dar"></div>'
       + shopSelect('newProdBranch', 'Opening stock at shop')
-      + '<div class="form-group"><label class="form-label">&nbsp;</label><label class="form-check-label" style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="newProdSerial" onchange="BOProd.serialToggle()"> Track each unit by IMEI / serial</label></div>'
+      + '<div class="form-group"' + (showsSerial() ? '' : ' style="display:none"') + '><label class="form-label">&nbsp;</label><label class="form-check-label" style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="newProdSerial" onchange="BOProd.serialToggle()"> Track each unit by IMEI / serial</label></div>'
       + '<button class="btn-primary" onclick="BOProd.add()">+ Add</button></div>'
-      + '<div class="small muted" style="margin-top:8px;">💡 After adding, tap <strong>Edit</strong> on the product to upload a marketplace photo. For IMEI-tracked products, add the units under <strong>Stock &amp; Shops</strong>.</div></div></div>';
-    h += '<div class="section-card" style="margin-bottom:18px;"><div class="section-hdr"><span>📦</span><div class="section-hdr-title">All Products</div><div class="small muted" style="margin-left:auto;">Inactive shown — reactivate anytime</div></div><div style="padding:0;"><div class="table-wrap"><table class="bo-table"><thead><tr><th>Photo</th><th>ID</th><th>Name</th><th>Brand / Model</th><th>Category</th><th>Price</th>' + (canSeeCost() ? '<th>Cost</th><th>Margin</th>' : '') + '<th>Stock</th><th>Reorder</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
-    if (!list.length) h += '<tr><td colspan="' + (canSeeCost() ? 12 : 10) + '" class="empty">No products yet — add your first one above.</td></tr>';
+      + '<div class="small muted" style="margin-top:8px;">💡 After adding, tap <strong>Edit</strong> on the product to upload a marketplace photo.' + (showsSerial() ? ' For IMEI-tracked products, add the units under <strong>Phone Vending</strong>.' : '') + '</div></div></div>';
+    h += '<div class="section-card" style="margin-bottom:18px;"><div class="section-hdr"><span>📦</span><div class="section-hdr-title">All Products</div><div class="small muted" style="margin-left:auto;">Inactive shown — reactivate anytime</div></div><div style="padding:0;"><div class="table-wrap"><table class="bo-table"><thead><tr><th>Photo</th><th>ID</th><th>Name</th><th>Brand / Model</th><th>Category</th><th>Price</th>' + (showsCost() ? '<th>Cost</th><th>Margin</th>' : '') + '<th>Stock</th><th>Reorder</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
+    if (!list.length) h += '<tr><td colspan="' + (showsCost() ? 12 : 10) + '" class="empty">No products yet — add your first one above.</td></tr>';
     list.forEach(function (p, i) {
       var thumb = p.image1_url ? '<img src="' + esc(p.image1_url) + '" style="width:34px;height:34px;border-radius:7px;object-fit:cover;" onerror="this.style.display=\'none\'">' : '<div style="width:34px;height:34px;border-radius:7px;background:var(--surface2);display:flex;align-items:center;justify-content:center;color:var(--muted);">🛍️</div>';
       var stock = p.is_serialized ? (p.units_in_stock != null ? p.units_in_stock : p.stock) : p.stock;
@@ -98,17 +109,17 @@ window.BOProd = (function () {
   }
 
   /* BUILT WHEN IT IS OPENED, NOT WHEN THE FILE LOADS.
-     This was a `var MODAL = '...'` at module scope, and the string embeds canSeeCost(). Module
-     scope runs at PAGE LOAD, when S.user is still null -- so canSeeCost() was false and the
+     This was a `var MODAL = '...'` at module scope, and the string embeds showsCost(). Module
+     scope runs at PAGE LOAD, when S.user is still null -- so showsCost() was false and the
      Cost Price field was left out of the dialog's HTML for everybody. edit() then asked
-     canSeeCost() again, by which time an admin IS signed in, got true, and set the value of an
+     showsCost() again, by which time an admin IS signed in, got true, and set the value of an
      element that had never been written:
 
          document.getElementById('editProdCost').value = ...   // null.value -> TypeError
 
      which threw before openModal(), so the Edit button did nothing at all. Silently, and only
      for admins and managers -- the exact people who edit products. A seller never hit it
-     because canSeeCost() was false both times and the two agreed by accident.
+     because showsCost() was false both times and the two agreed by accident.
 
      A function cannot go stale that way: whatever the dialog is built from is what the user
      is, at the moment they ask for it. */
@@ -118,7 +129,7 @@ window.BOProd = (function () {
     + '<div class="form-group" style="margin-bottom:12px;"><label class="form-label">Product Name</label><input class="form-control" id="editProdName"></div>'
     + '<div class="fg2" style="margin-bottom:12px;"><div class="form-group"><label class="form-label">Category</label><input class="form-control" id="editProdCat"></div><div class="form-group"><label class="form-label">Brand</label><input class="form-control" id="editProdBrand"></div></div>'
     + '<div class="fg2" style="margin-bottom:12px;"><div class="form-group"><label class="form-label">Model</label><input class="form-control" id="editProdModel"></div><div class="form-group"><label class="form-label">Price</label><input type="number" class="form-control" id="editProdPrice" oninput="BOProd.showMargin()"></div></div>'
-    + (canSeeCost() ? '<div class="fg2" style="margin-bottom:12px;"><div class="form-group"><label class="form-label">Cost Price <span class="muted small">(what you paid — never shown to sellers or on the marketplace)</span></label><input type="number" class="form-control" id="editProdCost" min="0" oninput="BOProd.showMargin()"></div><div class="form-group"><label class="form-label">Margin</label><div class="form-control" id="editProdMargin" style="background:var(--surface2);"></div></div></div>' : '')
+    + (showsCost() ? '<div class="fg2" style="margin-bottom:12px;"><div class="form-group"><label class="form-label">Cost Price <span class="muted small">(what you paid — never shown to sellers or on the marketplace)</span></label><input type="number" class="form-control" id="editProdCost" min="0" oninput="BOProd.showMargin()"></div><div class="form-group"><label class="form-label">Margin</label><div class="form-control" id="editProdMargin" style="background:var(--surface2);"></div></div></div>' : '')
     + '<div class="fg2" style="margin-bottom:12px;"><div class="form-group" id="editProdStockWrap"><label class="form-label">Stock QTY</label><input type="number" class="form-control" id="editProdStock"></div><div class="form-group"><label class="form-label">Reorder Point</label><input type="number" class="form-control" id="editProdReorder"></div></div>'
     + '<div class="fg2" style="margin-bottom:12px;"><div class="form-group"><label class="form-label">Type</label><select class="form-select" id="editProdType"><option value="Sale">For Sale</option><option value="Rent">For Rent</option></select></div><div class="form-group"><label class="form-label">Price Unit (rent)</label><select class="form-select" id="editProdUnit"><option value="">—</option><option value="per day">per day</option><option value="per week">per week</option><option value="per month">per month</option><option value="per event">per event</option></select></div></div>'
     + '<div class="form-group" style="margin-bottom:14px;"><label class="form-label">Location (optional)</label><input class="form-control" id="editProdLoc" placeholder="e.g. Kariakoo, Dar"></div>'
@@ -134,7 +145,7 @@ window.BOProd = (function () {
     var p = list[i]; if (!p) return;
     BO.ensureModal('editProductModal', modalHtml());
     var set = function (id, v) { document.getElementById(id).value = v == null ? '' : v; };
-    set('editProdId', p.id); set('editProdName', p.name); set('editProdCat', p.category); set('editProdBrand', p.brand); set('editProdModel', p.model); set('editProdPrice', p.price); set('editProdStock', p.stock); set('editProdReorder', p.reorder_point); set('editProdType', p.listing_type === 'Rent' ? 'Rent' : 'Sale'); set('editProdUnit', p.price_unit || ''); set('editProdLoc', p.location || ''); if (canSeeCost()) { set('editProdCost', p.cost_price == null ? 0 : p.cost_price); showMargin(); }
+    set('editProdId', p.id); set('editProdName', p.name); set('editProdCat', p.category); set('editProdBrand', p.brand); set('editProdModel', p.model); set('editProdPrice', p.price); set('editProdStock', p.stock); set('editProdReorder', p.reorder_point); set('editProdType', p.listing_type === 'Rent' ? 'Rent' : 'Sale'); set('editProdUnit', p.price_unit || ''); set('editProdLoc', p.location || ''); if (showsCost()) { set('editProdCost', p.cost_price == null ? 0 : p.cost_price); showMargin(); }
     document.getElementById('editProdStockWrap').style.display = p.is_serialized ? 'none' : '';
     pending = {}; document.getElementById('prodImgMsg').textContent = '';
     [1, 2, 3].forEach(function (n) { showSlot(n, p['image' + n + '_url'] || ''); });
@@ -169,7 +180,7 @@ window.BOProd = (function () {
   }
   function save() {
     var id = g('editProdId');
-    var args = { id: id, name: g('editProdName').trim(), category: g('editProdCat').trim(), brand: g('editProdBrand').trim(), model: g('editProdModel').trim(), price: Number(g('editProdPrice')), cost_price: canSeeCost() ? Number(g('editProdCost') || 0) : undefined, reorder_point: Number(g('editProdReorder') || 0), listing_type: g('editProdType'), price_unit: g('editProdUnit'), location: g('editProdLoc').trim() };
+    var args = { id: id, name: g('editProdName').trim(), category: g('editProdCat').trim(), brand: g('editProdBrand').trim(), model: g('editProdModel').trim(), price: Number(g('editProdPrice')), cost_price: showsCost() ? Number(g('editProdCost') || 0) : undefined, reorder_point: Number(g('editProdReorder') || 0), listing_type: g('editProdType'), price_unit: g('editProdUnit'), location: g('editProdLoc').trim() };
     if (document.getElementById('editProdStockWrap').style.display !== 'none') args.stock = Number(g('editProdStock'));
     srv('updateProduct', args).then(function () {
       var slots = Object.keys(pending);

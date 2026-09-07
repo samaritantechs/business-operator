@@ -1,6 +1,7 @@
 import { rows, rowsAll, update, badRequest, isManagerLevel, isAdminLevel, PROFILE_COLS, mustText, text, iso, num, money,
   periodBounds, rpcOr, vendorsList, mustVendor, requireVendorUser, vendorSalesSummary, stockValueByVendor,
-  getSettings, trialDays, trialDaysRemaining, permissionsOf, DEFAULT_PERMISSIONS, restrictionInfo as restrictionOf } from './_shared.js';
+  getSettings, trialDays, trialDaysRemaining, permissionsOf, DEFAULT_PERMISSIONS, GLOBAL_PERMISSION_KEYS,
+  PER_VENDOR_PERMISSION_KEYS, restrictionInfo as restrictionOf } from './_shared.js';
 import { requireManager, bustSessions } from '../auth.js';
 import { mustProfile, resetAnchorIfReactivating, toBool } from './users.js';
 
@@ -46,6 +47,11 @@ export const FN = {
         admin_role: a ? a.role : '', admin_active: a ? toBool(a.active) : false,
         product_count: st ? st.count : 0, today_sales: s ? money(s.today) : 0, stock_value: st ? money(st.value) : 0,
         trial_days_left: trialDaysRemaining(v.registered_on, days, nowMs),
+        /* Spread over `...v`, which already carries the raw `permissions` -- but raw is null on
+           an old row and a JSON *string* on a couple of them, and the page would have to know
+           that. One normalised boolean instead, and no extra read: permissionsOf works on the
+           vendor row that was already fetched. */
+        phone_vending: !!permissionsOf(v).phoneVending,
       };
     });
     out.sort(byName);
@@ -111,6 +117,24 @@ export const FN = {
       : 'Account REACTIVATED: ' + vendor.name + '. Full access restored.' };
   },
 
+  /** { vendor_id, on } -> { message }. Switches ONE business into (or out of) phone vending:
+      the Phone Vending tab, the cost price on a product and the discount on a sale line.
+      Per vendor on purpose -- see GLOBAL_PERMISSION_KEYS in _shared.js for why "apply to all"
+      must not carry it. Merged into whatever else the row holds so no other flag is disturbed,
+      and bustSessions makes every open tab of that business re-boot and pick it up rather than
+      keep serving a screen the manager just took away. 1 read, 1 write. */
+  setVendorPhoneVending: async (db, user, args) => {
+    requireManager(user);
+    const vendor = await mustVendor(db, mustText(args.vendor_id, 'Business'));
+    const on = toBool(args.on);
+    const permissions = { ...permissionsOf(vendor), phoneVending: on };
+    await update(db, 'vendors', { permissions }, q => q.eq('id', vendor.id));
+    bustSessions(db);
+    return { message: on
+      ? 'Phone Vending ON for ' + vendor.name + '. IMEI units, financing partners, cost price and per-line discounts are now available to them.'
+      : 'Phone Vending OFF for ' + vendor.name + '. Nothing was deleted -- their handsets and cost prices are kept for if you switch it back on.' };
+  },
+
   /** {} -> { rows: [{ vendor_id, name, active, permissions }] }, every vendor, flags filled in
       from the defaults so the page always sees all seven. 1 read. */
   allVendorPermissions: async (db, user) => {
@@ -119,22 +143,39 @@ export const FN = {
     return { rows: list.map(v => ({ vendor_id: v.id, name: v.name, active: toBool(v.active), permissions: permissionsOf(v) })) };
   },
 
-  /** { profile } -> { message }. The seven known flags, as booleans, become every vendor's
-      permissions -- whatever else was in the profile is dropped. Vendors already holding exactly
-      this profile are skipped, and because the payload is the same for all the rest it is ONE
-      update (`where id in (...)`), not one per vendor. 1 read, 0-1 write. */
+  /** { profile } -> { message }. The seven GLOBAL flags, as booleans, become every vendor's
+      permissions -- whatever else was in the profile is dropped. What each business already
+      holds for a PER-VENDOR flag is carried through untouched: this button reads "Apply to All
+      Vendors", and a manager pressing it to turn a weekly email on must not thereby take Phone
+      Vending away from the one shop that has it, silently, with nothing on the page to say so.
+      Vendors already holding exactly what they would be given are skipped. The rest are grouped
+      by the per-vendor flags they hold, so it is one update per distinct combination -- two,
+      with a single such flag -- not one per vendor. 1 read, 0-2 writes. */
   setAllVendorPermissions: async (db, user, args) => {
     requireManager(user);
     const src = args.profile;
     if (!src || typeof src !== 'object' || Array.isArray(src)) throw badRequest('Send the permission profile to apply.');
     const profile = {};
-    for (const k of Object.keys(DEFAULT_PERMISSIONS)) profile[k] = src[k] === undefined ? DEFAULT_PERMISSIONS[k] : toBool(src[k]);
+    for (const k of GLOBAL_PERMISSION_KEYS) profile[k] = src[k] === undefined ? DEFAULT_PERMISSIONS[k] : toBool(src[k]);
     const vendors = await vendorsList(db, true);
-    const changed = vendors.filter(v => { const cur = permissionsOf(v); return Object.keys(profile).some(k => !!cur[k] !== profile[k]); });
-    if (changed.length) await update(db, 'vendors', { permissions: profile }, q => q.in('id', changed.map(v => v.id)));
+    const groups = new Map();
+    let changed = 0;
+    for (const v of vendors) {
+      const cur = permissionsOf(v);
+      const keep = {};
+      for (const k of PER_VENDOR_PERMISSION_KEYS) keep[k] = !!cur[k];
+      const want = { ...profile, ...keep };
+      if (!Object.keys(want).some(k => !!cur[k] !== want[k])) continue;
+      const sig = PER_VENDOR_PERMISSION_KEYS.map(k => (keep[k] ? '1' : '0')).join('');
+      const g = groups.get(sig) || { permissions: want, ids: [] };
+      g.ids.push(v.id);
+      groups.set(sig, g);
+      changed++;
+    }
+    for (const g of groups.values()) await update(db, 'vendors', { permissions: g.permissions }, q => q.in('id', g.ids));
     bustSessions(db);
-    const skipped = vendors.length - changed.length;
-    return { message: 'Permissions applied to ' + changed.length + ' of ' + vendors.length + ' business(es)' + (skipped ? ' (' + skipped + ' already matched).' : '.') };
+    const skipped = vendors.length - changed;
+    return { message: 'Permissions applied to ' + changed + ' of ' + vendors.length + ' business(es)' + (skipped ? ' (' + skipped + ' already matched).' : '.') };
   },
 
   /** {} -> marketplace analytics: views per product (all time, from the bo_click_counts GROUP
@@ -230,4 +271,4 @@ async function productsByIds(db, ids) {
   return out;
 }
 
-export const WRITES = ['updateAdmin', 'setVendorActive', 'setVendorRestricted', 'setAllVendorPermissions'];
+export const WRITES = ['updateAdmin', 'setVendorActive', 'setVendorRestricted', 'setVendorPhoneVending', 'setAllVendorPermissions'];

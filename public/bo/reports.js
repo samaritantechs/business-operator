@@ -22,6 +22,12 @@ window.BORep = (function () {
   ];
   var MGR_TYPES = [['commission', '💼', 'Commission Report', 'Commission due by vendor & period']].concat(TYPES);
   var DATED = { stock: false, cashdue: false, units: false };
+  /* THREE OF THESE REPORTS ARE THE PHONE SHOP'S. A grocery downloading "IMEI / Units List" got a
+     spreadsheet with a header row and nothing under it, and "Financed / Credit Sales" asks about
+     a financing partner it has never had. The manager's own tab keeps all of them -- it reads
+     across every business, and one of them is a phone shop. */
+  var PHONE_ONLY = { units: true, imei: true, partner: true };
+  function phoneReports() { return !!S.features.phone_vending; }
 
   function g(id) { var e = document.getElementById(id); return e ? e.value : ''; }
   function shopSelect(id) { if (!S.features.has_branches || !S.branches.length) return ''; return '<div class="form-group"><label class="form-label">Shop</label><select id="' + id + '" class="form-select"><option value="">All shops</option>' + S.branches.map(function (b) { return '<option value="' + esc(b.id) + '">' + esc(b.name) + '</option>'; }).join('') + '</select></div>'; }
@@ -33,7 +39,8 @@ window.BORep = (function () {
     if (seller && !S.perms.canDownloadReport) { el.innerHTML = '<div class="empty">Report downloads are not enabled for sellers of this business.</div>'; return; }
     var today = BO.todayKey();
     var h = '<div class="section-card" style="margin-bottom:18px;"><div class="section-hdr"><span>📅</span><div class="section-hdr-title">Date Range</div></div><div class="section-body"><div class="form-grid" style="max-width:720px;"><div class="form-group"><label class="form-label">Start Date</label><input type="date" id="repStart" class="form-control" value="' + today + '"></div><div class="form-group"><label class="form-label">End Date</label><input type="date" id="repEnd" class="form-control" value="' + today + '"></div>' + shopSelect('repBranch') + '<div class="form-group"><label class="form-label">Lending status</label><select id="repLendStatus" class="form-select"><option value="ALL">All</option><option value="Active">Active only</option><option value="Returned">Returned only</option></select></div></div><div id="repStatus" class="small muted" style="margin-top:8px;"></div></div></div>';
-    var list = seller ? TYPES.filter(function (t) { return t[0] === 'sales'; }) : TYPES;
+    var list = (seller ? TYPES.filter(function (t) { return t[0] === 'sales'; }) : TYPES)
+      .filter(function (t) { return phoneReports() || !PHONE_ONLY[t[0]]; });
     h += '<div class="report-grid">' + list.map(function (t) { return '<div class="report-card" style="cursor:default;flex-wrap:wrap;"><span class="rc-icon">' + t[1] + '</span><div style="flex:1;"><div class="rc-title">' + esc(t[2]) + '</div><div class="rc-sub">' + esc(t[3]) + '</div></div><div style="display:flex;gap:6px;width:100%;margin-top:6px;"><button class="btn-sm-primary" onclick="BORep.dl(\'' + t[0] + '\',\'pdf\')">📄 PDF</button><button class="btn-sm-success" onclick="BORep.dl(\'' + t[0] + '\',\'xlsx\')">📊 Excel</button><button class="btn-sm-warning" onclick="BORep.preview(\'' + t[0] + '\')">👁 Preview</button></div></div>'; }).join('') + '</div>';
     el.innerHTML = h;
   }

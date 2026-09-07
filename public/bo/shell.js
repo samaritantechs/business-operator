@@ -304,6 +304,10 @@ function applyLogin(boot) {
   /* Which doors this person gets: the role list on each nav item, then the two seller flags. */
   var role = S.user.role;
   document.querySelectorAll('[data-roles]').forEach(function (el) { el.style.display = (el.getAttribute('data-roles').split(' ').indexOf(role) !== -1) ? '' : 'none'; });
+  /* PHONE VENDING IS A PER-BUSINESS FEATURE, not a role. A grocery has no handsets to track by
+     IMEI and no financing partner to sell a bag of sugar on credit, so the whole tab is hidden
+     rather than left there to be wondered about. Switched on per vendor in Management. */
+  if (!S.features.phone_vending) { var np = document.getElementById('nav-phone'); if (np) np.style.display = 'none'; }
   if (isSeller() && S.perms.showDashboard === false) document.getElementById('nav-dashboard').style.display = 'none';
   if (isSeller() && !S.perms.canDownloadReport) { document.getElementById('nav-reports').style.display = 'none'; document.querySelector('[data-roles="admin assistant-admin seller"]').style.display = 'none'; }
   var first = null; document.querySelectorAll('.sidebar .nav-item').forEach(function (b) { if (!first && b.style.display !== 'none') first = b; });
