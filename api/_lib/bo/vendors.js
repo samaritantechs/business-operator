@@ -118,7 +118,7 @@ export const FN = {
   },
 
   /** { vendor_id, on } -> { message }. Switches ONE business into (or out of) phone vending:
-      the Phone Vending tab, the cost price on a product and the discount on a sale line.
+      the Phone Vending tab (units by IMEI, financing partners) and the discount on a sale line.
       Per vendor on purpose -- see GLOBAL_PERMISSION_KEYS in _shared.js for why "apply to all"
       must not carry it. Merged into whatever else the row holds so no other flag is disturbed,
       and bustSessions makes every open tab of that business re-boot and pick it up rather than
@@ -131,8 +131,8 @@ export const FN = {
     await update(db, 'vendors', { permissions }, q => q.eq('id', vendor.id));
     bustSessions(db);
     return { message: on
-      ? 'Phone Vending ON for ' + vendor.name + '. IMEI units, financing partners, cost price and per-line discounts are now available to them.'
-      : 'Phone Vending OFF for ' + vendor.name + '. Nothing was deleted -- their handsets and cost prices are kept for if you switch it back on.' };
+      ? 'Phone Vending ON for ' + vendor.name + '. IMEI units, financing partners and per-line discounts are now available to them.'
+      : 'Phone Vending OFF for ' + vendor.name + '. Nothing was deleted -- their handsets are kept for if you switch it back on.' };
   },
 
   /** {} -> { rows: [{ vendor_id, name, active, permissions }] }, every vendor, flags filled in

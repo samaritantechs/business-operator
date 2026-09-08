@@ -65,7 +65,7 @@ export const DEFAULT_HINTS = {
     ['\ud83d\udcca Seller balances show who owes what today.',
      '\ud83d\udcca Salio la muuzaji linaonyesha nani anadaiwa nini leo.'],
     ['\ud83c\udff7\ufe0f Cost Price is optional \u2013 but without it the Profit report is only a guess.',
-     '\ud83c\udff7\ufe0f Bei ya kununulia si lazima \u2013 lakini bila hiyo ripoti ya Faida ni kubahatisha.', 'phoneVending'],
+     '\ud83c\udff7\ufe0f Bei ya kununulia si lazima \u2013 lakini bila hiyo ripoti ya Faida ni kubahatisha.'],
     ['\ud83d\udcc8 The Profit report shows what you EARNED, not just what you took.',
      '\ud83d\udcc8 Ripoti ya Faida inaonyesha ulichopata, si tu ulichokusanya.'],
     ['\ud83d\ude9a Order stock on Purchase Orders \u2013 receiving it updates the cost price for you.',

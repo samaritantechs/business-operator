@@ -327,12 +327,12 @@ export const DEFAULT_PERMISSIONS = {
   sellerCanDownloadReport: false, sellerReceivesEmail: false, adminReceivesDaily: true,
   adminReceivesWeekly: false, adminReceivesMonthly: false, sellerReceivesDaily: false, dashboardVisible: true,
   /* PHONE VENDING IS OFF BY DEFAULT, and that default is the point of the flag.
-     Handsets by IMEI, a cost price per item and a discount per line all arrived with one
+     Handsets by IMEI, financing partners and a discount per sale line all arrived with one
      phone-retail customer, and they were shown to every business on the platform -- a grocery
-     and a bridal-wear hire were being asked what they paid for a wedding gown and offered an
-     IMEI field for sugar. Off means the general product; on means the phone-shop tools appear.
-     Nothing is deleted either way: a shop switched on today keeps the cost prices it typed
-     before, and one switched off keeps them for when it is switched back. */
+     was being offered an IMEI field for sugar. Off means the general product; on means the
+     phone-shop tools appear. (Cost price is NOT one of them: every business has a margin, so
+     the field is shown to every admin and is simply optional.) Nothing is deleted either way:
+     a shop switched off keeps its handsets for when it is switched back on. */
   phoneVending: false,
 };
 /* THE PROFILE IN SETTINGS APPLIES TO EVERY BUSINESS AT ONCE -- so what it is allowed to write
