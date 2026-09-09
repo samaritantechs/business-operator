@@ -44,6 +44,25 @@ await step('marketplace loads and lists products', async () => {
 });
 await page.screenshot({ path: OUT + '01-marketplace.png' });
 
+/* THE EYE ON THE PASSWORD BOX, through the real button. The box is wrapped by a
+   MutationObserver in shell.js, so this also proves the wrapper did not break the input:
+   the value survives the toggle, the id still resolves, and Enter still signs in below. */
+await step('the eye on the password box shows and hides what was typed', async () => {
+  await page.evaluate(() => showLogin(false));
+  await page.waitForSelector('#loginId', { state: 'visible', timeout: 8000 });
+  await page.fill('#loginPwd', 'pass1234');
+  const eye = page.locator('#loginPwd + .pw-eye');
+  if (await eye.count() !== 1) throw new Error('no eye next to #loginPwd');
+  await eye.click();
+  let st = await page.evaluate(() => { const i = document.getElementById('loginPwd'); return { type: i.type, value: i.value, focused: document.activeElement === i }; });
+  if (st.type !== 'text' || st.value !== 'pass1234') throw new Error('after one tap: ' + JSON.stringify(st));
+  if (!st.focused) throw new Error('the tap took the caret out of the box');
+  await eye.click();
+  st = await page.evaluate(() => { const i = document.getElementById('loginPwd'); return { type: i.type, value: i.value }; });
+  if (st.type !== 'password' || st.value !== 'pass1234') throw new Error('after two taps: ' + JSON.stringify(st));
+  await page.fill('#loginPwd', '');
+});
+
 await step('sign in as the phone-shop admin', async () => {
   await page.evaluate(() => showLogin(false));
   await page.waitForSelector('#loginId', { state: 'visible', timeout: 8000 });
@@ -72,6 +91,18 @@ for (const t of tabs) {
   });
 }
 await page.screenshot({ path: OUT + '03-stock.png' });
+
+await step('every password box the app has drawn so far has an eye', async () => {
+  await page.evaluate(() => switchTab('users'));
+  await page.waitForSelector('#newUserPwd', { timeout: 10000 });
+  const r = await page.evaluate(() => {
+    const all = [...document.querySelectorAll('input[type="password"], input[data-eye]')];
+    return { total: all.length, missing: all.filter(i => !i.nextElementSibling || !i.nextElementSibling.classList.contains('pw-eye')).map(i => i.id || '(no id)') };
+  });
+  if (r.total < 5) throw new Error('expected the login, register, setup, reset and Users boxes; saw ' + r.total);
+  if (r.missing.length) throw new Error('no eye on: ' + r.missing.join(', '));
+  console.log('       ' + r.total + ' password boxes, every one with an eye');
+});
 
 /* THE EDIT DIALOG, AS AN ADMIN. This is the bug this step exists for: the dialog's HTML was
    built at module load, when S.user is still null, so the admin-only Cost Price field was left

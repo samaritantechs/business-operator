@@ -42,6 +42,8 @@ export const DEFAULT_HINTS = {
      '\ud83d\udd04 Bonyeza Onyesha upya kuona namba za sasa.'],
     ['\ud83d\udcb8 A Discount on a line lowers that line only \u2013 the receipt shows the list price crossed out.',
      '\ud83d\udcb8 Punguzo kwenye laini hupunguza laini hiyo tu \u2013 risiti inaonyesha bei ya kawaida imepigwa mstari.', 'phoneVending'],
+    ['\ud83d\udc41\ufe0f Typed your password wrong? Tap the eye on the password box to see what you typed.',
+     '\ud83d\udc41\ufe0f Umekosea neno la siri? Bonyeza jicho kwenye kisanduku cha neno la siri uone ulichoandika.'],
     ['\ud83d\udccb Use Lendings tab to record and track borrowed items.',
      '\ud83d\udccb Tumia kichupo cha Mikopo ya bidhaa kurekodi na kufuatilia vilivyoazimwa.'],
     ['\ud83e\uddfe After a sale, tap the receipt button to print it or send it on WhatsApp.',
@@ -136,6 +138,8 @@ export const DEFAULT_HINTS = {
      '\ud83d\udcf2 Wasiliana na muuzaji moja kwa moja kwa WhatsApp.'],
     ['\ud83c\udd95 New businesses join the marketplace often \u2014 check back!',
      '\ud83c\udd95 Biashara mpya zinajiunga mara kwa mara \u2014 rudi tena!'],
+    ['\ud83d\udc41\ufe0f Typed your password wrong? Tap the eye on the password box to see what you typed.',
+     '\ud83d\udc41\ufe0f Umekosea neno la siri? Bonyeza jicho kwenye kisanduku cha neno la siri uone ulichoandika.'],
   ],
 };
 

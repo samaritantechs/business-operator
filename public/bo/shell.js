@@ -674,8 +674,67 @@ function showLoader(ms) {
 }
 
 /* ------------------------------------------------------------------ boot */
+/* ------------------------------------------------------------------ the eye on a password box
+   A password typed on a phone keyboard is wrong one time in five, and the only way to find out
+   was to submit it and read "wrong password" -- with no way of knowing WHICH character. The eye
+   shows the text; tapping it again hides it.
+
+   ONE MECHANISM FOR EVERY PASSWORD BOX, wired nowhere. The sign-in form is in index.html, but
+   registration, first-run setup, password reset, Change Password on My Account and the two
+   boxes on the Users tab are drawn later, by innerHTML, some inside a dialog. Asking each screen
+   to remember to add the eye is asking for the one that forgets. So a MutationObserver watches
+   the page and gives the eye to every input[type=password] as it appears -- the one below is
+   the same function, run once over what is already there. The input itself is never replaced,
+   only moved into a wrapper, so getElementById, the Enter-key handler and autocomplete all keep
+   working; data-eye marks it done so a re-render cannot wrap it twice. */
+var EYE_ON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+var EYE_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+function eyeify(root) {
+  if (!root || !root.querySelectorAll) return;
+  var sel = 'input[type="password"]:not([data-eye])';
+  var list = root.matches && root.matches(sel) ? [root] : root.querySelectorAll(sel);
+  Array.prototype.forEach.call(list, function (input) {
+    input.setAttribute('data-eye', '1');
+    var wrap = document.createElement('span');
+    wrap.className = 'pw-wrap';
+    input.parentNode.insertBefore(wrap, input);
+    wrap.appendChild(input);
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pw-eye';
+    btn.setAttribute('aria-label', 'Show password');
+    btn.setAttribute('aria-pressed', 'false');
+    btn.title = 'Show password';
+    btn.innerHTML = EYE_ON;
+    // mousedown, not click, would move the caret out of the box; keep it where the person is typing.
+    btn.addEventListener('mousedown', function (e) { e.preventDefault(); });
+    btn.addEventListener('click', function () {
+      var show = input.type === 'password';
+      input.type = show ? 'text' : 'password';
+      btn.innerHTML = show ? EYE_OFF : EYE_ON;
+      btn.setAttribute('aria-pressed', show ? 'true' : 'false');
+      btn.title = show ? 'Hide password' : 'Show password';
+      btn.setAttribute('aria-label', btn.title);
+      input.focus();
+    });
+    wrap.appendChild(btn);
+  });
+}
+BO.eyeify = eyeify;
+function watchPasswords() {
+  eyeify(document.body);
+  if (!window.MutationObserver) return;
+  new MutationObserver(function (muts) {
+    for (var i = 0; i < muts.length; i++) {
+      var added = muts[i].addedNodes;
+      for (var j = 0; j < added.length; j++) if (added[j].nodeType === 1) eyeify(added[j]);
+    }
+  }).observe(document.body, { childList: true, subtree: true });
+}
+
 BO.boot = function () {
   setLang(S.lang); applyTheme(S.theme); applyView(S.view);
+  watchPasswords();
   var y = new Date().getFullYear();
   ['loginYear', 'footerYear', 'mkFootYear'].forEach(function (id) { var el = document.getElementById(id); if (el) el.textContent = y; });
   var m = /[?&]reset=([^&]+)/.exec(window.location.search);
