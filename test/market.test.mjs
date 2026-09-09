@@ -219,7 +219,7 @@ test('hints: the marketplace tips with numeric timings; the built-in list when t
   book.hints = [];
   book.settings = book.settings.filter(s => s.key !== 'hintLifetime').concat([{ key: 'hintInterval', value: 'soon' }]);
   const dflt = await FN.hints(bookDb(book), {}, NOW);
-  assert.equal(dflt.hints.length, 5);
+  assert.equal(dflt.hints.length, 6);   // five about the marketplace, one about the eye on the password box
   // The built-in marketplace tips are bilingual now: a visitor who reads Kiswahili gets Kiswahili.
   assert.ok(dflt.hints.every(h => typeof h.en === 'string' && h.en && typeof h.sw === 'string' && h.sw));
   assert.deepEqual(dflt.timings, { hintLifetime: 5, hintInterval: 300 });        // missing / unparseable => legacy defaults
