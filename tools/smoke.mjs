@@ -129,6 +129,70 @@ await step('an admin can actually open the product Edit dialog', async () => {
   console.log('       opened for "' + name + '", cost field present');
 });
 
+/* THE BUG THIS EXISTS FOR: "add product button is not working through app". Every confirm was
+   window.confirm, which returns FALSE with no dialog in an Android WebView, so the handler
+   returned before it sent anything. Driven here through the real button and the real overlay --
+   a unit test cannot see a button that does nothing. */
+await step('Add Product works through the button, the dialog and the list', async () => {
+  await page.evaluate(() => switchTab('products'));
+  await page.waitForSelector('#newProdName', { timeout: 10000 });
+  const before = await page.locator('#productsContent tbody tr').count();
+  await page.fill('#newProdName', 'Smoke Kettle');
+  await page.fill('#newProdCat', 'Home');
+  await page.fill('#newProdPrice', '42000');
+  await page.fill('#newProdStock', '7');
+  await page.click('button[onclick="BOProd.add()"]');
+
+  // The question is asked IN THE PAGE. If it ever goes back to window.confirm this selector is
+  // never there, the step fails, and the Android app would have been broken again.
+  await page.waitForSelector('.bo-ask .bo-ask-yes', { timeout: 5000 });
+  const asked = await page.locator('.bo-ask-msg').innerText();
+  if (!/Smoke Kettle/.test(asked)) throw new Error('the dialog did not name the product: ' + asked);
+  await page.click('.bo-ask .bo-ask-yes');
+
+  await page.waitForFunction(n => document.querySelectorAll('#productsContent tbody tr').length > n, before, { timeout: 10000 });
+  const txt = await page.locator('#productsContent').innerText();
+  if (!/Smoke Kettle/.test(txt)) throw new Error('the product was confirmed but never appeared in the list');
+  if (await page.locator('.bo-ask').count()) throw new Error('the dialog stayed on screen after answering');
+  console.log('       added through the real button; the list went ' + before + ' -> ' + (before + 1));
+});
+
+await step('Cancel on that dialog adds nothing at all', async () => {
+  const before = await page.locator('#productsContent tbody tr').count();
+  await page.fill('#newProdName', 'Never Added');
+  await page.fill('#newProdCat', 'Home');
+  await page.fill('#newProdPrice', '1000');
+  await page.click('button[onclick="BOProd.add()"]');
+  await page.waitForSelector('.bo-ask .bo-ask-no', { timeout: 5000 });
+  await page.click('.bo-ask .bo-ask-no');
+  await page.waitForTimeout(400);
+  const txt = await page.locator('#productsContent').innerText();
+  if (/Never Added/.test(txt)) throw new Error('Cancel still created the product');
+  if (await page.locator('#productsContent tbody tr').count() !== before) throw new Error('the list changed on a cancel');
+});
+
+await step('the Add form has its own photo slots, and they upload with the product', async () => {
+  // A 1x1 PNG, chosen through the real <input type=file> the app's picker drives.
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+  await page.setInputFiles('#newProdImg1Input', { name: 'kettle.png', mimeType: 'image/png', buffer: png });
+  await page.waitForFunction(() => { const i = document.getElementById('newProdImg1Preview'); return i && i.style.display === 'block'; }, null, { timeout: 5000 });
+  await page.fill('#newProdName', 'Photo Kettle');
+  await page.fill('#newProdCat', 'Home');
+  await page.fill('#newProdPrice', '5000');
+  await page.click('button[onclick="BOProd.add()"]');
+  await page.waitForSelector('.bo-ask .bo-ask-yes', { timeout: 5000 });
+  await page.click('.bo-ask .bo-ask-yes');
+  await page.waitForFunction(() => /Photo Kettle/.test((document.getElementById('productsContent') || {}).innerText || ''), null, { timeout: 10000 });
+  // The photo reached the product, not just the form: the row draws the thumbnail it was given.
+  const hasImg = await page.evaluate(() => {
+    const rows = [...document.querySelectorAll('#productsContent tbody tr')];
+    const r = rows.find(t => /Photo Kettle/.test(t.innerText));
+    return !!(r && r.querySelector('img'));
+  });
+  if (!hasImg) throw new Error('the product was added but its photo did not come back on the row');
+  console.log('       photo picked and uploaded as part of registering the product');
+});
+
 await step('sell a phone cover through the form', async () => {
   await page.evaluate(() => switchTab('sale'));
   await page.waitForSelector('#saleContent select, #saleContent .prod-pick', { timeout: 10000 });

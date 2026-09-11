@@ -47,7 +47,7 @@ window.BOUsers = (function () {
     srv('addUser', args).then(function () { showToast('User added successfully.'); ['newUserEmail', 'newUserName', 'newUserId', 'newUserPwd'].forEach(function (id) { document.getElementById(id).value = ''; }); list(); }).catch(BO.fail);
   }
   function toggle(id, active) { srv('toggleUser', { id: id, active: active }).then(function () { list(); }).catch(BO.fail); }
-  function del(id) { if (!BO.confirm('Delete this user?')) return; srv('deleteUser', { id: id }).then(function () { showToast('User deleted.'); list(); }).catch(BO.fail); }
+  function del(id) { BO.confirm('Delete this user?', function () { srv('deleteUser', { id: id }).then(function () { showToast('User deleted.'); list(); }).catch(BO.fail); }); }
 
   var MODAL = '<div class="modal fade" id="editUserModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Edit User</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><input type="hidden" id="editUserIdHidden">'
     + '<div class="form-group" style="margin-bottom:12px;"><label class="form-label">Email</label><input class="form-control" id="editUserEmail"></div>'

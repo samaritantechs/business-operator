@@ -163,19 +163,22 @@ window.BOPO = (function () {
     });
     if (!receipts.length) { alert('Enter how many of each actually arrived.'); return; }
     var n = receipts.reduce(function (a, r) { return a + r.qty; }, 0);
-    if (!BO.confirm('Receive ' + n + ' item' + (n === 1 ? '' : 's') + ' into stock?\n\nThis is the moment the stock goes up, and the cost price on each product is updated to what this delivery cost.')) return;
-    btn.disabled = true;
-    srv('receivePurchaseOrder', { id: id, receipts: receipts }).then(function (r) {
-      showToast(r.message, '📥'); load(); BO.reload('products'); BO.reload('stock'); BO.reload('dashboard');
-    }).catch(function (e) { btn.disabled = false; BO.fail(e); });
+    BO.confirm('Receive ' + n + ' item' + (n === 1 ? '' : 's') + ' into stock?\n\nThis is the moment the stock goes up, and the cost price on each product is updated to what this delivery cost.', function () {
+      btn.disabled = true;
+      srv('receivePurchaseOrder', { id: id, receipts: receipts }).then(function (r) {
+        showToast(r.message, '📥'); load(); BO.reload('products'); BO.reload('stock'); BO.reload('dashboard');
+      }).catch(function (e) { btn.disabled = false; BO.fail(e); });
+    });
   }
   function cancel(id, label) {
-    var reason = prompt('Why is ' + label + ' being cancelled?'); if (reason == null) return;
-    srv('cancelPurchaseOrder', { id: id, reason: reason.trim() }).then(function (r) { showToast(r.message); load(); }).catch(BO.fail);
+    BO.prompt('Why is ' + label + ' being cancelled?', function (reason) {
+      srv('cancelPurchaseOrder', { id: id, reason: reason.trim() }).then(function (r) { showToast(r.message); load(); }).catch(BO.fail);
+    });
   }
   function del(id, label) {
-    if (!BO.confirm('Delete ' + label + ' entirely?\n\nNothing has been received on it, so there is nothing to account for.')) return;
-    srv('deletePurchaseOrder', { id: id }).then(function (r) { showToast(r.message); load(); }).catch(BO.fail);
+    BO.confirm('Delete ' + label + ' entirely?\n\nNothing has been received on it, so there is nothing to account for.', function () {
+      srv('deletePurchaseOrder', { id: id }).then(function (r) { showToast(r.message); load(); }).catch(BO.fail);
+    });
   }
   function setFilter(v) { filter = v; load(); }
   function g(id) { var e = document.getElementById(id); return e ? e.value : ''; }
