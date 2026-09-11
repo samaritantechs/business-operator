@@ -5,6 +5,14 @@
     <!-- So a shopkeeper can install the newer APK the site offers them. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
+    <!-- ACTION_IMAGE_CAPTURE has to be declared to be SEEN. From Android 11 an app cannot ask
+         whether a camera app exists unless it says which intent it means, and resolveActivity()
+         quietly answers null otherwise, so the camera would vanish from the picker sheet on
+         every modern phone, with nothing logged. -->
+    <queries>
+        <intent><action android:name="android.media.action.IMAGE_CAPTURE" /></intent>
+    </queries>
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
@@ -18,5 +26,15 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Hands the camera app a writable content:// Uri for the one temp file it fills.
+             The authority must match getPackageName() + ".files" in MainActivity. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
+        </provider>
     </application>
 </manifest>

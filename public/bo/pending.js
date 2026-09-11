@@ -203,12 +203,14 @@ window.BOHold = (function () {
   }
   function release(id, who, overdue, btn) {
     if (btn) { if (btn.disabled) return; btn.disabled = true; }
-    var reason = prompt('Putting the goods back on the shelf. Why is ' + who + "'s hold ending?");
-    if (reason == null) { if (btn) btn.disabled = false; return; }
-    srv('cancelPendingSale', { id: id, reason: reason.trim(), expired: !!overdue }).then(function (r) {
-      showToast(r.message, '↩︎');
-      load(); BO.reload('sale'); BO.reload('products'); BO.reload('stock'); BO.reload('dashboard');
-    }).catch(function (e) { if (btn) btn.disabled = false; BO.fail(e); });
+    /* The button was disabled the moment it was tapped, so cancelling has to hand it back --
+       otherwise a second thought leaves a dead button on the card. */
+    BO.prompt('Putting the goods back on the shelf. Why is ' + who + "'s hold ending?", function (reason) {
+      srv('cancelPendingSale', { id: id, reason: reason.trim(), expired: !!overdue }).then(function (r) {
+        showToast(r.message, '↩︎');
+        load(); BO.reload('sale'); BO.reload('products'); BO.reload('stock'); BO.reload('dashboard');
+      }).catch(function (e) { if (btn) btn.disabled = false; BO.fail(e); });
+    }, { onCancel: function () { if (btn) btn.disabled = false; } });
   }
   function findHold(id) { for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i]; return null; }
   function payChanged() {

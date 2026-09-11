@@ -58,15 +58,16 @@ window.BOLend = (function () {
     }
     if (!items.length) { alert('Add at least one product.'); return; }
     var cm = 'Record lending to ' + name + '?\n' + items.length + ' item(s)' + (grandTotal > 0 ? '\nTotal owed: ' + fmtFull(grandTotal) + ' ' + cur() : ''); if (email) cm += '\nConfirmation → ' + email;
-    if (!BO.confirm(cm)) return;
-    var btn = document.getElementById('lendSubmitBtn'); btn.disabled = true;
-    srv('recordLending', { items: items, borrower_name: name, borrower_email: email, borrower_phone: phone }).then(function (r) {
-      btn.disabled = false;
-      document.getElementById('lendMsg').innerHTML = '<div class="alert-success">' + esc(r.message) + '</div>';
-      document.getElementById('lendBorrowerName').value = ''; document.getElementById('lendBorrowerEmail').value = ''; document.getElementById('lendBorrowerPhone').value = '';
-      srv('productOptions', S.user.branch_id ? { branch_id: S.user.branch_id } : {}).then(function (o) { opts = o || opts; document.getElementById('lendItemsBody').innerHTML = row(); }).catch(function () {});
-      sync(); BO.reload('dashboard');
-    }).catch(function (e) { btn.disabled = false; document.getElementById('lendMsg').innerHTML = '<div class="alert-danger">' + esc(e.message) + '</div>'; });
+    BO.confirm(cm, function () {
+      var btn = document.getElementById('lendSubmitBtn'); btn.disabled = true;
+      srv('recordLending', { items: items, borrower_name: name, borrower_email: email, borrower_phone: phone }).then(function (r) {
+        btn.disabled = false;
+        document.getElementById('lendMsg').innerHTML = '<div class="alert-success">' + esc(r.message) + '</div>';
+        document.getElementById('lendBorrowerName').value = ''; document.getElementById('lendBorrowerEmail').value = ''; document.getElementById('lendBorrowerPhone').value = '';
+        srv('productOptions', S.user.branch_id ? { branch_id: S.user.branch_id } : {}).then(function (o) { opts = o || opts; document.getElementById('lendItemsBody').innerHTML = row(); }).catch(function () {});
+        sync(); BO.reload('dashboard');
+      }).catch(function (e) { btn.disabled = false; document.getElementById('lendMsg').innerHTML = '<div class="alert-danger">' + esc(e.message) + '</div>'; });
+    });
   }
 
   function itemsText(l) { return (l.items || []).map(function (it) { return it.qty + '× ' + esc(it.product_name) + (it.imei ? ' <span class="mono small muted">[' + esc(it.imei) + ']</span>' : ''); }).join(', '); }
@@ -94,10 +95,10 @@ window.BOLend = (function () {
     }).catch(function (e) { var el = document.getElementById(id); if (el) el.innerHTML = BO.errorBox(e); });
   }
 
-  function returned(id) { if (!BO.confirm('Mark as returned? Stock will be restored.')) return; srv('markLendingReturned', { lending_id: id }).then(function (r) { showToast(r.message); sync(); BO.reload('dashboard'); }).catch(BO.fail); }
-  function del(id) { if (!BO.confirm('Delete this lending record?\n\nIf still active, stock will be restored.\nThis cannot be undone.')) return; srv('deleteLending', { lending_id: id }).then(function (r) { showToast(r.message); sync(); BO.reload('dashboard'); }).catch(BO.fail); }
+  function returned(id) { BO.confirm('Mark as returned? Stock will be restored.', function () { srv('markLendingReturned', { lending_id: id }).then(function (r) { showToast(r.message); sync(); BO.reload('dashboard'); }).catch(BO.fail); }); }
+  function del(id) { BO.confirm('Delete this lending record?\n\nIf still active, stock will be restored.\nThis cannot be undone.', function () { srv('deleteLending', { lending_id: id }).then(function (r) { showToast(r.message); sync(); BO.reload('dashboard'); }).catch(BO.fail); }); }
   function remind(id) { srv('sendLendingReminder', { lending_id: id }).then(function (r) { showToast(r.message, '📧'); }).catch(BO.fail); }
-  function remindAll() { if (!BO.confirm('Send email reminders to ALL active borrowers with an email address on record?')) return; srv('sendLendingReminders', {}).then(function (r) { showToast(r.message, '📧'); }).catch(BO.fail); }
+  function remindAll() { BO.confirm('Send email reminders to ALL active borrowers with an email address on record?', function () { srv('sendLendingReminders', {}).then(function (r) { showToast(r.message, '📧'); }).catch(BO.fail); }); }
 
   BO.tabs.lendings = { load: load, sync: sync };
   return { load: load, addRow: addRow, pick: pick, unitToggle: unitToggle, calc: calc, submit: submit, returned: returned, del: del, remind: remind, remindAll: remindAll };

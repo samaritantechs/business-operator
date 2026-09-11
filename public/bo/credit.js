@@ -98,11 +98,12 @@ window.BOCredit = (function () {
   /* Settling is per CHECKOUT, which is what markPartnerPaid already understands: three handsets
      on one MOGO docket are one payment, not three. */
   function settle(groupId, partner, amount) {
-    if (!BO.confirm('Mark this sale as paid by ' + partner + '?\n\nAmount: ' + fmtFull(amount) + ' ' + data.currency
-      + '\n\nIt leaves this list. Use the same button again on the sale to undo it.')) return;
-    srv('markPartnerPaid', { group_id: groupId, paid: true }).then(function (r) {
-      showToast(r.message, '✅'); load(); BO.reload('dashboard');
-    }).catch(BO.fail);
+    BO.confirm('Mark this sale as paid by ' + partner + '?\n\nAmount: ' + fmtFull(amount) + ' ' + data.currency
+      + '\n\nIt leaves this list. Use the same button again on the sale to undo it.', function () {
+      srv('markPartnerPaid', { group_id: groupId, paid: true }).then(function (r) {
+        showToast(r.message, '✅'); load(); BO.reload('dashboard');
+      }).catch(BO.fail);
+    });
   }
 
   BO.tabs.credit = { load: load, sync: load };

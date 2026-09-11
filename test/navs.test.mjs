@@ -30,6 +30,7 @@ const { accountApi, ACCOUNT_FUNCTIONS } = await import('../api/_lib/bo/account.j
 const { marketApi, MARKET_FUNCTIONS } = await import('../api/_lib/bo/market.js');
 
 const PUBLIC = new URL('../public/', import.meta.url).pathname;
+const ROOT = new URL('../', import.meta.url).pathname;
 const html = readFileSync(join(PUBLIC, 'index.html'), 'utf8');
 const tabFiles = readdirSync(join(PUBLIC, 'bo')).filter(f => f.endsWith('.js')).sort();
 const tabs = Object.fromEntries(tabFiles.map(f => [f, readFileSync(join(PUBLIC, 'bo', f), 'utf8')]));
@@ -142,6 +143,47 @@ test('a missing Bootstrap CDN cannot kill the modals', () => {
   // And the fallback needs its own styling, or the modal "opens" invisibly.
   assert.match(html, /\.modal\.bo-fb\s*\{/, 'index.html lost the .bo-fb fallback CSS');
   assert.match(shell, /data-bs-dismiss="modal"/, 'without Bootstrap the dismiss buttons need wiring too');
+});
+
+/* THE ANDROID APP HAS NO NATIVE DIALOGS, so the page must not ask for one. A WebView with no
+   WebChromeClient does not show window.confirm() -- it returns FALSE immediately -- so every
+   `if (!BO.confirm(...)) return;` was a button that silently did nothing in the app, which is
+   how "add product is not working" was reported. The page asks in its own overlay now, and the
+   old synchronous shape must not creep back one call site at a time. */
+test('nothing asks for a native browser dialog: they do not exist inside the Android app', () => {
+  for (const [file, src] of Object.entries(tabs).concat([['index.html', html]])) {
+    const code = src.replace(/\/\*[\s\S]*?\*\//g, '');          // the comments EXPLAIN the ban
+    for (const [rx, what] of [
+      [/(^|[^.\w])confirm\s*\(/, 'window.confirm'],
+      [/(^|[^.\w])prompt\s*\(/, 'window.prompt'],
+      [/window\s*\.\s*(confirm|prompt)\s*\(/, 'window.confirm / window.prompt'],
+    ]) {
+      const hit = rx.exec(code);
+      // shell.js is where the replacement lives, so it is the one file allowed to name them.
+      if (hit && file !== 'shell.js') assert.fail(file + ' calls ' + what + ', which does nothing in the Android app: use BO.confirm(msg, onYes) / BO.prompt(msg, onText)');
+    }
+    assert.equal(/if\s*\(\s*!?\s*BO\.confirm\(/.test(code), false,
+      file + ' uses BO.confirm as if it returned an answer. It takes a callback -- the synchronous one is what broke in the app.');
+  }
+  // And the replacement has to actually be there, in the page rather than in the browser.
+  assert.match(shell, /BO\.confirm = function \(msg, onYes\)/, 'the in-page confirm is gone');
+  assert.match(shell, /BO\.prompt = function/, 'the in-page prompt is gone');
+  assert.match(shell, /window\.alert = function/, 'alert() is a silent no-op in the app unless it is replaced');
+  assert.match(html, /\.bo-ask\s*\{/, 'index.html lost the overlay CSS, so the dialog would open invisibly');
+});
+
+/* The other half of the same bug: <input type="file"> needs a WebChromeClient too, and no web
+   change can supply one -- only the app can. Without it a photo slot is a dead tap. */
+test('the Android app can open a file picker and a camera', () => {
+  const java = readFileSync(join(ROOT, 'android/app/src/main/java/com/samaritantechs/industrial/MainActivity.java'), 'utf8');
+  assert.match(java, /setWebChromeClient/, 'no chrome client: file inputs and JS dialogs both die');
+  assert.match(java, /onShowFileChooser/, 'the file chooser is what makes a photo slot work in the app');
+  assert.match(java, /pendingFiles\.onReceiveValue\(out\)/, 'a cancelled chooser must still answer, or every later tap is ignored');
+  assert.match(java, /ACTION_IMAGE_CAPTURE/, 'a shop photographs the product it is holding; the gallery alone is not enough');
+  const manifest = readFileSync(join(ROOT, 'android/app/src/main/AndroidManifest.xml'), 'utf8');
+  assert.match(manifest, /androidx\.core\.content\.FileProvider/, 'the camera needs a content:// Uri or it crashes on Android 7+');
+  assert.match(manifest, /IMAGE_CAPTURE/, '<queries> is required or resolveActivity() hides the camera on Android 11+');
+  assert.match(readFileSync(join(ROOT, 'android/app/src/main/res/xml/file_paths.xml'), 'utf8'), /shots/, 'the provider has nowhere to share from');
 });
 
 test('every bare onclick / onchange / onkeypress handler in the markup is a shell function', () => {

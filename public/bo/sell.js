@@ -120,7 +120,7 @@ window.BOSell = (function () {
     if (pay === 'Lending') { submitLending(items, grandTotal, summary); return; }
     var custName = (document.getElementById('custName') || {}).value || '', custPhone = (document.getElementById('custPhone') || {}).value || '';
     var who = [custName.trim(), custPhone.trim()].filter(Boolean).join(' · ');
-    if (!BO.confirm('Confirm sale?\n\n' + summary + '\nGrand Total: ' + fmtFull(grandTotal) + ' ' + cur() + '\nPayment: ' + pay + (partnerName ? ' (' + partnerName + ')' : '') + (who ? '\nCustomer: ' + who : '') + (branchId ? '\nShop: ' + branchName() : ''))) return;
+    BO.confirm('Confirm sale?\n\n' + summary + '\nGrand Total: ' + fmtFull(grandTotal) + ' ' + cur() + '\nPayment: ' + pay + (partnerName ? ' (' + partnerName + ')' : '') + (who ? '\nCustomer: ' + who : '') + (branchId ? '\nShop: ' + branchName() : ''), function () {
     var btn = document.getElementById('saleSubmitBtn'); btn.disabled = true;
     var args = { items: items, payment_method: pay };
     if (custName.trim()) args.customer_name = custName.trim();
@@ -140,6 +140,7 @@ window.BOSell = (function () {
       load('<div class="alert-success" style="font-size:.9rem;">✅ ' + esc(r.message) + ' — <strong>' + fmtFull(r.grand_total) + ' ' + cur() + '</strong>'
         + ' <button class="btn-sm-primary" style="margin-left:8px;" onclick="BORcpt.open({group_id:\'' + BO.jsq(r.group_id) + '\'})">🧾 Receipt</button></div>');
     }).catch(function (e) { btn.disabled = false; document.getElementById('saleMsg').innerHTML = '<div class="alert-danger">' + esc(e.message) + '</div>'; });
+    });
   }
   /* The same basket, sent to recordLending instead. The item shape is already what that call
      wants -- product, qty, price, unit_ids -- so nothing on the server changes, and a lending
@@ -148,10 +149,10 @@ window.BOSell = (function () {
   function submitLending(items, grandTotal, summary) {
     var name = (g('lendName') || '').trim(), phone = (g('lendPhone') || '').trim(), email = (g('lendEmail') || '').trim();
     if (!name) { alert("Enter the borrower's name — a lending with nobody's name on it is missing stock."); document.getElementById('lendName').focus(); return; }
-    if (!BO.confirm('Record this as a LENDING?\n\n' + summary + '\nValue: ' + fmtFull(grandTotal) + ' ' + cur()
+    BO.confirm('Record this as a LENDING?\n\n' + summary + '\nValue: ' + fmtFull(grandTotal) + ' ' + cur()
       + '\nBorrower: ' + name + (phone ? ' · ' + phone : '')
       + (branchId ? '\nShop: ' + branchName() : '')
-      + '\n\nThe stock leaves now. It comes back when you mark the lending returned.')) return;
+      + '\n\nThe stock leaves now. It comes back when you mark the lending returned.', function () {
     var btn = document.getElementById('saleSubmitBtn'); btn.disabled = true;
     var args = { items: items.map(function (i) { return { product_id: i.product_id, qty: i.qty, price: Math.max(0, i.price - (i.discount || 0)), unit_ids: i.unit_ids }; }),
       borrower_name: name, borrower_phone: phone, borrower_email: email };
@@ -162,6 +163,7 @@ window.BOSell = (function () {
       BO.reload('dashboard'); BO.reload('lendings');
       load('<div class="alert-success" style="font-size:.9rem;">🤝 ' + esc(r.message || 'Lending recorded.') + ' — <strong>' + fmtFull(grandTotal) + ' ' + cur() + '</strong> with ' + esc(name) + '</div>');
     }).catch(function (e) { btn.disabled = false; document.getElementById('saleMsg').innerHTML = '<div class="alert-danger">' + esc(e.message) + '</div>'; });
+    });
   }
   function g(id) { var e = document.getElementById(id); return e ? e.value : ''; }
 

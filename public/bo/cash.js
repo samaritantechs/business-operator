@@ -19,12 +19,13 @@ window.BOCash = (function () {
     var sel = document.getElementById('sellerSelectCash'), seller = sel.value, cash = document.getElementById('cashAmount').value || 0, lipa = document.getElementById('lipaAmount').value || 0, note = document.getElementById('cashNote').value.trim();
     if (!seller) { alert('Choose a seller.'); return; }
     var sname = sel.options[sel.selectedIndex].text;
-    if (!BO.confirm('Record from ' + sname + '?\nCash: ' + fmtFull(cash) + ', Lipa: ' + fmtFull(lipa))) return;
-    srv('recordCash', { seller_id: seller, cash_amount: Number(cash), lipa_amount: Number(lipa), note: note }).then(function (r) {
-      document.getElementById('cashMsg').innerHTML = '<div class="alert-success">' + esc(r.message) + '</div>';
-      document.getElementById('cashAmount').value = ''; document.getElementById('lipaAmount').value = ''; document.getElementById('cashNote').value = '';
-      list(); BO.reload('dashboard');
-    }).catch(function (e) { document.getElementById('cashMsg').innerHTML = '<div class="alert-danger">' + esc(e.message) + '</div>'; });
+    BO.confirm('Record from ' + sname + '?\nCash: ' + fmtFull(cash) + ', Lipa: ' + fmtFull(lipa), function () {
+      srv('recordCash', { seller_id: seller, cash_amount: Number(cash), lipa_amount: Number(lipa), note: note }).then(function (r) {
+        document.getElementById('cashMsg').innerHTML = '<div class="alert-success">' + esc(r.message) + '</div>';
+        document.getElementById('cashAmount').value = ''; document.getElementById('lipaAmount').value = ''; document.getElementById('cashNote').value = '';
+        list(); BO.reload('dashboard');
+      }).catch(function (e) { document.getElementById('cashMsg').innerHTML = '<div class="alert-danger">' + esc(e.message) + '</div>'; });
+    });
   }
   function list() {
     var el = document.getElementById('cashList'); if (!el) return;
