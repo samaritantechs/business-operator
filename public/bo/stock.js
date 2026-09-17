@@ -76,9 +76,10 @@ window.BOStock = (function () {
     if (!pid) { alert('Choose the product.'); return; }
     if (!lines.length) { alert('Enter at least one IMEI or serial.'); return; }
     var units = lines.map(function (l) { var parts = l.split(/[,;\t]/).map(function (x) { return x.trim(); }); var a = parts[0] || '', b = parts[1] || ''; return /^[0-9 -]{14,20}$/.test(a) ? { imei: a.replace(/[\s-]/g, ''), serial_no: b || undefined } : { serial_no: a, imei: b ? b.replace(/[\s-]/g, '') : undefined }; });
-    if (!BO.confirm('Add ' + units.length + ' unit(s)?')) return;
-    var args = { product_id: pid, units: units }; if (g('unitAddBranch')) args.branch_id = g('unitAddBranch');
-    srv('addUnits', args).then(function (r) { showToast(r.message); document.getElementById('unitAddList').value = ''; listUnits(); BO.reload('products'); }).catch(BO.fail);
+    BO.confirm('Add ' + units.length + ' unit(s)?', function () {
+      var args = { product_id: pid, units: units }; if (g('unitAddBranch')) args.branch_id = g('unitAddBranch');
+      srv('addUnits', args).then(function (r) { showToast(r.message); document.getElementById('unitAddList').value = ''; listUnits(); BO.reload('products'); }).catch(BO.fail);
+    });
   }
   function editUnit(id, imei, serial, branch, status) {
     BO.dialog({ title: 'Edit unit', body: '<div class="form-group" style="margin-bottom:10px;"><label class="form-label">IMEI</label><input class="form-control mono" id="euImei" value="' + esc(imei) + '"></div><div class="form-group" style="margin-bottom:10px;"><label class="form-label">Serial</label><input class="form-control" id="euSerial" value="' + esc(serial) + '"></div>' + (S.branches.length ? '<div class="form-group" style="margin-bottom:10px;"><label class="form-label">Shop</label><select class="form-select" id="euBranch">' + shopOpts(branch, '— No shop —') + '</select></div>' : '') + '<div class="form-group" style="margin-bottom:10px;"><label class="form-label">Status</label><select class="form-select" id="euStatus"><option value="in_stock"' + (status === 'in_stock' ? ' selected' : '') + '>In stock</option><option value="lost"' + (status === 'lost' ? ' selected' : '') + '>Lost</option>' + (status === 'lent' ? '<option value="lent" selected>Lent (returned via Lendings)</option>' : '')
@@ -151,16 +152,18 @@ window.BOStock = (function () {
     var args = { product_id: pid, from_branch_id: from, to_branch_id: to, note: g('trNote').trim() };
     if (p && p.is_serialized) { var ids = []; document.querySelectorAll('#trUnits input:checked').forEach(function (cb) { ids.push(cb.value); }); if (!ids.length) { alert('Tick the units to move.'); return; } args.unit_ids = ids; }
     else { args.qty = Number(g('trQty')); if (!(args.qty > 0)) { alert('Enter a quantity.'); return; } }
-    if (!BO.confirm('Move ' + (args.qty || args.unit_ids.length) + ' × ' + (p ? p.name : '') + ' from ' + shopName(from) + ' to ' + shopName(to) + '?')) return;
-    srv('transferStock', args).then(function (r) { showToast(r.message); load(); }).catch(BO.fail);
+    BO.confirm('Move ' + (args.qty || args.unit_ids.length) + ' × ' + (p ? p.name : '') + ' from ' + shopName(from) + ' to ' + shopName(to) + '?', function () {
+      srv('transferStock', args).then(function (r) { showToast(r.message); load(); }).catch(BO.fail);
+    });
   }
   function adjust() {
     var pid = g('adjProd'), delta = Number(g('adjDelta')), note = g('adjNote').trim();
     if (!pid || !delta) { alert('Choose the product and a non-zero change.'); return; }
     if (!note) { alert('A reason is required.'); return; }
     var args = { product_id: pid, delta: delta, note: note }; if (g('adjBranch')) args.branch_id = g('adjBranch');
-    if (!BO.confirm('Adjust stock by ' + delta + '?')) return;
-    srv('adjustStock', args).then(function (r) { showToast(r.message); load(); BO.reload('products'); }).catch(BO.fail);
+    BO.confirm('Adjust stock by ' + delta + '?', function () {
+      srv('adjustStock', args).then(function (r) { showToast(r.message); load(); BO.reload('products'); }).catch(BO.fail);
+    });
   }
 
   /* ---------------------------------------------------------------- movements */

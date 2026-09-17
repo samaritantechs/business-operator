@@ -106,10 +106,12 @@ window.BODash = (function () {
   }
 
   function cancel(id, label) {
-    var reason = prompt('Why is sale ' + label + ' being cancelled?'); if (reason == null) return;
-    if (!reason.trim()) { showToast('A reason is required.', '⚠️'); return; }
-    if (!BO.confirm('Cancel sale ' + label + '?\n\n• Stock will be restored\n• Seller will be notified\n\nThis cannot be undone.')) return;
-    srv('cancelSale', { sale_id: id, reason: reason.trim() }).then(function (r) { showToast(r.message); load(true); }).catch(BO.fail);
+    BO.prompt('Why is sale ' + label + ' being cancelled?', function (reason) {
+      if (!reason.trim()) { showToast('A reason is required.', '⚠️'); return; }
+      BO.confirm('Cancel sale ' + label + '?\n\n• Stock will be restored\n• Seller will be notified\n\nThis cannot be undone.', function () {
+        srv('cancelSale', { sale_id: id, reason: reason.trim() }).then(function (r) { showToast(r.message); load(true); }).catch(BO.fail);
+      });
+    });
   }
   function partnerPaid(id, paid) {
     srv('markPartnerPaid', { sale_id: id, paid: paid }).then(function (r) { showToast(r.message); recent(); }).catch(BO.fail);

@@ -72,10 +72,11 @@ window.BOSet = (function () {
     }).catch(function (e) { var el = document.getElementById('hintsTable'); if (el) el.innerHTML = BO.errorBox(e); });
   }
   function loadDefaults(btn) {
-    if (!BO.confirm('Copy the built-in tips into this list so you can edit them?\n\nNothing changes for your staff — these are the same tips they are already seeing.')) return;
-    btn.disabled = true;
-    srv('loadDefaultHints', {}).then(function (r) { showToast(r.message, '📝'); loadHints(); })
-      .catch(function (e) { btn.disabled = false; BO.fail(e); });
+    BO.confirm('Copy the built-in tips into this list so you can edit them?\n\nNothing changes for your staff — these are the same tips they are already seeing.', function () {
+      btn.disabled = true;
+      srv('loadDefaultHints', {}).then(function (r) { showToast(r.message, '📝'); loadHints(); })
+        .catch(function (e) { btn.disabled = false; BO.fail(e); });
+    });
   }
   function editHint(i) {
     var x = hints[i]; if (!x) return;
@@ -83,7 +84,7 @@ window.BOSet = (function () {
       footer: '<button class="btn-secondary" onclick="BO.closeDialog()">Cancel</button><button class="btn-primary" onclick="BOSet.saveHint(\'' + BO.jsq(x.id) + '\')">Save</button>' });
   }
   function saveHint(id) { srv('updateHint', { id: id, role: g('ehRole'), feature: g('ehFeature'), en: g('ehEn').trim(), sw: g('ehSw').trim() }).then(function () { BO.closeDialog(); showToast('Updated.'); loadHints(); }).catch(BO.fail); }
-  function deleteHint(id) { if (!BO.confirm('Delete this hint?')) return; srv('deleteHint', { id: id }).then(function () { loadHints(); }).catch(BO.fail); }
+  function deleteHint(id) { BO.confirm('Delete this hint?', function () { srv('deleteHint', { id: id }).then(function () { loadHints(); }).catch(BO.fail); }); }
   function save(key, after) {
     var v = g('set_' + key);
     srv('settingSet', { key: key, value: v }).then(function () {
@@ -109,8 +110,9 @@ window.BOSet = (function () {
   }
   function applyPerms() {
     var profile = {}; PERMS.forEach(function (p) { var el = document.getElementById('gperm_' + p[0]); profile[p[0]] = el ? el.checked : false; });
-    if (!BO.confirm('Apply these permission settings to ALL vendors? This will overwrite their individual settings.')) return;
-    srv('setAllVendorPermissions', { profile: profile }).then(function (r) { showToast(r.message); }).catch(BO.fail);
+    BO.confirm('Apply these permission settings to ALL vendors? This will overwrite their individual settings.', function () {
+      srv('setAllVendorPermissions', { profile: profile }).then(function (r) { showToast(r.message); }).catch(BO.fail);
+    });
   }
 
   /* THE ANDROID APP USED TO BE PUBLISHED FROM HERE, BY HAND.

@@ -407,6 +407,15 @@ body.bo-fb-open{overflow:hidden;}
 .cv-pname{font-size:.78rem;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.03em;}
 .cv-ptotal{font-size:1.15rem;font-weight:800;color:var(--amber);margin-top:2px;}
 .suggestion-box{background:linear-gradient(135deg,#EFF6FF,#F5F3FF);border:1px solid rgba(11,42,107,.18);border-radius:var(--radius);padding:20px;}[data-theme="dark"] .suggestion-box{background:linear-gradient(135deg,rgba(11,42,107,.08),rgba(240,160,32,.07));}
+/* The in-page confirm / prompt / notice (BO.confirm, BO.prompt, BO.notify in shell.js). Above the
+   update bar (1090) and Bootstrap's modal (1055) on purpose: it is asked FROM those, so it has to
+   land on top of them. Its own element, not the shared #boModal, so it can stack over one. */
+.bo-ask{position:fixed;inset:0;z-index:2000;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;padding:20px;}
+.bo-ask-card{background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 18px 50px rgba(0,0,0,.28);padding:20px;max-width:420px;width:100%;}
+.bo-ask-msg{white-space:pre-wrap;line-height:1.55;font-size:.9rem;}
+.bo-ask-input{margin-top:14px;}
+.bo-ask-btns{display:flex;gap:10px;justify-content:flex-end;margin-top:18px;flex-wrap:wrap;}
+.bo-ask-btns button{min-width:92px;}
 /* The eye on a password box. BO.eyeify (shell.js) wraps every input[type=password] in .pw-wrap and
    puts the button inside it; the extra right padding keeps the typed text from running under it. */
 .pw-wrap{position:relative;display:block;}.pw-wrap .form-control{padding-right:44px;}.pw-eye{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:0;padding:6px;margin:0;cursor:pointer;color:var(--muted);display:flex;align-items:center;border-radius:6px;line-height:0;}.pw-eye:hover,.pw-eye:focus-visible{color:var(--text);outline:none;background:var(--accent-lt);}.pw-eye svg{width:20px;height:20px;display:block;}

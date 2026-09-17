@@ -122,7 +122,90 @@ BO.dialog = function (o) {
   openModal('boModal');
 };
 BO.closeDialog = function () { closeModal('boModal'); };
-BO.confirm = function (msg) { return window.confirm(msg); };
+
+/* ------------------------------------------------------------------ asking the person something
+   WINDOW.CONFIRM, WINDOW.ALERT AND WINDOW.PROMPT DO NOT WORK INSIDE THE ANDROID APP. An Android
+   WebView with no WebChromeClient set does not merely skip the dialog: confirm() returns FALSE and
+   prompt() returns NULL, immediately, with nothing on screen at all. So every button guarded by
+   `if (!BO.confirm(...)) return;` did NOTHING when tapped in the app -- Add Product, Deactivate,
+   Restock, Cancel Sale, Restrict, Waive, twenty-seven of them -- and alert() was a silent no-op, so
+   the explanation of why never appeared either. A dead button that looks like a hang is the worst
+   failure this app has; it is the same lesson as hasBootstrap() above, one layer down.
+
+   So the app asks in its OWN PAGE. That works in a browser, in the app, and in a WebView with no
+   chrome client at all, because it is nothing but a div -- and it reaches every phone the moment
+   this deploys, rather than waiting for everybody to install a new APK. It also stacks above an
+   open modal, which the shared #boModal cannot do.
+
+   CONFIRM AND PROMPT TAKE A CALLBACK, because an in-page dialog cannot block the way the native
+   one did. The old `if (!BO.confirm(m)) return;` shape is gone from every call site, and
+   test/navs.test.mjs fails the build if it ever comes back: a missed one is another button that
+   silently does nothing, which is precisely the bug being fixed. */
+function askOverlay(o) {
+  var host = document.createElement('div');
+  host.className = 'bo-ask';
+  host.innerHTML = '<div class="bo-ask-card" role="alertdialog" aria-modal="true">'
+    + '<div class="bo-ask-msg"></div>'
+    + (o.prompt ? '<input class="form-control bo-ask-input" type="text">' : '')
+    + '<div class="bo-ask-btns">'
+    + (o.noCancel ? '' : '<button type="button" class="btn-secondary bo-ask-no">' + esc(o.cancelText || 'Cancel') + '</button>')
+    + '<button type="button" class="btn-primary bo-ask-yes">' + esc(o.okText || 'OK') + '</button>'
+    + '</div></div>';
+  /* textContent, never innerHTML: these messages carry product names, people's names and
+     cancellation reasons that a user typed. The line breaks survive via white-space:pre-wrap. */
+  host.querySelector('.bo-ask-msg').textContent = o.message == null ? '' : String(o.message);
+  var input = host.querySelector('.bo-ask-input');
+  if (input && o.value) input.value = o.value;
+  document.body.appendChild(host);
+
+  var done = false;
+  function finish(answer) {
+    if (done) return;                       // Enter plus a tap must not answer twice
+    done = true;
+    document.removeEventListener('keydown', onKey, true);
+    if (host.parentNode) host.parentNode.removeChild(host);
+    if (o.then) o.then(answer);
+  }
+  function yes() { finish(input ? input.value : true); }
+  function no() { finish(input ? null : false); }
+  host.querySelector('.bo-ask-yes').addEventListener('click', yes);
+  var noBtn = host.querySelector('.bo-ask-no');
+  if (noBtn) noBtn.addEventListener('click', no);
+  // A tap on the dark ground behind the card is a cancel, as it is everywhere else in the app.
+  host.addEventListener('click', function (ev) { if (ev.target === host) no(); });
+  function onKey(ev) {
+    if (ev.key === 'Escape') { ev.preventDefault(); no(); }
+    else if (ev.key === 'Enter' && (input || !o.prompt)) { ev.preventDefault(); yes(); }
+  }
+  document.addEventListener('keydown', onKey, true);
+  // Focus the field if there is one, else the safe button, so a keyboard can answer without a mouse.
+  setTimeout(function () { (input || host.querySelector('.bo-ask-yes')).focus(); }, 0);
+  return host;
+}
+
+/** BO.confirm(message, onYes) -- onYes runs only if they agree. Nothing runs if they do not. */
+BO.confirm = function (msg, onYes) {
+  askOverlay({ message: msg, okText: 'Yes', cancelText: 'Cancel', then: function (ok) { if (ok && onYes) onYes(); } });
+};
+/** BO.prompt(message, onText) -- onText gets the typed string, or is not called if they cancel.
+    Cancelling calls back with null ONLY when the caller asked for it (some screens tell them
+    apart); the common case just does nothing, which is what the native prompt's callers did. */
+BO.prompt = function (msg, onText, opts) {
+  opts = opts || {};
+  askOverlay({ message: msg, prompt: true, value: opts.value, okText: opts.okText || 'OK', then: function (v) {
+    if (v === null && !opts.onCancel) return;
+    if (v === null) { opts.onCancel(); return; }
+    if (onText) onText(v);
+  } });
+};
+/** BO.notify(message) -- what alert() used to do, minus the blocking. */
+BO.notify = function (msg) { askOverlay({ message: msg, noCancel: true, okText: 'OK' }); };
+/* AND THE FORTY-THREE alert() CALLS KEEP WORKING, unedited. Every one of them is followed by a
+   `return` that does not depend on the call blocking, so swapping the function under them changes
+   nothing except that the message now actually appears on a phone. Overriding a global is a big
+   hammer; it is the right size here because the native one is BROKEN in this app's main runtime,
+   and leaving forty-three silent no-ops in place to be found one at a time is worse. */
+window.alert = function (msg) { BO.notify(msg); };
 /** An <input type=file> -> a data: URL, downscaled so a 12-megapixel phone photo does not become a
     9 MB upload. Callback gets (dataUrl|null, error). */
 BO.fileToDataUrl = function (input, cb, maxPx) {
@@ -497,8 +580,10 @@ function doLogin() {
   }).catch(function (e) { msg.innerHTML = esc(e.message); });
 }
 function forgotPassword() {
-  var email = prompt('Enter the email address associated with your account:'); if (!email) return;
-  auth('requestReset', { email: email.trim() }).then(function (r) { alert(r.message); }).catch(function (e) { alert(e.message); });
+  BO.prompt('Enter the email address associated with your account:', function (email) {
+    if (!email.trim()) return;
+    auth('requestReset', { email: email.trim() }).then(function (r) { alert(r.message); }).catch(function (e) { alert(e.message); });
+  });
 }
 function submitResetPassword() {
   var pwd = document.getElementById('resetNewPwd').value, cpwd = document.getElementById('resetConfirmPwd').value, out = document.getElementById('resetMsg');

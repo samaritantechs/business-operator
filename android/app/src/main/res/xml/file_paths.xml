@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Where the FileProvider is allowed to hand out a content:// Uri. Exactly one place: the
+     cache directory the camera writes a freshly taken product photo into. Nothing else about
+     this app's storage is shared, and the pictures are temporary: the page reads the file,
+     shrinks it on the phone and uploads a data URL, so Android clears the cache at its leisure. -->
+<paths>
+    <cache-path name="shots" path="shots/" />
+</paths>

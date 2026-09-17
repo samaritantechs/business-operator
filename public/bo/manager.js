@@ -57,16 +57,21 @@ window.BOMgr = (function () {
   function billMsg(html) { var e = document.getElementById('billingMsg'); if (e) e.innerHTML = html; }
   function saveBilling() {
     var on = g('autoBlock');
-    if (on === 'Yes' && !BO.confirm('Switch ON automatic blocking?\n\nAn unpaid business will be unable to sell anything until it pays. Make sure you have looked at "Who would be blocked?" first.')) return;
-    srv('settingSet', { key: 'invoiceGraceDays', value: g('graceDays') })
-      .then(function () { return srv('settingSet', { key: 'minInvoiceAmount', value: g('minInvoice') }); })
-      .then(function () { return srv('settingSet', { key: 'autoBlockEnabled', value: on }); })
-      .then(function () { settings.autoBlockEnabled = on; settings.invoiceGraceDays = g('graceDays'); settings.minInvoiceAmount = g('minInvoice'); showToast('Billing settings saved.'); loadInvoices(); })
-      .catch(BO.fail);
+    // Only switching blocking ON asks; turning it off, or saving the numbers, is not the dangerous way round.
+    if (on === 'Yes') BO.confirm('Switch ON automatic blocking?\n\nAn unpaid business will be unable to sell anything until it pays. Make sure you have looked at "Who would be blocked?" first.', doSave);
+    else doSave();
+    function doSave() {
+      srv('settingSet', { key: 'invoiceGraceDays', value: g('graceDays') })
+        .then(function () { return srv('settingSet', { key: 'minInvoiceAmount', value: g('minInvoice') }); })
+        .then(function () { return srv('settingSet', { key: 'autoBlockEnabled', value: on }); })
+        .then(function () { settings.autoBlockEnabled = on; settings.invoiceGraceDays = g('graceDays'); settings.minInvoiceAmount = g('minInvoice'); showToast('Billing settings saved.'); loadInvoices(); })
+        .catch(BO.fail);
+    }
   }
   function issueInvoices() {
-    if (!BO.confirm('Issue invoices for every period that has closed?\n\nNothing is sent and nobody is blocked by this — it only writes the invoices.')) return;
-    srv('issueInvoices', {}).then(function (r) { billMsg('<div class="alert-success">' + esc(r.message) + '</div>'); loadInvoices(); }).catch(BO.fail);
+    BO.confirm('Issue invoices for every period that has closed?\n\nNothing is sent and nobody is blocked by this — it only writes the invoices.', function () {
+      srv('issueInvoices', {}).then(function (r) { billMsg('<div class="alert-success">' + esc(r.message) + '</div>'); loadInvoices(); }).catch(BO.fail);
+    });
   }
   /* PREVIEW IS NOT A WRITE. runAutoBlock blocks nobody while the setting is Off, so the honest
      preview is simply running it with the switch off -- one code path, not a second one that
@@ -75,9 +80,13 @@ window.BOMgr = (function () {
     srv('runAutoBlock', {}).then(function (r) { billMsg(blockReport(r)); loadInvoices(); }).catch(BO.fail);
   }
   function runBlock() {
-    if (settings.autoBlockEnabled !== 'Yes') { billMsg('<div class="alert-info">Automatic blocking is off, so this only reports. Switch it on above to actually block.</div>'); }
-    else if (!BO.confirm('Block every business whose invoice is past its grace period?\n\nThey will not be able to sell until they pay.')) return;
-    srv('runAutoBlock', {}).then(function (r) { billMsg(blockReport(r)); loadInvoices(); loadSummary(); }).catch(BO.fail);
+    /* With the switch off this blocks nobody, so it runs straight away and says so. With it on
+       it is the one button here that takes a shop's till away, so it asks first. */
+    if (settings.autoBlockEnabled !== 'Yes') { billMsg('<div class="alert-info">Automatic blocking is off, so this only reports. Switch it on above to actually block.</div>'); go(); }
+    else BO.confirm('Block every business whose invoice is past its grace period?\n\nThey will not be able to sell until they pay.', go);
+    function go() {
+      srv('runAutoBlock', {}).then(function (r) { billMsg(blockReport(r)); loadInvoices(); loadSummary(); }).catch(BO.fail);
+    }
   }
   function blockReport(r) {
     var h = '<div class="alert-' + (r.refused_too_many ? 'danger' : r.blocked ? 'warning' : 'info') + '">' + esc(r.message) + '</div>';
@@ -121,8 +130,10 @@ window.BOMgr = (function () {
       .then(function (r) { BO.closeDialog(); showToast(r.message); loadInvoices(); loadSummary(); }).catch(BO.fail);
   }
   function waive(id) {
-    var reason = prompt('Why is this invoice being waived?'); if (reason == null || !reason.trim()) return;
-    srv('waiveInvoice', { id: id, reason: reason.trim() }).then(function (r) { showToast(r.message); loadInvoices(); loadSummary(); }).catch(BO.fail);
+    BO.prompt('Why is this invoice being waived?', function (reason) {
+      if (!reason.trim()) return;
+      srv('waiveInvoice', { id: id, reason: reason.trim() }).then(function (r) { showToast(r.message); loadInvoices(); loadSummary(); }).catch(BO.fail);
+    });
   }
 
   function setting(key, value) { srv('settingSet', { key: key, value: value }).then(function () { settings[key] = value; showToast('Saved: ' + key); }).catch(BO.fail); }
@@ -157,22 +168,25 @@ window.BOMgr = (function () {
     srv('updateAdmin', { profile_id: id, name: name, role: g('adminEditRole'), active: g('adminEditActive') === 'true' }).then(function (r) { BO.closeDialog(); showToast(r.message); loadSummary(); }).catch(BO.fail);
   }
   function vendorActive(id, name, active) {
-    if (!BO.confirm(active ? ('Reactivate "' + name + '"?\n\nThe business can sign in again. The trial / billing anchor restarts today.') : ('Deactivate "' + name + '"?\n\nNobody from this business can sign in until it is reactivated.'))) return;
-    srv('setVendorActive', { vendor_id: id, active: active }).then(function (r) { showToast(r.message); loadSummary(); }).catch(BO.fail);
+    BO.confirm(active ? ('Reactivate "' + name + '"?\n\nThe business can sign in again. The trial / billing anchor restarts today.') : ('Deactivate "' + name + '"?\n\nNobody from this business can sign in until it is reactivated.'), function () {
+      srv('setVendorActive', { vendor_id: id, active: active }).then(function (r) { showToast(r.message); loadSummary(); }).catch(BO.fail);
+    });
   }
   function restrict(id, name, on) {
-    if (!BO.confirm(on ? ('Restrict "' + name + '"?\n\nThe owner and their sellers will see a payment notice and the app becomes read-only for them until you reactivate.') : ('Reactivate "' + name + '"?\n\nFull access will be restored.'))) return;
-    srv('setVendorRestricted', { vendor_id: id, restricted: on }).then(function (r) { showToast(r.message); loadSummary(); }).catch(BO.fail);
+    BO.confirm(on ? ('Restrict "' + name + '"?\n\nThe owner and their sellers will see a payment notice and the app becomes read-only for them until you reactivate.') : ('Reactivate "' + name + '"?\n\nFull access will be restored.'), function () {
+      srv('setVendorRestricted', { vendor_id: id, restricted: on }).then(function (r) { showToast(r.message); loadSummary(); }).catch(BO.fail);
+    });
   }
   /* THE ONE PER-BUSINESS FEATURE SWITCH. Everything else on this row is about whether a
      business may sign in or trade at all; this is about what its screens contain. It lives here
      rather than in Settings' permission grid because that grid's only button applies a profile
      to EVERY vendor, which is exactly the wrong shape for one shop's trade. */
   function phoneVending(id, name, on) {
-    if (!BO.confirm(on
+    BO.confirm(on
       ? ('Switch Phone Vending ON for "' + name + '"?\n\nThey get the Phone Vending tab (units by IMEI, financing partners) and a Discount on each sale line.')
-      : ('Switch Phone Vending OFF for "' + name + '"?\n\nThe tab and the discount column disappear from their screens. Nothing is deleted — their handsets stay, ready for if you switch it back on.'))) return;
-    srv('setVendorPhoneVending', { vendor_id: id, on: on }).then(function (r) { showToast(r.message); loadSummary(); }).catch(BO.fail);
+      : ('Switch Phone Vending OFF for "' + name + '"?\n\nThe tab and the discount column disappear from their screens. Nothing is deleted — their handsets stay, ready for if you switch it back on.'), function () {
+      srv('setVendorPhoneVending', { vendor_id: id, on: on }).then(function (r) { showToast(r.message); loadSummary(); }).catch(BO.fail);
+    });
   }
   function openLogo(vendorId) {
     logoVendor = vendorId; pendingLogo = null;
@@ -187,9 +201,10 @@ window.BOMgr = (function () {
       .catch(function (e) { document.getElementById('logoUploadResult').innerHTML = '<div class="alert-danger">' + esc(e.message) + '</div>'; });
   }
   function email(fn, title) {
-    if (!BO.confirm('Send now: ' + title + '?')) return;
-    var msg = document.getElementById('emailCenterMsg'); msg.innerHTML = '<span class="muted">⏳ Sending: ' + esc(title) + '…</span>';
-    srv(fn, {}).then(function (r) { msg.innerHTML = '<div class="alert-success">' + esc(r.message || 'Done.') + '</div>'; }).catch(function (e) { msg.innerHTML = '<div class="alert-danger">' + esc(e.message) + '</div>'; });
+    BO.confirm('Send now: ' + title + '?', function () {
+      var msg = document.getElementById('emailCenterMsg'); msg.innerHTML = '<span class="muted">⏳ Sending: ' + esc(title) + '…</span>';
+      srv(fn, {}).then(function (r) { msg.innerHTML = '<div class="alert-success">' + esc(r.message || 'Done.') + '</div>'; }).catch(function (e) { msg.innerHTML = '<div class="alert-danger">' + esc(e.message) + '</div>'; });
+    });
   }
   function loadAnalytics() {
     var el = document.getElementById('analyticsWrap'); if (!el) return; el.innerHTML = '<div class="muted">Loading…</div>';
