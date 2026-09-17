@@ -196,11 +196,19 @@ public class MainActivity extends AppCompatActivity {
          * addJavascriptInterface only exposes methods, hence the tiny shim injected below. */
     }
 
+    /* COMING BACK TO THE APP IS AN "OPEN" to the person holding it, but the WebView is not
+     * reloaded when that happens: the page's own boot code ran days ago and will not run again.
+     * So the version is re-published here -- and the site is asked to re-check whether this APK
+     * is still the current one, which is the only moment an already-installed old build can
+     * learn that it is old. BO.recheckUpdate throttles itself to one read every six hours, so
+     * switching apps forty times a day is not forty reads; it is guarded because an older page,
+     * or a page that has not finished loading, will not have it. */
     @Override protected void onResume() {
         super.onResume();
         web.evaluateJavascript(
             "window.SamaritanApp = window.SamaritanApp || {};" +
             "try { window.SamaritanApp.versionCode = SamaritanApp.getVersionCode();" +
-            "window.SamaritanApp.versionName = SamaritanApp.getVersionName(); } catch(e){}", null);
+            "window.SamaritanApp.versionName = SamaritanApp.getVersionName(); } catch(e){}" +
+            "try { if (window.BO && BO.recheckUpdate) BO.recheckUpdate(); } catch(e){}", null);
     }
 }

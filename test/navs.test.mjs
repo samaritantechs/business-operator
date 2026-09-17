@@ -186,6 +186,26 @@ test('the Android app can open a file picker and a camera', () => {
   assert.match(readFileSync(join(ROOT, 'android/app/src/main/res/xml/file_paths.xml'), 'utf8'), /shots/, 'the provider has nowhere to share from');
 });
 
+test('an old APK is asked to update, and "Later" cannot be forever', () => {
+  /* The download link takes care of itself -- /download redirects to whichever build is current.
+     A phone that already has an older APK is the case nothing else can reach, so the check that
+     finds out, and the fact that dismissing it EXPIRES, are both worth pinning: the previous
+     version wrote the version code alone and that handset was never told again. */
+  assert.match(shell, /function dismissUpdate\(\)[\s\S]*?UPDATE_SNOOZE_MS/,
+    '"Later" must store an expiry, or one tap silences this phone for good');
+  assert.match(shell, /function updateSnoozed_[\s\S]*?Date\.now\(\)/,
+    'the snooze has to be compared against the clock, or it never lifts');
+  assert.match(shell, /checkAppUpdate[\s\S]*?askOverlay\(/,
+    'a bar along the bottom is easy to walk past; being asked on open is not');
+  assert.match(shell, /BO\.recheckUpdate = function/,
+    'a phone left open for a week has to be able to notice a build published since');
+  assert.match(shell, /visibilitychange[\s\S]*?BO\.recheckUpdate\(\)/,
+    'coming back from the background is an "open", and the WebView is not reloaded for it');
+  const java = readFileSync(join(ROOT, 'android/app/src/main/java/com/samaritantechs/industrial/MainActivity.java'), 'utf8');
+  assert.match(java, /onResume\(\)[\s\S]*?BO\.recheckUpdate/,
+    'the app itself should ask on resume, not wait for the page to guess');
+});
+
 test('every bare onclick / onchange / onkeypress handler in the markup is a shell function', () => {
   const defined = new Set([...names(shell, /^function ([A-Za-z_]\w*)\(/gm), ...names(shell, /\bwindow\.([A-Za-z_]\w*)\s*=/g)]);
   const builtins = new Set(['alert', 'confirm', 'prompt', 'parseInt', 'parseFloat', 'Number', 'String', 'Boolean', 'setTimeout', 'clearTimeout', 'encodeURIComponent', 'decodeURIComponent', 'open']);
