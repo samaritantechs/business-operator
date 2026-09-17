@@ -551,20 +551,77 @@ function showAppSection(release) {
       : 'Scan a code to open it, or install the Android app.';
   }
 }
+/** The one-line version for the bar along the bottom. */
+function appUpdateLine_(release) {
+  return 'A newer app is available: ' + release.version_name + (release.notes ? ' — ' + release.notes : '');
+}
+/* ------------------------------------------------------------- is this phone on an old build?
+   THE DOWNLOAD LINK LOOKS AFTER ITSELF. /download redirects to whichever build is current, and
+   the workflow publishes a new one the moment android/** changes on main, so the printed QR code
+   and the marketplace button stay right forever without anybody touching them. What neither can
+   do is reach a phone that ALREADY has an older APK installed. That phone finds out here, or it
+   does not find out at all.
+
+   WHY "LATER" LASTS A DAY AND NOT FOREVER. It used to write the version code into boSkipUpdate
+   and never ask that handset again: one tap, on the day the notice first appeared, and the shop
+   stayed on that build for good. The build people most need is the one that fixes what they are
+   about to walk into -- the photo slot was a dead tap for an entire release -- and under the old
+   rule the ones who tapped Later were exactly the ones who never heard about it. So Later is a
+   snooze now. A phone that is already current is still asked nothing at all, ever.
+
+   AND IT ASKS, rather than only lighting the bar along the bottom. A bar is easy to walk past
+   for a week; a question on open is not. Both appear together and both go away together. */
+var UPDATE_SNOOZE_MS = 24 * 60 * 60 * 1000;   // how long "Later" buys
+var UPDATE_RECHECK_MS = 6 * 60 * 60 * 1000;   // how stale an answer may get before asking again
+var _lastUpdateCheck = 0;
+
+/* Stored as "<code>:<expires>". A BARE code is the old forever-skip, and it deliberately reads
+   as expired: every phone that dismissed one under the previous build is told exactly once more. */
+function updateSnoozed_(code) {
+  var parts = String(load('boSkipUpdate') || '').split(':');
+  return parts[0] === String(code) && Number(parts[1]) > Date.now();
+}
+
 /** Nags only a phone that is actually running an older APK than the published one. */
 function checkAppUpdate(release) {
   var app = androidApp_();
+  var bar = document.getElementById('appUpdateBar');
   if (!app || !release || !release.version_code) return;
   var running = Number(app.versionCode) || 0;
-  if (!(release.version_code > running)) return;
-  if (load('boSkipUpdate') === String(release.version_code)) return;
-  var bar = document.getElementById('appUpdateBar'), txt = document.getElementById('appUpdateText');
-  if (txt) txt.textContent = 'A newer app is available: ' + release.version_name + (release.notes ? ' — ' + release.notes : '');
-  if (bar) bar.classList.remove('hidden');
+  // Already current -- and hide the bar, since this may be a re-check after they updated.
+  if (!(release.version_code > running)) { if (bar) bar.classList.add('hidden'); return; }
   window._pendingUpdateCode = release.version_code;
+  if (updateSnoozed_(release.version_code)) return;
+  if (document.querySelector('.bo-ask')) return;   // never stack a second copy of this question
+  var txt = document.getElementById('appUpdateText');
+  if (txt) txt.textContent = appUpdateLine_(release);
+  if (bar) bar.classList.remove('hidden');
+  askOverlay({
+    message: 'A newer version of the app is ready'
+      + (release.version_name ? ' (' + release.version_name + ')' : '') + '.'
+      + (release.notes ? '\n\n' + release.notes : '')
+      + '\n\nUpdating takes a moment. Nothing you have entered is lost.',
+    okText: 'Update now', cancelText: 'Later',
+    /* The ground behind the card, and Escape, answer no -- which is Later, a snooze, and not a
+       silent refusal that comes straight back on the next screen. */
+    then: function (ok) { if (ok) window.location.href = '/download'; else dismissUpdate(); }
+  });
 }
+
+/** Ask the server again -- but not on every switch back to the app: one bounded read at most
+    every six hours, so a phone left open for a week still notices a new build and a phone picked
+    up forty times a day is not forty reads. MainActivity.onResume calls this, and so does the
+    page's own visibility event, which is what reaches phones still carrying an older APK. */
+BO.recheckUpdate = function (force) {
+  if (!androidApp_() || S.screen !== 'app') return;
+  var now = Date.now();
+  if (!force && now - _lastUpdateCheck < UPDATE_RECHECK_MS) return;
+  _lastUpdateCheck = now;
+  srv('appRelease', {}).then(function (r) { checkAppUpdate(r.release); }).catch(function () {});
+};
+
 function dismissUpdate() {
-  store('boSkipUpdate', String(window._pendingUpdateCode || ''));
+  store('boSkipUpdate', String(window._pendingUpdateCode || '') + ':' + (Date.now() + UPDATE_SNOOZE_MS));
   var bar = document.getElementById('appUpdateBar'); if (bar) bar.classList.add('hidden');
 }
 
@@ -820,6 +877,13 @@ function watchPasswords() {
 BO.boot = function () {
   setLang(S.lang); applyTheme(S.theme); applyView(S.view);
   watchPasswords();
+  /* Coming back to the app after a day in a pocket is an 'open' as far as anybody using it
+     is concerned, and the WebView is not reloaded when that happens -- so nothing else here
+     would run again. The APK calls BO.recheckUpdate from onResume; this covers every phone
+     that has not installed that build yet, which on the day it ships is all of them. */
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) BO.recheckUpdate();
+  });
   var y = new Date().getFullYear();
   ['loginYear', 'footerYear', 'mkFootYear'].forEach(function (id) { var el = document.getElementById(id); if (el) el.textContent = y; });
   var m = /[?&]reset=([^&]+)/.exec(window.location.search);

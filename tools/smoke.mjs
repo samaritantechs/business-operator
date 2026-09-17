@@ -425,6 +425,56 @@ await step('switching Phone Vending on gives that same grocery all of them', asy
   console.log('       one flag, six screens, both ways');
 });
 
+/* THE UPDATE NOTICE, driven the way a phone drives it. There is no APK in this browser, so
+   window.SamaritanApp is faked -- everything after that is the real code: the real dialog, the
+   real bar, the real localStorage. What is being proved is the part that was wrong before:
+   "Later" wears off. */
+await step('an out-of-date app is asked to update, and "Later" wears off', async () => {
+  const ask = async () => page.evaluate(() => {
+    window.SamaritanApp = { versionCode: 1 };
+    checkAppUpdate({ version_code: 99, version_name: '1.0.99', notes: 'New camera support' });
+    const card = document.querySelector('.bo-ask .bo-ask-msg');
+    return { asked: !!card, text: card ? card.textContent : '',
+             bar: !document.getElementById('appUpdateBar').classList.contains('hidden') };
+  });
+
+  let v = await ask();
+  if (!v.asked) throw new Error('an older APK was not asked anything');
+  if (!/1\.0\.99/.test(v.text) || !/New camera support/.test(v.text)) throw new Error('the question said: ' + v.text);
+  if (!v.bar) throw new Error('the bar along the bottom stayed hidden');
+
+  // "Later" -- the dialog's own Cancel button, not a function call.
+  await page.locator('.bo-ask .bo-ask-no').click();
+  const after = await page.evaluate(() => ({
+    gone: !document.querySelector('.bo-ask'),
+    barGone: document.getElementById('appUpdateBar').classList.contains('hidden'),
+    stored: localStorage.getItem('boSkipUpdate') || '',
+  }));
+  if (!after.gone || !after.barGone) throw new Error('Later left something on screen: ' + JSON.stringify(after));
+  if (!/^99:\d{13}/.test(after.stored)) throw new Error('Later stored "' + after.stored + '" -- an expiry is what stops it being forever');
+
+  v = await ask();
+  if (v.asked) throw new Error('it asked again inside the snooze');
+
+  // Wind the stored expiry back into the past: the next open must ask again.
+  await page.evaluate(() => localStorage.setItem('boSkipUpdate', '99:' + (Date.now() - 1000)));
+  v = await ask();
+  if (!v.asked) throw new Error('the snooze never lifted -- this is the bug that was being fixed');
+  await page.locator('.bo-ask .bo-ask-no').click();
+
+  // And a phone that is already on the current build is asked nothing at all.
+  const current = await page.evaluate(() => {
+    localStorage.removeItem('boSkipUpdate');
+    window.SamaritanApp = { versionCode: 99 };
+    checkAppUpdate({ version_code: 99, version_name: '1.0.99', notes: '' });
+    return { asked: !!document.querySelector('.bo-ask'),
+             bar: !document.getElementById('appUpdateBar').classList.contains('hidden') };
+  });
+  if (current.asked || current.bar) throw new Error('an up-to-date phone was nagged: ' + JSON.stringify(current));
+  await page.evaluate(() => { delete window.SamaritanApp; });
+  console.log('       asked, snoozed a day, asked again, and silent when current');
+});
+
 await step('desktop toggle and dark/light both paint', async () => {
   await page.evaluate(() => toggleView());
   await page.evaluate(() => toggleTheme());
