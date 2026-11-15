@@ -119,13 +119,18 @@ async function dashboard(db, user, args, nowMs) {
   }
 
   const products = await productRows(db, vid);           // vendor-wide even under a branch filter: stock is the vendor total
-  let stockValue = 0, lowCount = 0;
-  for (const p of products) { stockValue += p.value; if (p.status === 'LOW') lowCount++; }
+  /* LOW STOCK COUNTS WHAT HAS RUN OUT. It used to count only 'LOW', so a product that sold its
+     last unit LEFT the tile at the very moment it most needed restocking: the count went down
+     and the owner read that as good news. Nothing is lower than none. out_count says how many
+     of them are at zero, so the tile can tell the two apart. Same stockStatus rule as every
+     list and report; no new read. */
+  let stockValue = 0, lowCount = 0, outCount = 0;
+  for (const p of products) { stockValue += p.value; if (p.status !== 'OK') lowCount++; if (p.status === 'OUT') outCount++; }
 
   const out = {
     currency: currencyOf(vendor),
     today_total: money(t.today), week_total: money(t.week), month_total: money(t.month), year_total: money(yearTotal),
-    low_count: lowCount, stock_value: money(stockValue), chart: trend(sales, b), products,
+    low_count: lowCount, out_count: outCount, stock_value: money(stockValue), chart: trend(sales, b), products,
   };
 
   if (own) {

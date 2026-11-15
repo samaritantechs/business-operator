@@ -267,3 +267,51 @@ test('restrictionInfo: free for managers and unrestricted vendors; the notice fo
   const custom = await FN.restrictionInfo(db, user(ADMIN3), {}, NOW);
   assert.equal(custom.notice, 'Dear Locked Admin of Locked Shop: pay 0 TZS.');
 });
+
+
+/* THE SHOP THAT REGISTERED AND COULD NOT GET IN. With Free Registration off a new business and
+   its owner are both created switched off. "Activate" used to turn on the business only: the row
+   read Active, the manager was told it could sign in -- and the owner was refused until somebody
+   thought to open Edit and switch the person on too. */
+test('setVendorActive: activating a business nobody can run switches on the admin who registered it, and only then', async () => {
+  const { accountApi } = await import('../api/_lib/bo/account.js');
+  const book = richBook();
+  book.settings = book.settings.filter(x => x.key !== 'FreeRegistration').concat([{ key: 'FreeRegistration', value: 'No' }]);
+  const db = bookDb(book);
+  const reg = await accountApi(db, 'register', { business_name: 'Pending Kiosk', admin_email: 'neema@example.com', admin_name: 'Neema Pending',
+    admin_handle: 'neema', password: 'kiosk1234' }, NOW);
+  assert.equal(reg.active, false);
+  assert.match(reg.message, /system manager will activate/);
+  const v = db._dump('vendors').find(x => x.name === 'Pending Kiosk');
+  const owner = () => db._dump('profiles').find(p => p.handle === 'neema');
+  assert.equal(v.active, false); assert.equal(owner().active, false);
+  await assert.rejects(accountApi(db, 'login', { id: 'neema', password: 'kiosk1234' }, NOW, {}), /inactive/i);
+
+  // ONE press. The message names who can now sign in, so the manager is not left guessing.
+  const out = await FN.setVendorActive(db, user(MANAGER), { vendor_id: v.id, active: true }, NOW);
+  assert.deepEqual(Object.keys(out), ['message'], 'the answer keeps its one-key shape');
+  assert.match(out.message, /^Business activated: Pending Kiosk\. Neema Pending can sign in now\. The trial \/ billing cycle starts again today\.$/);
+  assert.equal(owner().active, true);
+  const signedIn = await accountApi(db, 'login', { id: 'neema', password: 'kiosk1234' }, NOW, {});
+  assert.ok(signedIn.token, 'the owner signs in after Activate alone');
+
+  /* AND ONLY THEN. A business that already has somebody who can run it is left exactly as it
+     was: an admin who was deliberately switched off stays off when the business comes back. */
+  const db2 = bookDb();
+  db2._dump('profiles').push({ ...profile(db2, 'ADM1'), id: 'ADMX', handle: 'fired', email: 'fired@fromville.tz', role: 'assistant-admin', active: false });
+  await FN.setVendorActive(db2, user(MANAGER), { vendor_id: 'V1', active: false }, NOW);
+  const back = await FN.setVendorActive(db2, user(MANAGER), { vendor_id: 'V1', active: true }, NOW);
+  assert.equal(back.message, 'Business activated: Fromville Phones. The trial / billing cycle starts again today.');
+  assert.equal(profile(db2, 'ADMX').active, false, 'a switched-off admin was switched back on');
+  assert.equal(profile(db2, 'ADM1').active, true);
+
+  // Nobody at all can run it (every admin off): the one who registered -- the earliest ADMIN -- is the one woken.
+  const db3 = bookDb();
+  db3._dump('profiles').push({ ...profile(db3, 'ADM1'), id: 'ADMY', handle: 'second', email: 'second@fromville.tz', role: 'admin', active: false, created_at: iso(NOW) });
+  profile(db3, 'ADM1').active = false;
+  await FN.setVendorActive(db3, user(MANAGER), { vendor_id: 'V1', active: false }, NOW);
+  await FN.setVendorActive(db3, user(MANAGER), { vendor_id: 'V1', active: true }, NOW);
+  assert.equal(profile(db3, 'ADM1').active, true); assert.equal(profile(db3, 'ADMY').active, false);
+  // Sellers are never touched by this, whatever their flag.
+  assert.ok(db3._dump('profiles').filter(p => p.vendor_id === 'V1' && p.role === 'seller').every(p => p.active === profile(bookDb(), p.id).active));
+});

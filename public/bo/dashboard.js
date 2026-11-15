@@ -39,7 +39,7 @@ window.BODash = (function () {
       + statCard('sc-green', '📅', 'This Week', fmtFull(d.week_total), c, "BODash.detail('week')")
       + statCard('sc-amber', '📆', 'This Month', fmt(d.month_total), c, "BODash.detail('month')")
       + statCard('sc-purple', '🗓️', 'This Year', fmt(d.year_total), c, "BODash.detail('year')")
-      + statCard('sc-rose', '⚠️', 'Low Stock', d.low_count || 0, 'items', "BODash.detail('stock')")
+      + statCard('sc-rose', '⚠️', 'Low Stock', d.low_count || 0, d.out_count ? 'items · ' + d.out_count + ' out' : 'items', "BODash.detail('stock')")
       + statCard('sc-blue', '📦', 'Stock Value', fmt(d.stock_value), c)
       + '</div>';
     if (d.chart && d.chart.length) html += section('📈', 'Sales Trend – Last 7 Days', '<div class="section-body"><div class="chart-wrap"><canvas id="salesChartCanvas"></canvas></div></div>');

@@ -105,7 +105,7 @@ test('register: a vendor and its admin, active at once under free registration',
   assert.ok(v);
   assert.equal(v.legacy_name, 'Kilimanjaro Spares');
   assert.equal(v.business_type, 'Auto parts');
-  assert.equal(v.phone, '255700000123');
+  assert.equal(v.phone, '+255700000123', 'stored whole, with its plus, however it was typed');
   assert.equal(v.currency, 'TZS');
   assert.equal(v.registered_on, new Date(NOW).toISOString());
   assert.equal(v.active, true);
@@ -335,4 +335,20 @@ test('register: an identifier nobody else answers to, in either column', async (
   // And an honest registration is untouched.
   const ok = await FN.register(db, { business_name: 'Honest Shop', admin_email: 'new@x.tz', admin_name: 'New', admin_handle: 'newshop', password: 'pass1234' }, NOW);
   assert.match(ok.message, /registered/);
+});
+
+
+test('register: the WhatsApp number is made whole, an incomplete one is refused before anything is written', async () => {
+  const db = bookDb();
+  const shop = n => ({ ...REG, business_name: 'Shop ' + n, admin_email: 'o' + n + '@example.com', admin_handle: 'owner' + n });
+  // Typed the way people say it: stored the way a customer's phone needs it.
+  await accountApi(db, 'register', { ...shop(1), phone: '0712 345 678' }, NOW);
+  assert.equal(db._dump('vendors').find(v => v.name === 'Shop 1').phone, '+255712345678');
+  // Still optional.
+  await accountApi(db, 'register', { ...shop(2), phone: '' }, NOW);
+  assert.equal(db._dump('vendors').find(v => v.name === 'Shop 2').phone, '');
+  // One digit short: nothing is created -- no business, no admin -- and the message says how to write it.
+  const before = { v: db._dump('vendors').length, p: db._dump('profiles').length };
+  await rejects(accountApi(db, 'register', { ...shop(3), phone: '0712 345 67' }, NOW), 400, /country code/);
+  assert.deepEqual({ v: db._dump('vendors').length, p: db._dump('profiles').length }, before);
 });

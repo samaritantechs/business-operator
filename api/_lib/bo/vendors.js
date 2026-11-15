@@ -87,10 +87,22 @@ export const FN = {
     return { message: reset ? 'Admin updated successfully. The trial / billing cycle starts again today.' : 'Admin updated successfully.' };
   },
 
-  /** { vendor_id, active } -> { message }. The vendor row only: its people keep their own
-      active flags, and the login check refuses anybody whose business is off. Reactivation
-      (off -> on) resets registered_on -- deliberate, the business is coming back after a pause,
-      not owing for it. 1 read, 1 write. */
+  /** { vendor_id, active } -> { message }. The vendor row: its people keep their own active
+      flags, and the login check refuses anybody whose business is off. Reactivation (off -> on)
+      resets registered_on -- deliberate, the business is coming back after a pause, not owing
+      for it. 1-2 reads, 1-2 writes.
+
+      WITH ONE EXCEPTION, AND IT IS THE REASON A NEW SHOP COULD NOT GET IN. When Free
+      Registration is off, a shop that registers is created switched off AND SO IS ITS OWNER
+      (account.js): two flags, set together. "Activate" turned on only the first. The row then
+      read "Active", the manager had been told "the business can sign in again" -- and the
+      owner got "Invalid credentials or inactive account" until somebody thought to open Edit
+      and switch the person on as well, which nothing on the screen suggested.
+
+      So: activating a business that has NOBODY who can run it switches on the admin who
+      registered it (its earliest admin). A business that already has an active admin is left
+      exactly as it was -- an admin somebody deliberately switched off stays off, which is the
+      whole point of having two flags. */
   setVendorActive: async (db, user, args, nowMs) => {
     requireManager(user);
     const vendor = await mustVendor(db, mustText(args.vendor_id, 'Business'));
@@ -98,9 +110,20 @@ export const FN = {
     const reset = active && !toBool(vendor.active);
     const patch = reset ? { active, registered_on: iso(nowMs) } : { active };
     await update(db, 'vendors', patch, q => q.eq('id', vendor.id));
+    let owner = null;
+    if (active) {
+      const admins = await rows(db, 'profiles', q => q.select('id, name, role, active, created_at')
+        .eq('vendor_id', vendor.id).in('role', ['admin', 'assistant-admin']).order('created_at', { ascending: true }).limit(100));
+      if (admins.length && !admins.some(a => toBool(a.active))) {
+        owner = admins.find(a => a.role === 'admin') || admins[0];
+        await update(db, 'profiles', { active: true }, q => q.eq('id', owner.id));
+      }
+    }
     bustSessions(db);
     return { message: active
-      ? 'Business activated: ' + vendor.name + (reset ? '. The trial / billing cycle starts again today.' : '.')
+      ? 'Business activated: ' + vendor.name + '.'
+        + (owner ? ' ' + (owner.name || 'Its owner') + ' can sign in now.' : '')
+        + (reset ? ' The trial / billing cycle starts again today.' : '')
       : 'Business deactivated: ' + vendor.name + '. Its users can no longer sign in.' };
   },
 

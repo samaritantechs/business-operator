@@ -178,3 +178,94 @@ test('reportFile: a real PDF and a real .xlsx', async () => {
   assert.match(sheet, /SALE-0001/);
   await rejects(reportFile(db, SEL3(), { type: 'sales', ...D, format: 'pdf' }), 403);
 });
+
+
+/* =====================================================================================
+   A COLUMN WITH NOTHING IN IT IS NOT PRINTED, and a figure is never broken in two.
+   ===================================================================================== */
+const labels = r => r.columns.map(c => c.label);
+const WIDE = { start: '2026-07-01', end: TODAY };
+
+test('a shop that sells no phones gets no empty phone columns -- in the preview, the sheet and the PDF alike', async () => {
+  const db = bookDb();
+  // The grocery: no brand, no IMEI, no discount, no partner, no branch, no customer on record.
+  const sales = await FN.reportData(db, ADM2(), { type: 'sales', ...WIDE }, NOW);
+  assert.deepEqual(labels(sales), ['#', 'Sale ID', 'Date/Time', 'Seller', 'Product', 'Qty', 'Unit Price', 'Total', 'Payment', 'Group ID']);
+  // List Price went with Discount: without a discount between them it says only what Unit Price says.
+  assert.ok(!labels(sales).includes('List Price'));
+  assert.deepEqual(labels(await FN.reportData(db, ADM2(), { type: 'stock' }, NOW)), ['ID', 'Name', 'Category', 'Price', 'Stock', 'Value', 'Status']);
+  const profit = await FN.reportData(db, ADM2(), { type: 'profit', ...WIDE }, NOW);
+  assert.deepEqual(labels(profit), ['Product', 'Units', 'Revenue', 'Cost', 'Profit', 'Margin']);
+  assert.ok(!profit.totals.some(t => /DISCOUNT/.test(t[0])), 'a shop with no discounts has no "given away" line');
+  // The page gets plain columns: the marks that decided this are not part of the answer.
+  assert.ok(sales.columns.every(c => !('skipEmpty' in c) && !('with' in c)));
+
+  // The phone shop's rows HAVE those things, so its report still shows them. Decided by the data.
+  const phone = await FN.reportData(db, ADM(), { type: 'sales', ...WIDE }, NOW);
+  for (const want of ['Brand', 'Model', 'IMEI', 'List Price', 'Discount', 'Partner', 'Branch']) assert.ok(labels(phone).includes(want), want + ' left the phone shop\'s report');
+  assert.ok((await FN.reportData(db, ADM(), { type: 'profit', ...WIDE }, NOW)).totals.some(t => /DISCOUNT/.test(t[0])));
+
+  // The sheet has exactly the preview's columns -- one decision, made once.
+  const { pruneColumns } = await import('../api/_lib/bo/reports.js');
+  const cols = [{ key: 'a', label: 'A' }, { key: 'b', label: 'B', skipEmpty: true }, { key: 'c', label: 'C', with: 'b' }, { key: 'd', label: 'D', skipEmpty: true }];
+  assert.deepEqual(pruneColumns(cols, [{ a: 1, b: '', c: 5, d: 'x' }, { a: 2, b: 0, c: 6, d: '' }]).map(c => c.key), ['a', 'd'], 'b is empty everywhere and takes c with it');
+  assert.deepEqual(pruneColumns(cols, [{ a: 1, b: 'x', c: 5 }]).map(c => c.key), ['a', 'b', 'c']);
+  assert.deepEqual(pruneColumns(cols, []).map(c => c.key), ['a'], 'a report with no rows shows only what every report of its kind has');
+  assert.deepEqual(pruneColumns([{ key: 'a', label: 'A' }], [{ a: '' }]).map(c => c.key), ['a'], 'an unmarked column is never dropped, however empty');
+});
+
+test('the PDF never breaks a figure or an ID in two, however many columns there are', async () => {
+  const { planLayout, buildPdf } = await import('../api/_lib/pdf.js');
+  // A stand-in for the font: every character half as wide as the type is tall. Good enough to prove the rule.
+  const widthOf = (t, size) => String(t).length * size * 0.5;
+  const C = (key, label, right) => ({ key, label, ...(right ? { align: 'right' } : {}) });
+  const columns = [C('n', '#', 1), C('id', 'Sale ID'), C('at', 'Date/Time'), C('seller', 'Seller'), C('cust', 'Customer'), C('phone', 'Customer Phone'),
+    C('prod', 'Product'), C('brand', 'Brand'), C('model', 'Model'), C('imei', 'IMEI'), C('qty', 'Qty', 1), C('list', 'List Price', 1), C('disc', 'Discount', 1),
+    C('price', 'Unit Price', 1), C('total', 'Total', 1), C('pay', 'Payment'), C('partner', 'Partner'), C('branch', 'Branch'), C('group', 'Group ID')];
+  const rows = Array.from({ length: 30 }, (_, i) => ({ n: i + 1, id: 'SALE-' + (1000 + i), at: '15/11/2026 18:24', seller: 'Juma Seller', cust: 'Mwanaidi Abdallah Mohamed',
+    phone: '+255 712 345 678', prod: 'Samsung Galaxy A05 128GB Dual SIM', brand: 'Samsung', model: 'A05', imei: '356938035643809', qty: 3, list: 1350000, disc: 50000,
+    price: 1300000, total: 3900000, pay: 'Credit', partner: 'MOGO', branch: 'Sinza', group: 'aaaaaaaa' }));
+  const avail = 841.89 - 72;
+  const plan = planLayout({ columns, rows, avail, widthOf, pad: 4, startSize: 7.5 });
+  assert.equal(plan.fits, true);
+  assert.ok(plan.size >= 5.5 && plan.size <= 7.5);
+  assert.ok(Math.abs(plan.widths.reduce((a, b) => a + b, 0) - avail) < 0.01, 'the table is exactly as wide as the page');
+  const inner = i => plan.widths[i] - 8;
+  columns.forEach((c, i) => {
+    // Every figure whole; every word of every text cell whole; every word of every heading whole.
+    for (const r of rows) {
+      const t = typeof r[c.key] === 'number' ? r[c.key].toLocaleString('en-US') : String(r[c.key]);
+      const pieces = c.align === 'right' ? [t] : t.split(' ');
+      for (const piece of pieces) assert.ok(widthOf(piece, plan.size) <= inner(i) + 1e-6, '"' + piece + '" does not fit the ' + c.label + ' column');
+    }
+    for (const w of c.label.split(' ')) assert.ok(widthOf(w, plan.size) <= inner(i) + 1e-6, 'the heading word "' + w + '" does not fit');
+  });
+
+  // Room to spare goes to the long text, so a name wraps as little as it can.
+  const few = planLayout({ columns: columns.slice(0, 7), rows, avail, widthOf, pad: 4, startSize: 8.5 });
+  assert.equal(few.size, 8.5, 'type is not shrunk when there is room');
+  assert.ok(few.widths[6] > few.widths[0] * 3, 'the product column should be much wider than the row number');
+
+  // Too many columns even for the smallest type: the figures still keep their width, and it says it did not fit.
+  const many = Array.from({ length: 60 }, (_, i) => C('k' + i, 'Heading' + i, i % 2));
+  const big = planLayout({ columns: many, rows: [Object.fromEntries(many.map((c, i) => [c.key, i % 2 ? 1234567 : 'Somebody Longname']))], avail, widthOf, pad: 4, startSize: 7.5 });
+  assert.equal(big.fits, false); assert.equal(big.size, 5.5);
+  assert.ok(Math.abs(big.widths.reduce((a, b) => a + b, 0) - avail) < 0.01);
+
+  // And the real thing, with real fonts: every sale ID and every total comes back whole from the file.
+  const bytes = await buildPdf({ title: 'T', columns, rows, totals: [['GRAND TOTAL', '117,000,000 TZS']] });
+  assert.equal(String.fromCharCode(...bytes.slice(0, 4)), '%PDF');
+  // Six columns are an upright page -- unless what is in them cannot fit one at full size, in
+  // which case the page is turned sideways before the type is made any smaller.
+  const { PDFDocument } = await import('pdf-lib');
+  const pageOf = async b => (await PDFDocument.load(b)).getPage(0).getSize();
+  const easy = await pageOf(await buildPdf({ title: 'T', columns: columns.slice(0, 6), rows }));
+  assert.ok(easy.height > easy.width, 'six columns that fit upright stay upright');
+  const six = Array.from({ length: 6 }, (_, i) => C('w' + i, 'Reference' + i));
+  const wideRows = [Object.fromEntries(six.map((c, i) => [c.key, 'REF-0000000000000000000' + i]))];   // 24 unbreakable characters each
+  const turned = await pageOf(await buildPdf({ title: 'T', columns: six, rows: wideRows }));
+  assert.ok(turned.width > turned.height, 'six columns too wide for an upright page should have gone sideways');
+  const tiny = await buildPdf({ title: 'T', columns: [C('n', '#', 1), C('pay', 'Payment')], rows });
+  const up = (await PDFDocument.load(tiny)).getPage(0).getSize();
+  assert.ok(up.height > up.width, 'two small columns stay upright');
+});

@@ -231,12 +231,31 @@ test('businessProfile / setBusinessProfile: the vendor row, currency normalised,
   assert.equal(await status(FN.setBusinessProfile(db, user(MANAGER), { phone: '1' }, NOW)), 400);
 });
 
+test('setBusinessProfile: the WhatsApp number is made whole against the currency saved with it', async () => {
+  const db = bookDb();
+  const base = { business_type: 'Phones', address: 'Sinza' };
+  let r = await FN.setBusinessProfile(db, user(ADMIN1), { ...base, phone: '0712 345 678', currency: 'TZS' }, NOW);
+  assert.equal(r.vendor.phone, '+255712345678'); assert.equal(vendor(db, 'V1').phone, '+255712345678');
+  // The same typing under a Kenyan currency is a Kenyan number -- decided by what THIS save says.
+  r = await FN.setBusinessProfile(db, user(ADMIN1), { ...base, phone: '0712 345 678', currency: 'KES' }, NOW);
+  assert.equal(r.vendor.phone, '+254712345678');
+  // A plus is the last word, whatever the currency.
+  r = await FN.setBusinessProfile(db, user(ADMIN1), { ...base, phone: '+255 712 345 678', currency: 'KES' }, NOW);
+  assert.equal(r.vendor.phone, '+255712345678');
+  // Blank clears it; the number is still optional.
+  r = await FN.setBusinessProfile(db, user(ADMIN1), { ...base, phone: '', currency: 'TZS' }, NOW);
+  assert.equal(r.vendor.phone, '');
+  // One digit short is refused WHOLE: the address typed beside it is not saved either.
+  assert.equal(await status(FN.setBusinessProfile(db, user(ADMIN1), { business_type: 'Phones', address: 'Somewhere else', phone: '0712 345 67', currency: 'TZS' }, NOW)), 400);
+  assert.equal(vendor(db, 'V1').address, 'Sinza');
+});
+
 test('the shop\'s pin: read beside the vendor row, saved with the profile, and never part of the session', async () => {
   const db = bookDb();
   const DIR = 'https://www.google.com/maps/dir/?api=1&destination=';
   // No pin yet. `ready` says this database CAN keep one.
   assert.deepEqual((await FN.businessProfile(db, user(ADMIN1), {}, NOW)).place, { text: '', link: '', ready: true });
-  const base = { business_type: 'Phones', phone: '0756', address: 'Sinza', currency: 'TZS' };
+  const base = { business_type: 'Phones', phone: '0756 000 001', address: 'Sinza', currency: 'TZS' };
 
   // Coordinates -- what "Use my current location" writes into the box.
   let r = await FN.setBusinessProfile(db, user(ADMIN1), { ...base, location: '-6.792354, 39.208328' }, NOW);
@@ -257,13 +276,13 @@ test('the shop\'s pin: read beside the vendor row, saved with the profile, and n
   assert.equal(vendor(db, 'V1').latitude, null, 'the old coordinates must not linger beside a new link');
 
   // A page that does not send `location` (an older copy still open on a phone) leaves the pin alone.
-  r = await FN.setBusinessProfile(db, user(ADMIN1), { ...base, phone: '0757' }, NOW);
+  r = await FN.setBusinessProfile(db, user(ADMIN1), { ...base, phone: '0757 000 002' }, NOW);
   assert.equal(r.place, undefined);
-  assert.equal(vendor(db, 'V1').map_url, 'https://maps.app.goo.gl/AbCdEf123'); assert.equal(vendor(db, 'V1').phone, '0757');
+  assert.equal(vendor(db, 'V1').map_url, 'https://maps.app.goo.gl/AbCdEf123'); assert.equal(vendor(db, 'V1').phone, '+255757000002');
 
   // Something that is not a map is refused WHOLE: parsed before anything is written.
-  assert.equal(await status(FN.setBusinessProfile(db, user(ADMIN1), { ...base, phone: '0999', location: 'https://evil.example/maps' }, NOW)), 400);
-  assert.equal(vendor(db, 'V1').phone, '0757', 'a refused pin must not half-save the rest of the form');
+  assert.equal(await status(FN.setBusinessProfile(db, user(ADMIN1), { ...base, phone: '0999 000 003', location: 'https://evil.example/maps' }, NOW)), 400);
+  assert.equal(vendor(db, 'V1').phone, '+255757000002', 'a refused pin must not half-save the rest of the form');
   assert.equal(vendor(db, 'V1').map_url, 'https://maps.app.goo.gl/AbCdEf123');
 
   // An empty box takes the pin away, and the profile read agrees.
@@ -286,8 +305,8 @@ test('the shop\'s pin on a database that has not run RUN-ME-006: the rest saves,
 
     // Writing: the phone number is not held hostage by a map...
     const r = await FN.setBusinessProfile(db, user(ADMIN1), { business_type: 'Phones', phone: '0744 111 222', address: 'Sinza', currency: 'TZS', location: '-6.79, 39.2' }, NOW);
-    assert.equal(vendor(db, 'V1').phone, '0744 111 222');
-    assert.equal(r.vendor.phone, '0744 111 222');
+    assert.equal(vendor(db, 'V1').phone, '+255744111222');
+    assert.equal(r.vendor.phone, '+255744111222');
     // ...and the answer does not pretend. Reporting success would send the shopkeeper to the
     // marketplace to look for a button that is not coming.
     assert.deepEqual(r.place, { text: '', link: '', ready: false });
@@ -296,7 +315,7 @@ test('the shop\'s pin on a database that has not run RUN-ME-006: the rest saves,
     assert.ok(!('latitude' in vendor(db, 'V1')), 'a column this database has not got was written anyway');
 
     // Clearing a pin that could never be kept is nothing to warn about.
-    const cleared = await FN.setBusinessProfile(db, user(ADMIN1), { business_type: 'Phones', phone: '0744', address: 'Sinza', currency: 'TZS', location: '' }, NOW);
+    const cleared = await FN.setBusinessProfile(db, user(ADMIN1), { business_type: 'Phones', phone: '0744 111 222', address: 'Sinza', currency: 'TZS', location: '' }, NOW);
     assert.equal(cleared.warning, undefined);
     // A refused link is still refused -- the missing columns do not make a bad address acceptable.
     assert.equal(await status(FN.setBusinessProfile(db, user(ADMIN1), { currency: 'TZS', location: 'https://evil.example/' }, NOW)), 400);

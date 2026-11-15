@@ -89,10 +89,10 @@ test('market: every card carries exactly what the page draws', async () => {
   const by = Object.fromEntries(out.products.map(p => [p.id, p]));
 
   assert.deepEqual(by.P6, { id: 'P6', name: 'Wedding Gown', cat: 'Bridal', brand: '', model: '', price: 150000, stock: 1,
-    vendor: 'Mama Ntilie Grocery', vendor_id: 'V2', image1: '', image2: '', image3: '', currency: 'TZS', vendorPhone: '255756000002',
+    vendor: 'Mama Ntilie Grocery', vendor_id: 'V2', image1: '', image2: '', image3: '', currency: 'TZS', vendorPhone: '+255756000002',
     vendorType: 'Groceries', listingType: 'Rent', priceUnit: 'per event', location: 'Kariakoo', clicks: 0, hot: false });
   assert.deepEqual(by.P1, { id: 'P1', name: 'Samsung Galaxy A05', cat: 'Phones', brand: 'Samsung', model: 'A05', price: 350000, stock: 3,
-    vendor: 'Fromville Phones', vendor_id: 'V1', image1: '', image2: '', image3: '', currency: 'TZS', vendorPhone: '+255 756 000 001',
+    vendor: 'Fromville Phones', vendor_id: 'V1', image1: '', image2: '', image3: '', currency: 'TZS', vendorPhone: '+255756000001',
     vendorType: 'Electronics', listingType: 'Sale', priceUnit: '', location: 'Sinza', clicks: 0, hot: false });
   assert.equal(by.P3.image1, 'https://drive.google.com/thumbnail?id=cov&sz=w400');
   assert.equal(by.P3.image2, '');
@@ -102,8 +102,8 @@ test('market: every card carries exactly what the page draws', async () => {
   assert.deepEqual(out.vendors, [
     // ageDays: whole days since the row was created (1 Aug and 10 Jan, to 2 Sep). sales is null,
     // not 0: this database has no bo_vendor_sale_counts, so the count is not known. No pin: no map.
-    { id: 'V1', name: 'Fromville Phones', admin: '', logo: '', businessType: 'Electronics', phone: '+255 756 000 001', address: 'Sinza, Dar', currency: 'TZS', ageDays: 32, sales: null, map: '' },
-    { id: 'V2', name: 'Mama Ntilie Grocery', admin: '', logo: 'https://drive.google.com/thumbnail?id=abc&sz=w200', businessType: 'Groceries', phone: '255756000002', address: 'Kariakoo', currency: 'TZS', ageDays: 235, sales: null, map: '' },
+    { id: 'V1', name: 'Fromville Phones', admin: '', logo: '', businessType: 'Electronics', phone: '+255756000001', address: 'Sinza, Dar', currency: 'TZS', ageDays: 32, sales: null, map: '' },
+    { id: 'V2', name: 'Mama Ntilie Grocery', admin: '', logo: 'https://drive.google.com/thumbnail?id=abc&sz=w200', businessType: 'Groceries', phone: '+255756000002', address: 'Kariakoo', currency: 'TZS', ageDays: 235, sales: null, map: '' },
   ]);
   assert.deepEqual(out.hints, [{ en: 'Use Refresh to see the latest numbers.', sw: 'Tumia Refresh kuona namba za sasa.' },
     { en: 'Tap any product to contact the seller.', sw: '' }]);
@@ -382,4 +382,22 @@ test('market: the count shows within minutes of the function being created, not 
   assert.equal(vendorOf(await FN.market(db, {}, NOW + 61000), 'V1').sales, null, 'not on the very next build: it was asked a minute ago');
   const soon = vendorOf(await FN.market(db, {}, NOW + 2.2 * 60000), 'V1').sales;
   assert.equal(soon, richBook().sales.filter(s => s.vendor_id === 'V1' && s.status === 'completed').length);
+});
+
+
+test('market: a number saved the old way reaches the page as one WhatsApp can use, and a hopeless one as none', async () => {
+  /* The WhatsApp button is built from this and nothing else. Shops that typed 07... before the
+     number was checked must start working the day this ships, without opening their profile. */
+  const book = richBook();
+  book.vendors.find(v => v.id === 'V1').phone = '0756 000 001';
+  book.vendors.find(v => v.id === 'V2').phone = '12345';
+  const out = await FN.market(bookDb(book), {}, NOW);
+  assert.equal(vendorOf(out, 'V1').phone, '+255756000001');
+  assert.ok(out.products.filter(p => p.vendor_id === 'V1').every(p => p.vendorPhone === '+255756000001'));
+  // Not a number at all: no button is better than a button that opens an error.
+  assert.equal(vendorOf(out, 'V2').phone, '');
+  assert.ok(out.products.filter(p => p.vendor_id === 'V2').every(p => p.vendorPhone === ''));
+  // A shop that prices in shillings of another country is rung in that country.
+  const ke = richBook(); Object.assign(ke.vendors.find(v => v.id === 'V1'), { phone: '0712 345 678', currency: 'KES' });
+  assert.equal(vendorOf(await FN.market(bookDb(ke), {}, NOW), 'V1').phone, '+254712345678');
 });

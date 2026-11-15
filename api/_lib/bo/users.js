@@ -2,6 +2,7 @@ import { rows, rowsAll, one, insertOne, update, remove, badRequest, forbidden, n
   isManagerLevel, isAdminLevel, vendorScope, PROFILE_COLS, VENDOR_COLS, text, mustText, iso,
   mustVendor, vendorsList, requireVendorUser, identifierTaken, sel, columnAbsent, notMigrated } from './_shared.js';
 import { parsePlace, placeText, mapLinkOf } from './place.js';
+import { phoneArg } from './phone.js';
 import { requireAdmin, requireManager, ROLES, hashPassword, verifyPassword, bustSessions } from '../auth.js';
 import { decodeDataUrl, uploadImage, BUCKETS } from '../storage.js';
 
@@ -337,9 +338,12 @@ export const FN = {
     requireAdmin(user);
     if (isManagerLevel(user.role)) throw badRequest('A manager account has no business profile.');
     const vendorId = requireVendorUser(user);
+    /* The number is made whole against the currency being saved WITH it (phone.js): a shop that
+       switches to KES and types 07... in the same save means a Kenyan number. */
+    const currency = currencyArg(args.currency);
     const patch = {
-      business_type: text(args.business_type) || '', phone: text(args.phone) || '',
-      address: text(args.address) || '', currency: currencyArg(args.currency),
+      business_type: text(args.business_type) || '', phone: phoneArg(args.phone, currency),
+      address: text(args.address) || '', currency,
     };
     const place = (args.location === undefined || args.location === null) ? null : parsePlace(args.location);
     if (place) Object.assign(patch, place);

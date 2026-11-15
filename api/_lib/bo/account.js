@@ -3,6 +3,7 @@ import { AppError, unauthorized, hashPassword, verifyPassword, createSession, re
 import { sendEmail, signature } from '../email.js';
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { buildBoot } from './boot.js';
+import { phoneArg } from './phone.js';
 import { APP_NAME } from '../brand.js';
 
 /* =====================================================================================
@@ -112,13 +113,17 @@ export const FN = {
     // (see identifierTaken), so 'take somebody's email as my User ID' has to be refused here.
     if (await identifierTaken(db, email)) throw badRequest('An account with this email already exists. Please use a different email or login instead.');
     if (await identifierTaken(db, handle)) throw badRequest('That User ID is already taken. Please choose another.');
+    /* Still optional -- but if a number IS given it has to be one a customer can reach (phone.js):
+       it becomes the WhatsApp button on every product this shop lists. Checked before anything
+       is written, like the rest of the form. */
+    const phone = phoneArg(args.phone, 'TZS');
     const sameName = await rows(db, 'vendors', q => q.select('id').ilike('name', likeEscape(businessName)).limit(1));
     if (sameName.length) throw badRequest('A business with this name is already registered. Please use a different name or login instead.');
 
     const active = (await getSetting(db, 'FreeRegistration')) === 'Yes';
     const vendor = await insertOne(db, 'vendors', {
       legacy_name: businessName, name: businessName, business_type: text(args.business_type) || '',
-      phone: text(args.phone) || '', address: text(args.address) || '', currency: 'TZS',
+      phone, address: text(args.address) || '', currency: 'TZS',
       registered_on: iso(nowMs), active, restricted: false, permissions: {},
     });
     const pw = hashPassword(password);
