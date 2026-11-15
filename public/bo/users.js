@@ -123,7 +123,7 @@ window.BOUsers = (function () {
     }, function (err) {
       done();
       cannot(err && err.code === 1 ? 'Permission to use the location was not given. If you are in the Android app, update it to the newest version, then allow Location when it asks.'
-        : 'The phone could not find its location just now. Try again outside or near a window.');
+        : 'The phone could not find its location just now. Check that Location is switched on in the phone\'s settings, then try again outside or near a window.');
     }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
   }
   function saveProfile() {

@@ -92,9 +92,14 @@
   .mk-acct-chip{max-width:120px;}
   /* The brand and who-you-are share the first line; the links drop to a line of their own. */
   .mk-nav{row-gap:8px;}
-  .mk-brand{flex:1 1 auto;min-width:0;}
+  .mk-brand{flex:1 1 0;min-width:0;}
   .mk-acct{margin-left:auto;gap:6px;}
-  .mk-navlinks{order:3;width:100%;margin-left:0;}
+  /* One line, always: six small things that would otherwise leave the last one alone on a row of
+     its own. If a narrow phone cannot fit them the line slides sideways; the page never does. */
+  .mk-navlinks{order:3;width:100%;margin-left:0;flex-wrap:nowrap;overflow-x:auto;gap:4px;scrollbar-width:none;}
+  .mk-navlinks::-webkit-scrollbar{display:none;}
+  .mk-navlinks .mk-navlink{padding:7px 8px;font-size:.8rem;white-space:nowrap;flex-shrink:0;}
+  .mk-navlinks .icon-btn{width:34px;height:34px;}
   .mk-authbtn{padding:7px 12px;font-size:.8rem;}
   #mkSeg_market{flex-grow:1.15;}#mkSeg_app{flex-grow:1.6;}
 }
@@ -152,7 +157,10 @@
 .pd-act{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text2);font-size:.8rem;font-weight:700;cursor:pointer;font-family:var(--font);}
 .pd-act svg{width:16px;height:16px;display:block;}
 .pd-act.on{color:#C2610C;border-color:#C2610C;}.pd-act.on svg{fill:currentColor;}
-.pd-go{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;}.pd-go > a{flex:1 1 150px;justify-content:center;text-align:center;}
+.pd-go > a{flex:1 1 0;min-width:0;justify-content:center;text-align:center;white-space:nowrap;padding-left:8px;padding-right:8px;}
+/* How to reach the shop stays in view however long the product's page is: it is the one thing
+   the customer came for, and on a phone it used to be a scroll away below the photo. */
+.pd-go{display:flex;gap:8px;margin-top:8px;position:sticky;bottom:-17px;z-index:2;background:var(--surface);padding:10px 0 12px;border-top:1px solid var(--border);}
 .mk-vgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;}
 .mk-vcard{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:18px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;transition:transform .2s,box-shadow .2s;}
 .mk-vcard:hover{transform:translateY(-3px);box-shadow:var(--shadow-md);}

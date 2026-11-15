@@ -36,14 +36,25 @@ on:
     paths:
       - 'android/**'
       - '.github/workflows/android-apk.yml'
+  # A CHANGE TO THE APP IS COMPILED BEFORE IT IS MERGED. Nothing else can: there is no Android
+  # toolchain on the machines the code is written on, so until this ran, the first time anybody
+  # learned that a change to MainActivity did not compile was after it had reached main. On a
+  # pull request this builds the app and keeps the file -- and stops there: the signing key is
+  # never unpacked and nothing is published (each of those steps says so itself).
+  pull_request:
+    paths:
+      - 'android/**'
+      - '.github/workflows/android-apk.yml'
 
 permissions:
   contents: read
 
 concurrency:
-  # Two builds publishing at once would race for "which row is current".
-  group: android-apk
-  cancel-in-progress: false
+  # Two builds publishing at once would race for "which row is current". A check on a pull
+  # request publishes nothing, so it has a queue of its own: it must neither wait behind a
+  # release from main nor hold one up, and a newer push to the same pull request replaces it.
+  group: android-apk-${{ github.event_name == 'pull_request' && github.ref || 'release' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
@@ -74,6 +85,7 @@ jobs:
 
       - name: Unpack the signing key
         id: key
+        if: github.event_name != 'pull_request'
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -123,7 +135,7 @@ jobs:
           if-no-files-found: error
 
       - name: Publish it, so the download button just works
-        if: steps.key.outputs.signed == 'true'
+        if: github.event_name != 'pull_request' && steps.key.outputs.signed == 'true'
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

@@ -967,7 +967,7 @@ function openProductDetail(idx) {
     + '<button type="button" class="pd-act' + (fav ? ' on' : '') + '" data-fav="' + esc(p.id) + '" aria-pressed="' + (fav ? 'true' : 'false') + '" title="' + (fav ? 'Saved — tap to remove' : 'Save to Favorites') + '" onclick="toggleFav(event,' + idx + ')">' + MK_SAVE_SVG + '<span class="pd-act-lbl">' + (fav ? 'Saved' : 'Save') + '</span></button>'
     + '<button type="button" class="pd-act" title="Find similar products" onclick="findSimilar(event,' + idx + ')">' + MK_LENS_SVG + '<span>Similar products</span></button></div>';
   var phone = digitsOnly(p.vendorPhone || v.phone || '');
-  var wa = phone ? '<a class="btn-primary" href="https://wa.me/' + phone + '?text=' + encodeURIComponent('Hello ' + p.vendor + ', I am interested in "' + p.name + '" I saw on the Samaritan Industrial marketplace.') + '" target="_blank" rel="noopener">📲 Contact seller on WhatsApp</a>' : '';
+  var wa = phone ? '<a class="btn-primary" href="https://wa.me/' + phone + '?text=' + encodeURIComponent('Hello ' + p.vendor + ', I am interested in "' + p.name + '" I saw on the Samaritan Industrial marketplace.') + '" target="_blank" rel="noopener">📲 __WA__</a>' : '';
   /* WHERE THE SHOP IS. v.map is the pin the business gave (api/_lib/bo/place.js -- it can only be
      a Google Maps address, the server refuses anything else). A business that gave an address
      but no pin still gets a button, and it is honest about what it does: it searches the map
@@ -975,9 +975,13 @@ function openProductDetail(idx) {
   var pin = v.map || '', area = (!pin && v.address) ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(p.vendor + ', ' + v.address) : '';
   var go = pin ? '<a class="btn-secondary" id="pdLocation" href="' + esc(pin) + '" target="_blank" rel="noopener" title="Open the shop in Google Maps">📍 Location</a>'
     : area ? '<a class="btn-secondary" id="pdLocation" href="' + esc(area) + '" target="_blank" rel="noopener" title="Search the shop\'s address in Google Maps">📍 Location</a>' : '';
-  var contact = (wa || go) ? '<div class="pd-go">' + wa + go + '</div>' : '';
+  // Alone, the WhatsApp button says the whole thing. Beside Location, on one line of a phone, the short word.
+  wa = wa.replace('__WA__', go ? 'WhatsApp' : 'Contact seller on WhatsApp');
+  // The notes come first and the buttons last, because the buttons stay in view (.pd-go).
+  var contact = '';
   if (!wa) contact += '<div class="alert-info" style="margin-top:6px;">This seller has not listed a contact number.</div>';
   if (area) contact += '<div class="small muted" style="margin-top:6px;">📍 Location searches the map for the shop\'s address — ask the seller to confirm the exact place.</div>';
+  if (wa || go) contact += '<div class="pd-go">' + wa + go + '</div>';
   document.getElementById('pdBody').innerHTML = imgs + acts
     + '<div style="font-size:.7rem;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.05em;">' + (isRent ? 'FOR RENT · ' : '') + esc(p.cat || 'General') + ((p.brand || p.model) ? ' · ' + esc([p.brand, p.model].filter(Boolean).join(' ')) : '') + '</div>'
     + '<div style="font-size:1.3rem;font-weight:800;color:var(--text);margin:2px 0 4px;">' + esc(p.name) + (p.hot ? ' <span style="font-size:.8rem;color:#EF4444;">🔥 Hot</span>' : '') + '</div>'

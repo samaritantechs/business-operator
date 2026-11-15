@@ -4,6 +4,14 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- So a shopkeeper can install the newer APK the site offers them. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- So a shopkeeper can press "Use my current location" on the business profile and put the
+         shop on the map. Asked for only at that moment, by Android's own dialog, and only for
+         this system's own pages (MainActivity.isOurOrigin). Nothing reads it in the background.
+         Not required: a phone with no GPS still installs the app and pastes a map link instead. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-feature android:name="android.hardware.location" android:required="false" />
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
 
     <!-- ACTION_IMAGE_CAPTURE has to be declared to be SEEN. From Android 11 an app cannot ask
          whether a camera app exists unless it says which intent it means, and resolveActivity()

@@ -406,3 +406,44 @@ test('the Location button can only ever open Google Maps', () => {
   const java = readFileSync(join(ROOT, 'android/app/src/main/java/com/samaritantechs/industrial/MainActivity.java'), 'utf8');
   assert.ok(!/"(www\.)?google\.com"|"maps\.app\.goo\.gl"/.test(java.slice(java.indexOf('IN_APP_HOSTS'), java.indexOf('IN_APP_HOSTS') + 600)), 'Google Maps must NOT be an in-app host: it has to leave for the Maps app');
 });
+
+
+/* "USE MY CURRENT LOCATION" INSIDE THE APP. A WebView refuses every request for the phone's
+   position unless the app answers the prompt, and it refuses SILENTLY -- so the button worked in
+   every browser and did nothing in the one place most shopkeepers would press it. These are the
+   four things that have to be true together, none of which the browser check can see. */
+test('the Android app lets the business profile ask where the phone is, and only this system\'s pages', () => {
+  const java = readFileSync(join(ROOT, 'android/app/src/main/java/com/samaritantechs/industrial/MainActivity.java'), 'utf8');
+  const manifest = readFileSync(join(ROOT, 'android/app/src/main/AndroidManifest.xml'), 'utf8');
+  for (const perm of ['ACCESS_FINE_LOCATION', 'ACCESS_COARSE_LOCATION']) {
+    assert.ok(manifest.includes('android.permission.' + perm), 'the manifest does not ask for ' + perm);
+    assert.ok(java.includes('Manifest.permission.' + perm), 'the app never requests ' + perm);
+  }
+  // Not required: a phone with no GPS must still be able to install the app.
+  assert.match(manifest, /<uses-feature android:name="android\.hardware\.location\.gps" android:required="false" \/>/);
+  assert.match(java, /setGeolocationEnabled\(true\)/);
+  const prompt = java.slice(java.indexOf('onGeolocationPermissionsShowPrompt'), java.indexOf('onGeolocationPermissionsHidePrompt'));
+  assert.ok(prompt.length > 200, 'the app does not answer the location prompt');
+  // A page this app merely displays must never be told where the phone is.
+  assert.match(prompt, /if \(!isOurOrigin\(origin\)\) \{ cb\.invoke\(origin, false, false\); return; \}/);
+  assert.match(java, /static boolean isOurOrigin\(String origin\) \{[\s\S]*?"https"\.equals\(o\.getScheme\(\)\) && Uri\.parse\(APP_URL\)\.getHost\(\)\.equals\(o\.getHost\(\)\)/);
+  // The WebView's callback is answered exactly once, whatever Android says and even if asking fails.
+  assert.match(java, /private void answerLocation\(boolean ok\) \{[\s\S]*?pendingGeo = null;[\s\S]*?if \(cb != null\) cb\.invoke\(origin, ok, false\);/);
+  assert.match(prompt, /catch \(Exception e\) \{\s*answerLocation\(false\);/);
+  // And the page tells a phone that still says no how to do it by hand, instead of doing nothing.
+  const users = tabs['users.js'];
+  assert.match(users, /navigator\.geolocation\.getCurrentPosition\(/);
+  assert.match(users, /function pinHere\(\) \{[\s\S]*?var cannot = function \(why\) \{ BO\.notify\(/);
+  assert.match(users, /if \(pinLoaded\) args\.location = /, 'a box that has not loaded yet must not be sent as "take my pin away"');
+});
+
+test('a change to the Android app is compiled on the pull request, and nothing is signed or published there', () => {
+  const yml = readFileSync(join(ROOT, '.github/workflows/android-apk.yml'), 'utf8');
+  assert.match(yml, /\n  pull_request:\n    paths:\n      - 'android\/\*\*'/, 'the app is no longer built on a pull request');
+  const step = name => { const at = yml.indexOf('- name: ' + name); assert.ok(at > 0, 'no step called ' + name); return yml.slice(at, yml.indexOf('\n      - ', at + 10)); };
+  assert.match(step('Unpack the signing key'), /if: github\.event_name != 'pull_request'/, 'a pull request must never be handed the signing key');
+  assert.match(step('Publish it'), /if: github\.event_name != 'pull_request' && steps\.key\.outputs\.signed == 'true'/, 'a pull request must never publish an APK');
+  assert.match(step('Check what was actually signed'), /if: steps\.key\.outputs\.signed == 'true'/);
+  // The check has its own queue: it neither waits behind a release nor delays one.
+  assert.match(yml, /group: android-apk-\$\{\{ github\.event_name == 'pull_request' && github\.ref \|\| 'release' \}\}/);
+});

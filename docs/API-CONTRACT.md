@@ -158,8 +158,8 @@ Exports `buildBoot(db, user, nowMs)` used by account.login / me.
 | `deleteUser` | `{ id }` | `{ message }` (manager) |
 | `uploadProfilePhoto` | `{ profile_id, data_url }` | `{ url }` |
 | `changePassword` | `{ current, password }` | `{ message }` (own account) |
-| `businessProfile` | `{}` | `{ vendor }` |
-| `setBusinessProfile` | `{ business_type, phone, address, currency }` | `{ vendor }` (admin) |
+| `businessProfile` | `{}` | `{ vendor, place: { text, link, ready } }` — `place` is the shop's pin as the form shows it (`text`), the Google Maps address it opens (`link`), and whether this database can keep one yet (`ready`, false until `db/RUN-ME-006` is run). 2 reads |
+| `setBusinessProfile` | `{ business_type, phone, address, currency, location? }` | `{ vendor, place?, warning? }` (admin). `location` is the pin in any form the box takes — `-6.79, 39.20`, a Google Maps link, or `''` to remove it; anything that is not Google Maps is refused whole (400). Not sent = pin untouched. `warning` is set when the rest was saved but the pin could not be (migration pending) |
 | `uploadLogo` | `{ vendor_id?, data_url }` | `{ url }` (admin own; manager any) |
 
 ### vendors — `vendors.js` (manager unless noted)
@@ -210,7 +210,7 @@ Exports `hintsForRole(db, role)` → `[{ en, sw }]` with the legacy defaults whe
 ### market — `market.js` (route `/api/market`, public)
 | fn | args | returns |
 |---|---|---|
-| `market` | `{}` | `{ products: [{ id, name, cat, price, stock, vendor, vendor_id, image1, image2, currency, vendorPhone, vendorType, listingType, priceUnit, location, brand, model, clicks, hot }], vendors: [{ id, name, admin, logo, businessType, phone, address, currency }], avgClicks, totalClicks, hints: [{ en, sw }], timings: { hintLifetime, hintInterval } }` — ranked: in-stock tier → recency-weighted popularity (30-day clicks × 3 + older) → zero-click items randomised; cached 60 s in process |
+| `market` | `{}` | `{ products: [{ id, name, cat, price, stock, vendor, vendor_id, image1, image2, currency, vendorPhone, vendorType, listingType, priceUnit, location, brand, model, clicks, hot }], vendors: [{ id, name, admin, logo, businessType, phone, address, currency, ageDays, sales, map }], avgClicks, totalClicks, hints: [{ en, sw }], timings: { hintLifetime, hintInterval } }` — ranked: in-stock tier → recency-weighted popularity (30-day clicks × 3 + older) → zero-click items randomised; cached 60 s in process. Per vendor: `ageDays` = whole days since the earliest of the row's creation, its registration and its first sale (null if unreadable); `sales` = completed sale records for the whole business from `bo_vendor_sale_counts()` — asked at most every 15 min, never waited for beyond 1.5 s, **no row-by-row fallback**: `null` = not known (function missing or slow), `0` = none; `map` = the Google Maps address of the shop's pin, `''` when none |
 | `click` | `{ product_id }` | `{}` |
 | `hints` | `{}` | `{ hints, timings }` |
 
