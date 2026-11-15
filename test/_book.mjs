@@ -130,4 +130,20 @@ export function userOf(book, profileId) {
 }
 
 export function bookDb(book = richBook(), opts) { return fakeDb(book, opts); }
+
+/** bo_vendor_sale_counts(), clause for clause as db/schema.sql writes it: one row per business
+    that has a COMPLETED sale record, how many it has, and when the first one was. Hand it to
+    bookDb as { rpc: { bo_vendor_sale_counts: saleCountsRpc } } to stand in for a database that
+    has run db/RUN-ME-006; leave it out for one that has not. */
+export function saleCountsRpc(store) {
+  const by = new Map();
+  for (const r of ((store.sales && store.sales.rows) || [])) {
+    if (r.status !== 'completed') continue;                       // where status = 'completed'
+    const g = by.get(r.vendor_id) || { vendor_id: r.vendor_id, sales: 0, first_sale: null };
+    g.sales += 1;                                                  // count(*)
+    if (r.sold_at && (!g.first_sale || r.sold_at < g.first_sale)) g.first_sale = r.sold_at;   // min(sold_at)
+    by.set(r.vendor_id, g);                                        // group by vendor_id
+  }
+  return [...by.values()];
+}
 export const MANAGER = 'MGR', ADMIN1 = 'ADM1', SELLER1 = 'SEL1', SELLER2 = 'SEL2', ADMIN2 = 'ADM2', ADMIN3 = 'ADM3';

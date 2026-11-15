@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { bookDb, richBook, userOf, NOW, MANAGER, ADMIN1, SELLER1, SELLER2, ADMIN2, PASSWORD } from './_book.mjs';
 import { FN, WRITES, publicProfile, toBool } from '../api/_lib/bo/users.js';
 import { verifyPassword, VENDOR_COLS } from '../api/_lib/auth.js';
-import { iso } from '../api/_lib/bo/_shared.js';
+import { iso, absentColumns } from '../api/_lib/bo/_shared.js';
 
 /* users.js against the shared book: who may touch whom, passwords never leaving the server,
    and the anchor rule (reactivating a vendor's admin restarts its trial / billing cycle). */
@@ -229,6 +229,78 @@ test('businessProfile / setBusinessProfile: the vendor row, currency normalised,
   assert.equal(await status(FN.setBusinessProfile(db, user(ADMIN1), { currency: 'dollars' }, NOW)), 400);
   assert.equal(await status(FN.setBusinessProfile(db, user(SELLER1), { phone: '1' }, NOW)), 403);
   assert.equal(await status(FN.setBusinessProfile(db, user(MANAGER), { phone: '1' }, NOW)), 400);
+});
+
+test('the shop\'s pin: read beside the vendor row, saved with the profile, and never part of the session', async () => {
+  const db = bookDb();
+  const DIR = 'https://www.google.com/maps/dir/?api=1&destination=';
+  // No pin yet. `ready` says this database CAN keep one.
+  assert.deepEqual((await FN.businessProfile(db, user(ADMIN1), {}, NOW)).place, { text: '', link: '', ready: true });
+  const base = { business_type: 'Phones', phone: '0756', address: 'Sinza', currency: 'TZS' };
+
+  // Coordinates -- what "Use my current location" writes into the box.
+  let r = await FN.setBusinessProfile(db, user(ADMIN1), { ...base, location: '-6.792354, 39.208328' }, NOW);
+  assert.deepEqual(r.place, { text: '-6.792354, 39.208328', link: DIR + '-6.792354,39.208328', ready: true });
+  assert.equal(r.warning, undefined);
+  assert.equal(vendor(db, 'V1').latitude, -6.792354); assert.equal(vendor(db, 'V1').longitude, 39.208328); assert.equal(vendor(db, 'V1').map_url, null);
+  /* THE SESSION'S VENDOR ROW HAS NO PIN IN IT, AND MUST NOT GROW ONE. That shape is read on every
+     sign-in by a query with no retry for a missing column: a pin column in it would lock every
+     business out of a database that has not run db/RUN-ME-006. */
+  assert.deepEqual(Object.keys(r.vendor).sort(), VENDOR_COLS.split(',').map(s => s.trim()).sort());
+  for (const col of ['latitude', 'longitude', 'map_url']) assert.ok(!VENDOR_COLS.includes(col), col + ' is in the sign-in column list');
+
+  // A pasted link with coordinates in it is kept as the coordinates; a share link, as the link.
+  r = await FN.setBusinessProfile(db, user(ADMIN1), { ...base, location: 'https://maps.google.com/?q=-6.7924,39.2083' }, NOW);
+  assert.equal(r.place.text, '-6.7924, 39.2083');
+  r = await FN.setBusinessProfile(db, user(ADMIN1), { ...base, location: 'https://maps.app.goo.gl/AbCdEf123' }, NOW);
+  assert.deepEqual(r.place, { text: 'https://maps.app.goo.gl/AbCdEf123', link: 'https://maps.app.goo.gl/AbCdEf123', ready: true });
+  assert.equal(vendor(db, 'V1').latitude, null, 'the old coordinates must not linger beside a new link');
+
+  // A page that does not send `location` (an older copy still open on a phone) leaves the pin alone.
+  r = await FN.setBusinessProfile(db, user(ADMIN1), { ...base, phone: '0757' }, NOW);
+  assert.equal(r.place, undefined);
+  assert.equal(vendor(db, 'V1').map_url, 'https://maps.app.goo.gl/AbCdEf123'); assert.equal(vendor(db, 'V1').phone, '0757');
+
+  // Something that is not a map is refused WHOLE: parsed before anything is written.
+  assert.equal(await status(FN.setBusinessProfile(db, user(ADMIN1), { ...base, phone: '0999', location: 'https://evil.example/maps' }, NOW)), 400);
+  assert.equal(vendor(db, 'V1').phone, '0757', 'a refused pin must not half-save the rest of the form');
+  assert.equal(vendor(db, 'V1').map_url, 'https://maps.app.goo.gl/AbCdEf123');
+
+  // An empty box takes the pin away, and the profile read agrees.
+  r = await FN.setBusinessProfile(db, user(ADMIN1), { ...base, location: '' }, NOW);
+  assert.deepEqual(r.place, { text: '', link: '', ready: true });
+  assert.deepEqual((await FN.businessProfile(db, user(ADMIN1), {}, NOW)).place, { text: '', link: '', ready: true });
+
+  // Only the admin of the business may move its pin, like the rest of the profile.
+  assert.equal(await status(FN.setBusinessProfile(db, user(SELLER1), { location: '1, 2' }, NOW)), 403);
+});
+
+test('the shop\'s pin on a database that has not run RUN-ME-006: the rest saves, and it SAYS the pin did not', async () => {
+  absentColumns.clear();
+  try {
+    const db = bookDb(richBook(), { missingColumns: { vendors: ['latitude', 'longitude', 'map_url'] } });
+    // Reading: the profile opens, and tells the form this database cannot keep a pin.
+    const read = await FN.businessProfile(db, user(ADMIN1), {}, NOW);
+    assert.equal(read.vendor.name, 'Fromville Phones');
+    assert.deepEqual(read.place, { text: '', link: '', ready: false });
+
+    // Writing: the phone number is not held hostage by a map...
+    const r = await FN.setBusinessProfile(db, user(ADMIN1), { business_type: 'Phones', phone: '0744 111 222', address: 'Sinza', currency: 'TZS', location: '-6.79, 39.2' }, NOW);
+    assert.equal(vendor(db, 'V1').phone, '0744 111 222');
+    assert.equal(r.vendor.phone, '0744 111 222');
+    // ...and the answer does not pretend. Reporting success would send the shopkeeper to the
+    // marketplace to look for a button that is not coming.
+    assert.deepEqual(r.place, { text: '', link: '', ready: false });
+    assert.match(r.warning, /shop location was NOT/);
+    assert.match(r.warning, /db\/RUN-ME-006/);
+    assert.ok(!('latitude' in vendor(db, 'V1')), 'a column this database has not got was written anyway');
+
+    // Clearing a pin that could never be kept is nothing to warn about.
+    const cleared = await FN.setBusinessProfile(db, user(ADMIN1), { business_type: 'Phones', phone: '0744', address: 'Sinza', currency: 'TZS', location: '' }, NOW);
+    assert.equal(cleared.warning, undefined);
+    // A refused link is still refused -- the missing columns do not make a bad address acceptable.
+    assert.equal(await status(FN.setBusinessProfile(db, user(ADMIN1), { currency: 'TZS', location: 'https://evil.example/' }, NOW)), 400);
+  } finally { absentColumns.clear(); }
 });
 
 test('uploadLogo: an admin\'s own business whatever they sent; a manager names one', async () => {

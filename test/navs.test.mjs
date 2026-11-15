@@ -74,12 +74,20 @@ test('every registered function is reachable from the page (or is a named server
    SCREEN of this same page rather than a panel with a loader. So it has no tab- panel and no
    BO.tabs entry on purpose -- and the exemption is not a hole, because the two assertions
    below demand the button actually reach the marketplace and offer a way back. */
-const SCREEN_NAVS = ['market'];
+/* Favorites is the same screen opened on its other shelf (what this phone saved), so it is exempt
+   for the same reason and held to the same demand: it must go somewhere and come back. */
+const SCREEN_NAVS = ['market', 'favs'];
 test('the marketplace nav is a screen, and it goes somewhere and comes back', () => {
   assert.match(html, /id="nav-market"[^>]*onclick="openMarketplace\(\)"/, 'the Marketplace button lost its handler');
   assert.match(shell, /function openMarketplace\(\)/, 'openMarketplace is gone');
   assert.match(shell, /function backToApp\(\)/, 'the way back is gone');
-  assert.match(html, /id="mkBackToApp"[^>]*onclick="backToApp\(\)"/, 'the shopfront lost its Back to my workspace link');
+  /* The way back is the "Business Manager" tab of the switch on the bar that stays on screen.
+     It replaced a "Back to my workspace" link that only somebody who knew to look for it found. */
+  assert.match(html, /id="mkSeg_app"[^>]*onclick="mkGo\('app'\)"/, 'the shopfront lost its Business Manager tab');
+  assert.match(shell, /function mkGo\(where\) \{\s*if \(where === 'app'\) \{ if \(S\.user\) backToApp\(\); else showLogin\(false\); return; \}/,
+    'Business Manager must be the workspace for somebody signed in and the sign-in page for anybody else');
+  assert.match(html, /id="nav-favs"[^>]*onclick="openFavorites\(\)"/, 'the Favorites button lost its handler');
+  assert.match(shell, /function openFavorites\(\)/, 'openFavorites is gone');
   // It must sit directly above My Account, which is where it was asked for.
   const market = html.indexOf('id="nav-market"'), account = html.indexOf('id="nav-account"');
   assert.ok(market > 0 && account > market, 'Marketplace must come before My Account in the sidebar');
@@ -328,4 +336,73 @@ test('every copy of the Samaritan Techs mark is the same mark', () => {
   assert.doesNotMatch(html, /M3 24V13L17 4L31 13V24H3Z/, 'the generic house icon must be gone');
   assert.match(html, /\.st-wm>span\{color:var\(--brand-amber\)\}|\.st-wm>span\{color:var\(--brand-amber\);\}/,
     'the wordmark sets "Techs" in the brand amber, as the logo does');
+});
+
+
+/* =====================================================================================
+   THE SHOPFRONT'S OWN PROMISES -- the ones a unit test of the server cannot see, because they
+   are made in markup and in the page's script. tools/smoke.mjs presses the real buttons; these
+   keep the wiring from being quietly undone between two runs of it.
+   ===================================================================================== */
+test('somebody signed in is never offered Log in on the marketplace', () => {
+  // One slot, two fillings, and the function that picks is called every time the screen is shown.
+  assert.match(html, /<div class="mk-acct" id="mkAuthOut">[\s\S]*?showLogin\(false\)[\s\S]*?showLogin\(true\)[\s\S]*?<\/div>/, 'the signed-out doors are gone');
+  assert.match(html, /<div class="mk-acct hidden" id="mkAuthIn">[\s\S]*?id="mkLogoutBtn"[^>]*onclick="logout\(\)"/, 'the signed-in slot has no Log out');
+  assert.match(shell, /function paintMkAccount_\(\) \{[\s\S]*?out\.classList\.toggle\('hidden', !!u\);[\s\S]*?inn\.classList\.toggle\('hidden', !u\);/, 'the slot is no longer decided by who is signed in');
+  assert.match(shell, /function showLanding\(\) \{[\s\S]*?paintMkAccount_\(\);/, 'showLanding must repaint who is looking, every time');
+  // logout() ends on showLanding(), so signing out from the shopfront flips the slot with no extra call.
+  assert.match(shell, /function logout\(silent\) \{[\s\S]*?showLanding\(\);/, 'logout no longer lands on the marketplace');
+});
+
+test('the search box lives in the bar that stays, not in the hero that scrolls away', () => {
+  const bar = /<div class="mk-bar" id="mkBar">([\s\S]*?)\n <\/div>/.exec(html);
+  assert.ok(bar, 'the sticky bar is gone');
+  assert.match(bar[1], /id="mkSearch"/, 'the search box left the bar');
+  assert.match(bar[1], /id="mkSeg_market"[\s\S]*id="mkSeg_favs"[\s\S]*id="mkSeg_app"/, 'the three-way switch left the bar');
+  assert.equal((html.match(/id="mkSearch"/g) || []).length, 1, 'there must be exactly one search box');
+  const hero = /<section class="mk-hero">([\s\S]*?)<\/section>/.exec(html);
+  assert.ok(hero && !/mk-search/.test(hero[1]), 'a search box is back in the hero');
+  // Wide screens: the whole top sticks. Phones: only the bar, or it takes a quarter of the screen.
+  assert.match(html, /\.mk-top\{position:sticky;top:0;z-index:200;\}/);
+  assert.match(html, /@media\(max-width:768px\)\{\s*\.mk-top\{display:contents;\}\s*\.mk-bar\{position:sticky;top:0;/, 'on a phone the bar must stick by itself');
+});
+
+test('saving and "similar" are buttons on the photo that never open the product', () => {
+  for (const fn of ['toggleFav', 'findSimilar']) {
+    const body = new RegExp('function ' + fn + '\\(ev, gi\\) \\{\\s*if \\(ev\\) \\{ ev\\.stopPropagation\\(\\); ev\\.preventDefault\\(\\); \\}');
+    assert.match(shell, body, fn + ' must stop its tap reaching the card, which opens the product');
+  }
+  assert.match(shell, /class="mk-ibtn mk-save[\s\S]{0,260}onclick="toggleFav\(event,' \+ gi \+ '\)"/, 'the bookmark on the card is not wired');
+  assert.match(shell, /class="mk-ibtn mk-lens"[\s\S]{0,200}onclick="findSimilar\(event,' \+ gi \+ '\)"/, 'the lens on the card is not wired');
+  // Top right and bottom left, clear of the two badges that were already on the photo.
+  assert.match(html, /\.mk-save\{top:7px;right:7px;\}/); assert.match(html, /\.mk-lens\{bottom:7px;left:7px;\}/);
+  assert.match(html, /\.mk-img \.mk-stock\{position:absolute;bottom:10px;right:8px;/, 'the stock badge must have moved out of the bookmark\'s corner');
+  // Quiet: saving raises no popup. (toggleFav's body, up to the function after it.)
+  const fav = shell.slice(shell.indexOf('function toggleFav('), shell.indexOf('/* ---- "more like this"'));
+  assert.ok(fav.length > 100 && !/showToast|BO\.toast|BO\.notify|askOverlay/.test(fav), 'saving a favourite must not raise a popup');
+  assert.match(fav, /store\('boFavs'/, 'favourites are kept on the phone');
+});
+
+test('the popup can be thrown away, and there is only one timer for it', () => {
+  assert.match(shell, /function wireToastSwipe_\(\)/);
+  for (const ev of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel']) assert.ok(shell.includes("'" + ev + "'"), 'the popup does not listen for ' + ev);
+  assert.match(shell, /e\.type === 'pointerup' && far >= SWIPE_GONE_PX/, 'only a real drag, let go of, dismisses it');
+  // Tips and confirmations go through the one door, so neither can take the other down early.
+  assert.match(shell, /function showToast\(msg, icon\) \{ toastShow_\(msg, icon \|\| '✅', 2800\); \}/);
+  assert.match(shell, /toastShow_\(msg, '💡', hintLifetime \* 1000\);/);
+  assert.equal((shell.match(/getElementById\('hintToast'\)/g) || []).length, 1, 'only toastEl_ may reach for the popup: everything else goes through toastShow_ / toastHide_');
+  assert.ok(!/querySelector\('#hintToast/.test(shell), 'something reaches into the popup around toastShow_');
+  // It can only be dragged if it takes the finger at all, and only while it is showing.
+  assert.match(html, /#hintToast\{[^}]*pointer-events:none;touch-action:none;/);
+  assert.match(html, /#hintToast\.show\{[^}]*pointer-events:auto;/);
+});
+
+test('the Location button can only ever open Google Maps', () => {
+  // The page builds exactly two kinds of address: the pin the server vetted, and a map search.
+  assert.match(shell, /var pin = v\.map \|\| '', area = \(!pin && v\.address\) \? 'https:\/\/www\.google\.com\/maps\/search\/\?api=1&query=' \+ encodeURIComponent\(/);
+  assert.match(shell, /id="pdLocation" href="' \+ esc\(pin\) \+ '" target="_blank" rel="noopener"/);
+  assert.match(shell, /id="pdLocation" href="' \+ esc\(area\) \+ '" target="_blank" rel="noopener"/);
+  // And the app hands a host it does not own to the phone, which is what opens the Maps app.
+  const java = readFileSync(join(ROOT, 'android/app/src/main/java/com/samaritantechs/industrial/MainActivity.java'), 'utf8');
+  assert.ok(!/"(www\.)?google\.com"|"maps\.app\.goo\.gl"/.test(java.slice(java.indexOf('IN_APP_HOSTS'), java.indexOf('IN_APP_HOSTS') + 600)), 'Google Maps must NOT be an in-app host: it has to leave for the Maps app');
 });

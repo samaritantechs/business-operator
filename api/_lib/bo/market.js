@@ -1,4 +1,5 @@
-import { rowsAll, one, insertOne, rpcOr, getSettings, num, int, iso, currencyOf, mustText, badRequest } from './_shared.js';
+import { rowsAll, one, insertOne, rpcOr, sel, getSettings, num, int, iso, currencyOf, mustText, badRequest } from './_shared.js';
+import { mapLinkOf } from './place.js';
 import { hintsForRole } from './hints.js';
 import { currentRelease, publicRelease } from './releases.js';
 
@@ -20,11 +21,20 @@ import { currentRelease, publicRelease } from './releases.js';
    of product_clicks when the function is not installed yet) + hints (1) + settings (1) = 5
    round trips. Warm: 0 -- the whole answer is cached per client for a minute, so a burst of
    visitors scanning the same QR code costs the database one build. `click` is the only public
-   write and costs 2 (one product look-up for its vendor_id, one insert). */
+   write and costs 2 (one product look-up for its vendor_id, one insert).
+
+   PLUS ONE, FOUR TIMES AN HOUR: how many sales each business has made (vendorSales below). It
+   is asked for at most once every fifteen minutes per client, never read from the sales table
+   row by row, and never waited for longer than its budget -- so the storefront costs the same
+   five on every other build. */
 
 const CACHE_MS = 60 * 1000;
 const RECENT_MS = 30 * 86400000;              // legacy cutoff: 2592000000 ms = 30 days
-const VENDOR_COLS = 'id, name, business_type, phone, address, currency, logo_url';
+/* latitude / longitude / map_url are the shop's pin (db/RUN-ME-006) and may not be there yet:
+   they are OPTIONAL in _shared.js, so sel() drops them and the storefront is a business with
+   no Location button rather than no storefront. created_at and registered_on have always
+   been there. */
+const VENDOR_COLS = 'id, name, business_type, phone, address, currency, logo_url, created_at, registered_on, latitude, longitude, map_url';
 const PRODUCT_COLS = 'id, vendor_id, legacy_id, name, category, brand, model, price, stock, image1_url, image2_url, image3_url, listing_type, price_unit, location';
 
 /* One cache per database client (WeakMap so a test's throwaway fake does not pin memory).
@@ -72,11 +82,93 @@ async function clickCounts(db, nowMs) {
   return { counts, totalClicks };
 }
 
+/* =====================================================================================
+   "3 MONTHS · 30 SALES" -- what a business has to show for itself.
+   =====================================================================================
+   A product's own clicks say it is being looked at. They say nothing about the SHOP: whether
+   it opened last week or has been trading all year, whether anybody has ever actually bought
+   from it. So each business carries two more facts onto every one of its cards -- how long
+   it has been here, and how many sales it has completed, for the WHOLE business, not the
+   product in the picture.
+
+   A SALE IS ONE COMPLETED SALE RECORD -- what the Sales report lists and numbers SALE-0001,
+   SALE-0002 -- so a cancelled one does not count and a basket of three things is three. It is
+   the one definition, written once, in bo_vendor_sale_counts() (db/schema.sql), and it was
+   chosen with a stopwatch: on two million sale lines it answers in 0.15 s, where counting
+   distinct checkouts instead took 2 s and spilled to disk.
+
+   THERE IS NO PAGED FALLBACK, ON PURPOSE. Every other aggregate here falls back to reading the
+   rows and adding them up in JavaScript, and for the click log that is survivable. The sales
+   table is the largest in the system and this is the one page with no sign-in: a fallback that
+   walked it would let anybody on the internet make the database read every sale ever recorded,
+   once a minute, for a number on a card. So without the function (db/RUN-ME-006 not run yet)
+   the answer is "not known", and the card shows the age alone -- which needs nothing new.
+
+   AND IT IS NEVER WAITED FOR. The count is asked for at most once every fifteen minutes per
+   client; given statsBudgetMs() to answer; and if it has not, the storefront is built without
+   it and the answer is kept for the next build whenever it does arrive. A slow database is a
+   reason to ask it for less, not to make a customer watch a spinner. */
+const STATS_MS = 15 * 60 * 1000;
+const STATS_RETRY_MS = 2 * 60 * 1000;         // after a miss: soon, but not on every build
+/** Read when asked, not when loaded, so it can be turned down without a redeploy -- and by a test. */
+const statsBudgetMs = () => Number(process.env.BO_MARKET_STATS_BUDGET_MS) || 1500;
+const DAY_MS = 86400000;
+const statsCache = new WeakMap();
+/** For tests, and for nothing else: a product edit must NOT make the next visitor recount sales. */
+export function clearMarketStats(db) { if (db) statsCache.delete(db); }
+
+function salesMap(list) {
+  const map = new Map();
+  for (const r of (Array.isArray(list) ? list : [])) {
+    const id = String((r && r.vendor_id) || '');
+    if (!id) continue;
+    const first = Date.parse(r.first_sale);
+    map.set(id, { sales: Math.max(0, Math.round(num(r.sales))), first: Number.isFinite(first) ? first : null });
+  }
+  return map;
+}
+
+/** { known, map: vendor_id -> { sales, first } }. `known` is false when the database could not
+    say (no function yet, or too slow this time) -- which is not the same as "sold nothing". */
+async function vendorSales(db, nowMs) {
+  const hit = statsCache.get(db);
+  if (hit && nowMs >= hit.at && nowMs < hit.until) return hit;
+  let timer = null;
+  const late = new Promise(resolve => { timer = setTimeout(() => resolve(undefined), statsBudgetMs()); });
+  // null = the function is not in this database; undefined = it did not answer in time / failed.
+  const asked = rpcOr(db, 'bo_vendor_sale_counts', {}, async () => null).catch(() => undefined);
+  const answer = await Promise.race([asked, late]);
+  clearTimeout(timer);
+  const keep = (list, at) => {
+    const entry = list === null
+      ? { at, until: at + STATS_MS, known: false, map: new Map() }
+      : { at, until: at + STATS_MS, known: true, map: salesMap(list) };
+    statsCache.set(db, entry);
+    return entry;
+  };
+  if (answer !== undefined) return keep(answer, nowMs);
+  /* Too slow, or it failed. Serve what was known before (an old count beats none), look again
+     in a couple of minutes rather than on the very next build, and if the slow answer does
+     arrive after all, keep it -- the work was already done. */
+  const stale = { at: nowMs, until: nowMs + STATS_RETRY_MS, known: !!(hit && hit.known), map: hit ? hit.map : new Map() };
+  statsCache.set(db, stale);
+  asked.then(list => { if (list !== undefined && statsCache.get(db) === stale) keep(list, nowMs); });
+  return stale;
+}
+
+/** Whole days since the earliest sign that this business existed: the row being created, the
+    registration date (which a reactivation moves FORWARD, hence the minimum), its first sale. */
+function ageDaysOf(v, stat, nowMs) {
+  const seen = [Date.parse(v.created_at), Date.parse(v.registered_on), stat && stat.first]
+    .filter(t => Number.isFinite(t) && t > 0 && t <= nowMs);
+  return seen.length ? Math.floor((nowMs - Math.min(...seen)) / DAY_MS) : null;
+}
+
 async function buildMarket(db, nowMs) {
   // Vendors first: they are the gate. A restricted or inactive vendor is simply not in this
   // map, and every product whose vendor is missing from it falls off the page -- the same join
   // the marketplace_products view does, done here because the fake has no views.
-  const vendors = await rowsAll(db, 'vendors', q => q.select(VENDOR_COLS).eq('active', true).eq('restricted', false).order('name', { ascending: true }));
+  const vendors = await rowsAll(db, 'vendors', q => q.select(sel('vendors', VENDOR_COLS)).eq('active', true).eq('restricted', false).order('name', { ascending: true }));
   const vmap = new Map(vendors.map(v => [String(v.id), v]));
   const products = await rowsAll(db, 'products', q => q.select(PRODUCT_COLS).eq('active', true));
   const { counts, totalClicks } = await clickCounts(db, nowMs);
@@ -108,14 +200,24 @@ async function buildMarket(db, nowMs) {
 
   const hints = await hintsForRole(db, 'marketplace');
   const settings = await getSettings(db, ['hintLifetime', 'hintInterval']);
+  const stats = await vendorSales(db, nowMs);
   return {
     products: ranked.map(r => r.row),
     // `admin` stays '' on purpose: the page never draws it and looking it up is a whole extra
     // read of profiles for nothing. The field is kept so the payload shape matches the legacy.
-    vendors: vendors.map(v => ({
-      id: String(v.id), name: String(v.name || ''), admin: '', logo: String(v.logo_url || ''),
-      businessType: String(v.business_type || ''), phone: String(v.phone || ''), address: String(v.address || ''), currency: currencyOf(v),
-    })),
+    vendors: vendors.map(v => {
+      const stat = stats.map.get(String(v.id));
+      return {
+        id: String(v.id), name: String(v.name || ''), admin: '', logo: String(v.logo_url || ''),
+        businessType: String(v.business_type || ''), phone: String(v.phone || ''), address: String(v.address || ''), currency: currencyOf(v),
+        /* ageDays: whole days this business has been here (null if no date could be read).
+           sales:   completed checkouts for the whole business; null = not known, 0 = none yet.
+           map:     the address the Location button opens, '' when no pin has been given. */
+        ageDays: ageDaysOf(v, stat, nowMs),
+        sales: stats.known ? (stat ? stat.sales : 0) : null,
+        map: mapLinkOf(v),
+      };
+    }),
     avgClicks, totalClicks, hints, timings: hintTimings(settings),
     /* The Android build, for the Download button and the printed QR. It rides the market
        payload because that is built once a minute and shared by everyone behind the cache --

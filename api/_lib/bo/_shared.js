@@ -43,6 +43,12 @@ const OPTIONAL_COLUMNS = {
      Absent, every hint is shown to everybody -- which is exactly what happened before the column
      existed, so a database that has not run db/RUN-ME-005 is no worse off than it was. */
   hints: ['feature'],
+  /* The shop's pin for the marketplace's Location button (db/RUN-ME-006). Absent, the storefront
+     simply has no Location button, and saving a business profile saves everything else and SAYS
+     the pin could not be kept. These three are deliberately NOT in auth.js's VENDOR_COLS: that
+     list is read on every sign-in, by a query that does not go through the retry below, and a
+     column the database has not got there would lock every business out. */
+  vendors: ['latitude', 'longitude', 'map_url'],
 };
 /* WHAT IS LEARNED HAS TO BE FORGOTTEN AGAIN. A lambda that served one request before the
    migration ran remembers the columns as missing for the rest of its life, and while a READ that
@@ -98,11 +104,15 @@ export function writable(table, row) {
 
    So a caller whose write EXISTS to set an optional column asks first, and is told plainly to run
    the migration rather than being congratulated for a no-op. */
-export function requireColumn(table, col, what) {
+export function requireColumn(table, col, what, migration = 'db/RUN-ME-002') {
   if (!isAbsent(table, col)) return;
-  throw badRequest('Hifadhidata bado haijasasishwa kwa ' + what + '. Mwambie meneja aendeshe db/RUN-ME-002 kwenye Supabase. / '
+  throw badRequest(notMigrated(what, migration));
+}
+/** The one sentence for "the database has not been given this yet", naming the file to run. */
+export function notMigrated(what, migration) {
+  return 'Hifadhidata bado haijasasishwa kwa ' + what + '. Mwambie meneja aendeshe ' + migration + ' kwenye Supabase. / '
     + 'This database has not been updated for ' + what + ' yet, so it cannot be saved. '
-    + 'Ask the manager to run db/RUN-ME-002 in Supabase, then try again.');
+    + 'Ask the manager to run ' + migration + ' in Supabase, then try again.';
 }
 
 /* AND A WRITE THAT LANDED CANNOT ASK ANY MORE. requireColumn only knows what this process has

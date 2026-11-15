@@ -1,6 +1,7 @@
 import { rows, rowsAll, one, insertOne, update, remove, badRequest, forbidden, notFound, AppError,
   isManagerLevel, isAdminLevel, vendorScope, PROFILE_COLS, VENDOR_COLS, text, mustText, iso,
-  mustVendor, vendorsList, requireVendorUser, identifierTaken } from './_shared.js';
+  mustVendor, vendorsList, requireVendorUser, identifierTaken, sel, columnAbsent, notMigrated } from './_shared.js';
+import { parsePlace, placeText, mapLinkOf } from './place.js';
 import { requireAdmin, requireManager, ROLES, hashPassword, verifyPassword, bustSessions } from '../auth.js';
 import { decodeDataUrl, uploadImage, BUCKETS } from '../storage.js';
 
@@ -41,6 +42,20 @@ function pickVendor(row) {
   const out = {};
   for (const k of VENDOR_KEYS) out[k] = row && row[k] !== undefined ? row[k] : null;
   return out;
+}
+
+/* THE SHOP'S PIN travels beside the vendor row, never inside it. pickVendor is the session's
+   own shape (auth.js VENDOR_COLS), read on every sign-in by a query that has no retry for a
+   column the database has not got -- so the three pin columns (db/RUN-ME-006) stay out of it and
+   are read here, on the one screen that edits them, through sel(), which drops them and reads
+   on when they are not there yet. `ready` false = this database cannot keep a pin yet. */
+const PLACE_COLS = 'id, latitude, longitude, map_url';
+function placeOut(row, ready) {
+  return { text: ready ? placeText(row) : '', link: ready ? mapLinkOf(row) : '', ready };
+}
+async function placeOf(db, vendorId) {
+  const row = await one(db, 'vendors', q => q.select(sel('vendors', PLACE_COLS)).eq('id', vendorId));
+  return placeOut(row, !columnAbsent('vendors', 'latitude'));
 }
 
 /** true / 'true' / 'Yes' / 1 -> true; the page and the legacy sheet spelt booleans every way. */
@@ -302,12 +317,22 @@ export const FN = {
   businessProfile: async (db, user) => {
     if (isManagerLevel(user.role)) throw badRequest('A manager account has no business profile.');
     const vendorId = requireVendorUser(user);
-    return { vendor: pickVendor(await mustVendor(db, vendorId)) };
+    return { vendor: pickVendor(await mustVendor(db, vendorId)), place: await placeOf(db, vendorId) };
   },
 
-  /** { business_type, phone, address, currency } -> { vendor }. Admin, own vendor. The currency
-      used to be a setting per vendor name; it is a column now, normalised to a 3-5 letter code
-      (blank = TZS). 1 write. */
+  /** { business_type, phone, address, currency, location? } -> { vendor, place?, warning? }.
+      Admin, own vendor. The currency used to be a setting per vendor name; it is a column now,
+      normalised to a 3-5 letter code (blank = TZS). 1 write.
+
+      `location` is the shop's pin, in whatever form the box held (place.js): coordinates, a
+      Google Maps link, or '' to take it away. A page that does not send it (an older copy still
+      open on somebody's phone) changes nothing about the pin. It is parsed BEFORE anything is
+      written, so a link that is refused refuses the whole save rather than half of it.
+
+      ON A DATABASE WITHOUT THE COLUMNS the rest of the profile still saves -- a phone number
+      must not be held hostage by a map -- and the answer says, in words, that the pin was not
+      kept and which file to run. Reporting success there would send the shopkeeper to the
+      marketplace to look for a button that is not coming. */
   setBusinessProfile: async (db, user, args) => {
     requireAdmin(user);
     if (isManagerLevel(user.role)) throw badRequest('A manager account has no business profile.');
@@ -316,10 +341,21 @@ export const FN = {
       business_type: text(args.business_type) || '', phone: text(args.phone) || '',
       address: text(args.address) || '', currency: currencyArg(args.currency),
     };
+    const place = (args.location === undefined || args.location === null) ? null : parsePlace(args.location);
+    if (place) Object.assign(patch, place);
     const [v] = await update(db, 'vendors', patch, q => q.eq('id', vendorId));
     if (!v) throw notFound('Business not found.');
     bustSessions(db);
-    return { vendor: pickVendor(v) };
+    const out = { vendor: pickVendor(v) };
+    if (place) {
+      const ready = !columnAbsent('vendors', 'latitude');
+      out.place = placeOut(v, ready);
+      if (!ready && (place.latitude !== null || place.map_url)) {
+        out.warning = 'Mengine yote yamehifadhiwa, ila mahali pa duka hapajahifadhiwa. / Everything else was saved, '
+          + 'but the shop location was NOT. ' + notMigrated('the shop location', 'db/RUN-ME-006');
+      }
+    }
+    return out;
   },
 
   /** { vendor_id?, data_url } -> { url }. Admin: own vendor whatever was sent; manager: the one

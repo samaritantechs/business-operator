@@ -53,11 +53,54 @@
 #landingPage::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(720px 460px at 8% -8%,rgba(11,42,107,0.13),transparent 60%),radial-gradient(680px 460px at 92% -6%,rgba(240,160,32,0.10),transparent 60%),radial-gradient(760px 520px at 76% 10%,rgba(5,150,105,0.08),transparent 64%);}
 [data-theme="dark"] #landingPage::before{background-image:linear-gradient(rgba(255,255,255,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.04) 1px,transparent 1px);}
 [data-theme="dark"] #landingPage::after{background:radial-gradient(720px 460px at 8% -8%,rgba(11,42,107,0.22),transparent 60%),radial-gradient(680px 460px at 92% -6%,rgba(240,160,32,0.18),transparent 60%),radial-gradient(760px 520px at 76% 10%,rgba(6,118,71,0.12),transparent 64%);}
-.mk-nav{position:sticky;top:0;z-index:200;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:12px 26px;gap:12px;flex-wrap:wrap;box-shadow:var(--shadow);}
+/* THE TOP OF THE SHOPFRONT. .mk-nav is who you are and where the doors are; .mk-bar is what
+   stays with you while you scroll: the switch between the market, what you saved and the
+   business manager, and the search box. On a wide screen the two stick together. On a phone
+   the nav used to stick too and took a quarter of the screen with it, so there only the bar
+   stays -- display:contents lets it stick to the page rather than to a box as short as itself. */
+.mk-top{position:sticky;top:0;z-index:200;}
+.mk-nav{background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:12px 26px;gap:12px;flex-wrap:wrap;box-shadow:var(--shadow);}
 .mk-brand{display:flex;align-items:center;gap:11px;}.mk-brand .mk-logo{width:40px;height:40px;background:var(--brand-navy);border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}.mk-brand .mk-logo svg{width:21px;height:21px;}.mk-brand .mk-bn{font-size:1.05rem;font-weight:800;color:var(--text);line-height:1;}.mk-brand .mk-bs{font-size:.68rem;color:var(--muted);margin-top:2px;}
 .mk-navlinks{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
 .mk-navlink{padding:8px 13px;border-radius:var(--radius-sm);color:var(--text2);font-size:.85rem;font-weight:600;cursor:pointer;background:none;border:none;transition:all .15s;}.mk-navlink:hover{background:var(--surface2);color:var(--text);}
-.mk-hero{max-width:1180px;margin:0 auto;padding:54px 26px 28px;text-align:center;}
+.mk-navlinks{margin-left:auto;}
+.mk-acct{display:flex;align-items:center;gap:8px;}
+.mk-authbtn{padding:8px 16px;white-space:nowrap;}
+.mk-acct-chip{display:flex;align-items:center;gap:7px;padding:3px 11px 3px 3px;border:1px solid var(--border);border-radius:99px;background:var(--surface2);font-size:.78rem;font-weight:700;color:var(--text);max-width:180px;cursor:pointer;font-family:var(--font);}
+.mk-acct-av{width:28px;height:28px;border-radius:50%;background:var(--brand-navy);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.62rem;font-weight:700;overflow:hidden;flex-shrink:0;text-transform:uppercase;}
+.mk-acct-av img{width:100%;height:100%;object-fit:cover;}
+.mk-acct-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.mk-bar{background:var(--surface);border-bottom:1px solid var(--border);padding:8px 26px;display:flex;align-items:center;gap:14px;box-shadow:var(--shadow);}
+.mk-switch{display:flex;gap:3px;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:3px;flex-shrink:0;}
+.mk-seg{border:none;background:none;padding:7px 13px;border-radius:9px;font-size:.8rem;font-weight:700;color:var(--text2);cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;justify-content:center;gap:5px;font-family:var(--font);transition:background .15s,color .15s;-webkit-tap-highlight-color:transparent;}
+.mk-seg:hover{color:var(--text);}
+.mk-seg.active{background:var(--surface);color:var(--accent);box-shadow:var(--shadow);}
+.mk-seg-n{background:var(--accent-solid);color:var(--on-solid);border-radius:99px;font-size:.62rem;line-height:1;padding:3px 6px;min-width:17px;text-align:center;}
+.mk-bar .mk-searchwrap{flex:1;max-width:560px;margin:0 0 0 auto;}
+.mk-bar .mk-search{padding:10px 14px 10px 40px;border-radius:12px;font-size:.9rem;box-shadow:none;}
+.mk-bar .mk-searchwrap .mk-sico{left:13px;font-size:.95rem;}
+#mkMarketSection{scroll-margin-top:118px;}
+.mk-simbar{display:flex;align-items:center;gap:8px;background:var(--accent-lt);border:1px solid var(--border);color:var(--text);border-radius:12px;padding:8px 8px 8px 12px;margin-bottom:12px;font-size:.84rem;}
+.mk-simbar .mk-simtxt{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.mk-simbar .mk-simx{margin-left:auto;flex-shrink:0;border:1px solid var(--border);background:var(--surface);color:var(--text2);border-radius:99px;padding:4px 11px;font-size:.76rem;font-weight:700;cursor:pointer;font-family:var(--font);}
+@media(max-width:768px){
+  .mk-top{display:contents;}
+  .mk-bar{position:sticky;top:0;z-index:200;flex-direction:column;align-items:stretch;gap:7px;padding:8px 14px;}
+  .mk-bar .mk-searchwrap{max-width:none;margin:0;order:-1;}
+  .mk-switch{width:100%;}
+  .mk-seg{flex:1 1 0;min-width:0;padding:8px 2px;font-size:.72rem;gap:3px;}
+  .mk-acct-chip{max-width:120px;}
+  /* The brand and who-you-are share the first line; the links drop to a line of their own. */
+  .mk-nav{row-gap:8px;}
+  .mk-brand{flex:1 1 auto;min-width:0;}
+  .mk-acct{margin-left:auto;gap:6px;}
+  .mk-navlinks{order:3;width:100%;margin-left:0;}
+  .mk-authbtn{padding:7px 12px;font-size:.8rem;}
+  #mkSeg_market{flex-grow:1.15;}#mkSeg_app{flex-grow:1.6;}
+}
+@media(max-width:480px){.mk-brand .mk-bs{display:none;}.mk-brand .mk-bn{font-size:.95rem;line-height:1.12;}.mk-acct-name{display:none;}.mk-acct-chip{padding:3px;}}
+@media(max-width:380px){.mk-seg{font-size:.66rem;gap:2px;}}
+.mk-hero{max-width:1180px;margin:0 auto;padding:40px 26px 24px;text-align:center;}
 .mk-hero h1{font-size:2.5rem;font-weight:800;letter-spacing:-.02em;line-height:1.12;margin-bottom:14px;background:linear-gradient(115deg,#0B2A6B 0%,#1D4ED8 42%,#C2610C 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
 .mk-hero p{font-size:1.02rem;color:var(--text2);max-width:620px;margin:0 auto 22px;line-height:1.6;}
 .mk-searchwrap{max-width:580px;margin:0 auto;position:relative;}
@@ -83,9 +126,18 @@
 .mk-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;cursor:pointer;transition:transform .2s,box-shadow .2s,border-color .2s;display:flex;flex-direction:column;}
 .mk-card:hover{transform:translateY(-4px);box-shadow:var(--shadow-md);border-color:rgba(11,42,107,.28);}
 .mk-img{width:100%;aspect-ratio:1/1;background:var(--surface2);background-size:cover;background-position:center;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:2.4rem;position:relative;}
-.mk-img .mk-stock{position:absolute;top:8px;right:8px;background:rgba(15,23,42,.78);color:#fff;font-size:.66rem;font-weight:600;padding:2px 8px;border-radius:99px;}
+.mk-img .mk-stock{position:absolute;bottom:10px;right:8px;background:rgba(15,23,42,.78);color:#fff;font-size:.66rem;font-weight:600;padding:2px 8px;border-radius:99px;}
 .mk-img .mk-stock.out{background:rgba(180,35,24,.9);}
 .mk-fire{position:absolute;top:8px;left:8px;background:linear-gradient(135deg,#F97316,#EF4444);color:#fff;font-size:.66rem;font-weight:700;padding:2px 8px;border-radius:99px;box-shadow:0 2px 8px rgba(239,68,68,.4);}
+/* TWO THINGS A CUSTOMER CAN DO WITHOUT OPENING THE PRODUCT, both on the photo and both out of
+   the way of the two badges: keep it (top right) and find more like it (bottom left). They are
+   buttons inside a card that is itself one big button, so each stops its own tap going further. */
+.mk-ibtn{position:absolute;width:34px;height:34px;border-radius:50%;border:none;background:rgba(255,255,255,.93);color:#0F172A;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 1px 6px rgba(15,23,42,.3);padding:0;transition:transform .15s;-webkit-tap-highlight-color:transparent;}
+.mk-ibtn svg{width:18px;height:18px;display:block;}
+.mk-ibtn:active{transform:scale(.86);}
+.mk-save{top:7px;right:7px;}
+.mk-save.on{color:#C2610C;}.mk-save.on svg{fill:currentColor;}
+.mk-lens{bottom:7px;left:7px;}
 .mk-cardbody{padding:13px 14px 15px;display:flex;flex-direction:column;gap:5px;flex:1;}
 .mk-cat{font-size:.68rem;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.05em;}
 .mk-name{font-size:.92rem;font-weight:700;color:var(--text);line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
@@ -94,6 +146,13 @@
 .mk-cvendor img{width:20px;height:20px;border-radius:50%;object-fit:cover;}
 .mk-cvendor .mk-vinit{width:20px;height:20px;border-radius:50%;background:var(--brand-navy);display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:700;color:#fff;}
 .mk-cvendor span{font-size:.76rem;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.mk-cvendor .mk-vtxt{min-width:0;display:flex;flex-direction:column;}
+.mk-cvendor .mk-vmeta{font-size:.66rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;}
+.pd-acts{display:flex;gap:8px;margin:0 0 12px;}
+.pd-act{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text2);font-size:.8rem;font-weight:700;cursor:pointer;font-family:var(--font);}
+.pd-act svg{width:16px;height:16px;display:block;}
+.pd-act.on{color:#C2610C;border-color:#C2610C;}.pd-act.on svg{fill:currentColor;}
+.pd-go{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;}.pd-go > a{flex:1 1 150px;justify-content:center;text-align:center;}
 .mk-vgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;}
 .mk-vcard{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:18px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;transition:transform .2s,box-shadow .2s;}
 .mk-vcard:hover{transform:translateY(-3px);box-shadow:var(--shadow-md);}
@@ -164,31 +223,53 @@ html.bo-desktop .tb-vendor-badge{display:inline-block;}
 
 <!-- ==================== LANDING / MARKETPLACE ==================== -->
 <div id="landingPage" class="hidden">
+ <div class="mk-top">
   <nav class="mk-nav">
     <div class="mk-brand">
       <div class="mk-logo"><svg viewBox="0 0 100 100" fill="none"><path d="M63 22.1 A17 17 0 1 0 50 50" stroke="#FFFFFF" stroke-width="15" stroke-linecap="round" fill="none"/><path d="M50 50 A17 17 0 1 1 33.3 70" stroke="var(--brand-amber,#F0A020)" stroke-width="15" stroke-linecap="round" fill="none"/></svg></div>
       <div><div class="mk-bn">Samaritan Industrial</div><div class="mk-bs">Marketplace by <span class="st-wm">Samaritan<span>Techs</span></span></div></div>
     </div>
     <div class="mk-navlinks">
-      <button class="mk-navlink hidden" id="mkBackToApp" onclick="backToApp()">↩︎ Back to my workspace</button>
-      <button class="mk-navlink" onclick="mkScrollTo('mkMarketSection')">🛍️ Marketplace</button>
       <button class="mk-navlink" onclick="mkScrollTo('mkAboutSection')">ℹ️ About Us</button>
       <button class="mk-navlink hidden" id="mkAppLink" onclick="mkScrollTo('mkAppSection')">📱 Get the app</button>
       <a href="#" class="icon-btn" onclick="showSuggestionBox();return false;" title="Feedback via WhatsApp">💬</a>
       <button class="icon-btn" id="mkLangBtn" onclick="toggleLang()" title="Lugha ya vidokezo / Tips language (EN/SW)" style="font-weight:800;font-size:.72rem;">EN</button><button class="icon-btn" id="mkThemeBtn" onclick="toggleTheme()" title="Toggle theme">🌙</button>
       <button class="icon-btn" onclick="globalRefresh()" title="Refresh data">↻</button>
-      <button class="btn-secondary" onclick="showLogin(false)" style="padding:8px 16px;">Log in</button>
-      <button class="btn-primary" onclick="showLogin(true)" style="padding:8px 16px;">Register</button>
+    </div>
+    <!-- WHO IS LOOKING. Somebody signed in who steps out to the shopfront is still signed in,
+         and being offered "Log in" and "Register" there read as having been signed out. So
+         the two are one slot: the doors in for a stranger, the name and the way out for
+         somebody the system already knows. paintMkAccount_ decides, every time this screen
+         is shown. -->
+    <div class="mk-acct" id="mkAuthOut">
+      <button class="btn-secondary mk-authbtn" onclick="showLogin(false)">Log in</button>
+      <button class="btn-primary mk-authbtn" onclick="showLogin(true)">Register</button>
+    </div>
+    <div class="mk-acct hidden" id="mkAuthIn">
+      <button type="button" class="mk-acct-chip" onclick="mkGo('app')" title="Open my Business Manager"><span class="mk-acct-av" id="mkAcctAv">U</span><span class="mk-acct-name" id="mkAcctName"></span></button>
+      <button class="btn-secondary mk-authbtn" id="mkLogoutBtn" onclick="logout()" style="border-color:rgba(180,35,24,.3);color:var(--rose);">⏻ Log out</button>
     </div>
   </nav>
+  <!-- THE BAR THAT STAYS. One switch for the three places a person can be -- the market, what
+       they saved, the business manager -- and the search box, which used to sit in the hero and
+       scroll away with it. "Business Manager" is the sign-in page for a stranger and the
+       workspace for somebody signed in: the same door either way. -->
+  <div class="mk-bar" id="mkBar">
+    <div class="mk-switch" id="mkSwitch">
+      <button type="button" class="mk-seg active" id="mkSeg_market" onclick="mkGo('market')">🛍️ Marketplace</button>
+      <button type="button" class="mk-seg" id="mkSeg_favs" onclick="mkGo('favs')">🔖 Favorites<span class="mk-seg-n hidden" id="mkFavCount">0</span></button>
+      <button type="button" class="mk-seg" id="mkSeg_app" onclick="mkGo('app')">🏢 Business Manager</button>
+    </div>
+    <div class="mk-searchwrap">
+      <span class="mk-sico">🔍</span>
+      <input type="search" id="mkSearch" class="mk-search" placeholder="Search products, categories or businesses…" oninput="mkSearchInput()" autocomplete="off" enterkeyhint="search">
+    </div>
+  </div>
+ </div>
 
   <section class="mk-hero">
     <h1>Discover products from real businesses near you</h1>
     <p>Browse a growing marketplace of goods from trusted local vendors — view photos, prices and contacts freely. Run a business? Manage your sales, stock and reports all in one place.</p>
-    <div class="mk-searchwrap">
-      <span class="mk-sico">🔍</span>
-      <input type="text" id="mkSearch" class="mk-search" placeholder="Search products, categories or businesses…" oninput="filterMarket()">
-    </div>
     <div class="mk-stats">
       <div class="mk-stat"><div class="v" id="mkStatProducts">–</div><div class="l">Products</div></div>
       <div class="mk-stat"><div class="v" id="mkStatVendors">–</div><div class="l">Businesses</div></div>
@@ -197,14 +278,15 @@ html.bo-desktop .tb-vendor-badge{display:inline-block;}
   </section>
 
   <section class="mk-section" id="mkMarketSection">
-    <div class="mk-sec-title">🛍️ Marketplace</div>
-    <div class="mk-sec-sub">Tap any product to see details and contact the seller. Viewing is always free.</div>
+    <div class="mk-sec-title" id="mkSecTitle">🛍️ Marketplace</div>
+    <div class="mk-sec-sub" id="mkSecSub">Tap any product to see details and contact the seller. Viewing is always free.</div>
     <div class="mk-cats" id="mkTypeChips" style="margin-bottom:10px;">
       <button class="mk-chip active" id="mkType_ALL" onclick="setMkType('ALL')">All Listings</button>
       <button class="mk-chip" id="mkType_Sale" onclick="setMkType('Sale')">&#128722; For Sale</button>
       <button class="mk-chip" id="mkType_Rent" onclick="setMkType('Rent')">&#128273; For Rent</button>
     </div>
     <div class="mk-cats" id="mkCats"></div>
+    <div id="mkSimBar" class="mk-simbar hidden"><span>🔎</span><span class="mk-simtxt" id="mkSimText"></span><button type="button" class="mk-simx" onclick="clearSimilar()">✕ Show all</button></div>
     <div id="mkProductGrid" class="mk-grid"><div class="mk-empty">Loading products…</div></div>
     <div id="mkLoadMoreWrap" style="text-align:center;margin-top:6px;"></div>
   </section>
@@ -358,7 +440,7 @@ body.bo-fb-open{overflow:hidden;}
 .prod-img-row .prod-img-slot img{max-height:72px;}
 .prod-img-x{position:absolute;top:4px;right:4px;border:0;border-radius:50%;width:22px;height:22px;line-height:1;background:rgba(0,0,0,.55);color:#fff;font-size:.72rem;cursor:pointer;}
 .pd-imgs{display:flex;gap:8px;overflow-x:auto;}
-#hintToast{position:fixed;bottom:22px;right:22px;max-width:340px;min-width:260px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow-md);z-index:8888;display:flex;align-items:flex-start;gap:10px;font-size:.83rem;opacity:0;transform:translateY(14px) scale(.97);transition:all .35s ease;pointer-events:none;}#hintToast.show{opacity:1;transform:translateY(0) scale(1);}#hintToast .hint-icon{font-size:1rem;flex-shrink:0;margin-top:1px;}#hintToast .hint-text{color:var(--text);line-height:1.5;}
+#hintToast{position:fixed;bottom:22px;right:22px;max-width:340px;min-width:260px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow-md);z-index:8888;display:flex;align-items:flex-start;gap:10px;font-size:.83rem;opacity:0;transform:translateY(14px) scale(.97);transition:all .35s ease;pointer-events:none;touch-action:none;user-select:none;-webkit-user-select:none;}#hintToast.show{opacity:1;transform:translateY(0) scale(1);pointer-events:auto;cursor:grab;}#hintToast.drag{transition:none;cursor:grabbing;}#hintToast .hint-icon{font-size:1rem;flex-shrink:0;margin-top:1px;}#hintToast .hint-text{color:var(--text);line-height:1.5;}
 .modal-content{background:var(--surface) !important;border:1px solid var(--border) !important;border-radius:16px !important;color:var(--text);box-shadow:var(--shadow-md) !important;}.modal-header{border-bottom:1px solid var(--border) !important;padding:18px 22px 14px !important;}.modal-title{font-weight:800 !important;font-size:.95rem !important;color:var(--text) !important;}.modal-body{padding:18px 22px !important;max-height:70vh;overflow-y:auto;}.modal-footer{border-top:1px solid var(--border) !important;padding:12px 22px !important;gap:8px;}.btn-close{filter:var(--close-filter,none) !important;}[data-theme="dark"] .btn-close{filter:invert(1) !important;}
 .perm-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;}.perm-item{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;display:flex;align-items:center;justify-content:space-between;}.perm-label{font-size:.82rem;font-weight:500;color:var(--text);}.perm-sub{font-size:.72rem;color:var(--muted);margin-top:2px;}
 /* THE RECEIPT SHEET. Narrow, quiet, and the same on screen as it is on paper -- a person
@@ -471,7 +553,7 @@ body.bo-restricted .topbar{position:relative;z-index:260;}
       <button class="nav-item" id="nav-manager" data-roles="manager assistant-manager" onclick="switchTab('manager',this)"><span class="ni">🏢</span>Management</button>
       <button class="nav-item" id="nav-mgrreports" data-roles="manager assistant-manager" onclick="switchTab('mgrreports',this)"><span class="ni">📥</span>Reports</button>
       <button class="nav-item" id="nav-settings" data-roles="manager assistant-manager" onclick="switchTab('settings',this)"><span class="ni">⚙️</span>Settings</button>
-      <div class="sidebar-footer"><button class="nav-item" id="nav-market" onclick="openMarketplace()"><span class="ni">🛍️</span>Marketplace</button><button class="nav-item" id="nav-account" onclick="switchTab('account',this)"><span class="ni">🔐</span>My Account</button><div style="font-size:.68rem;color:var(--muted);text-align:center;margin-top:6px;">Samaritan Techs</div></div>
+      <div class="sidebar-footer"><button class="nav-item" id="nav-market" onclick="openMarketplace()"><span class="ni">🛍️</span>Marketplace</button><button class="nav-item" id="nav-favs" onclick="openFavorites()"><span class="ni">🔖</span>Favorites</button><button class="nav-item" id="nav-account" onclick="switchTab('account',this)"><span class="ni">🔐</span>My Account</button><div style="font-size:.68rem;color:var(--muted);text-align:center;margin-top:6px;">Samaritan Techs</div></div>
     </nav>
     <main class="main-content" id="mainScroll">
       <div id="tab-dashboard"><div class="page-hdr"><div><div class="page-title">Dashboard</div><div class="page-sub" id="dashSubLine">Business overview</div></div></div><div id="dashboardContent"><div class="empty">Loading…</div></div></div>
