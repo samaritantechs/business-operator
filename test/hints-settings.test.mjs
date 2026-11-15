@@ -270,3 +270,33 @@ test('setAnnouncement writes the five keys and stamps the version with the clock
   const { settings: s } = await settings.FN.settingsGet(db, userOf(book, MANAGER), {}, NOW);
   assert.equal(s.announcement_version, String(NOW + 1000));
 });
+
+
+/* THE SQL FILE AND THE BUILT-IN TIPS ARE TWO COPIES OF ONE SENTENCE. The app shows its built-in
+   tips only while the hints table is empty; a list somebody has filled in would never show a new
+   tip, so db/RUN-ME-006 inserts the new ones into such a list. A tip reworded in one place and
+   not the other would leave a live system teaching something the app no longer says -- so every
+   tip the file inserts must be, word for word and role for role, a built-in tip. */
+test('every tip db/RUN-ME-006 adds is word for word a built-in tip of the same role', async () => {
+  const { readFileSync } = await import('node:fs');
+  const sql = readFileSync(new URL('../db/RUN-ME-006-marketplace-trust-and-location.sql', import.meta.url), 'utf8');
+  const unq = t => t.replace(/''/g, "'");
+  const rows = [...sql.matchAll(/^\s+\('([a-z-]+)', '((?:[^']|'')+)',\s*\n\s+'((?:[^']|'')+)', (\d+)\)/gm)].map(m => ({ role: m[1], en: unq(m[2]), sw: unq(m[3]), n: Number(m[4]) }));
+  assert.ok(rows.length >= 15, 'the scanner stopped seeing the tips in the file (found ' + rows.length + ')');
+  assert.deepEqual(rows.map(r => r.n), rows.map((_, i) => i + 1), 'the sort offsets must run 1..n so the tips keep their order');
+  for (const r of rows) {
+    assert.ok(hints.HINT_ROLES.includes(r.role), 'unknown role in the file: ' + r.role);
+    const builtIn = (hints.DEFAULT_HINTS[r.role] || []).find(t => t[0] === r.en);
+    assert.ok(builtIn, 'the file adds a ' + r.role + ' tip the app does not have: ' + r.en);
+    assert.equal(r.sw, builtIn[1], 'the Swahili of "' + r.en.slice(0, 40) + '..." differs between the file and the app');
+    assert.ok(!builtIn[2], 'a tip for one kind of business must not be inserted for everybody: ' + r.en);
+  }
+  // And the other way: every tip this change taught the app is in the file, for every role that has it.
+  for (const word of ['Tap the bookmark', 'Tap the lens', 'tap Location', 'Under each shop name', 'Swipe it off', 'set your shop location', 'how many sales you have recorded']) {
+    const roles = Object.keys(hints.DEFAULT_HINTS).filter(role => hints.DEFAULT_HINTS[role].some(t => t[0].includes(word)));
+    assert.ok(roles.length, 'no built-in tip says "' + word + '"');
+    for (const role of roles) assert.ok(rows.some(r => r.role === role && r.en.includes(word)), 'the file has no ' + role + ' tip saying "' + word + '"');
+  }
+  // It touches only a list that is in use, and never adds a tip twice.
+  assert.match(sql, /where exists \(select 1 from hints\)\s+and not exists \(select 1 from hints h where h\.role = t\.role and h\.message_en = t\.en\);/);
+});

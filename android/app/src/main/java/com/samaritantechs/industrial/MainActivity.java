@@ -1,12 +1,15 @@
 package com.samaritantechs.industrial;
 
+import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.DownloadManager;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.MediaStore;
 import android.webkit.CookieManager;
+import android.webkit.GeolocationPermissions;
 import android.webkit.JavascriptInterface;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
@@ -19,6 +22,7 @@ import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 import java.io.File;
 
@@ -86,6 +90,45 @@ public class MainActivity extends AppCompatActivity {
             cameraShot = null;
         });
 
+    /* WHERE THE SHOP IS. The business profile has a "Use my current location" button, so a
+     * shopkeeper standing at the counter can put the shop on the map for customers without
+     * knowing what a coordinate is. A WebView answers every such request with "no" unless the
+     * app says otherwise -- silently, so in the app the button did nothing a person could see.
+     *
+     * Two things are held until Android has asked the person: which page asked, and the
+     * callback the WebView is waiting on. As with the photo picker, that callback MUST be
+     * answered exactly once, yes or no, or the page waits for ever. */
+    private String pendingGeoOrigin;
+    private GeolocationPermissions.Callback pendingGeo;
+
+    private final ActivityResultLauncher<String[]> askLocation = registerForActivityResult(
+        new ActivityResultContracts.RequestMultiplePermissions(), granted -> {
+            boolean ok = false;
+            for (Boolean g : granted.values()) if (Boolean.TRUE.equals(g)) ok = true;   // fine OR approximate will do
+            answerLocation(ok);
+        });
+
+    private void answerLocation(boolean ok) {
+        GeolocationPermissions.Callback cb = pendingGeo;
+        String origin = pendingGeoOrigin;
+        pendingGeo = null;
+        pendingGeoOrigin = null;
+        // retain=false: decided afresh each time, so a "no" today is not a "no" for ever.
+        if (cb != null) cb.invoke(origin, ok, false);
+    }
+
+    private boolean hasLocationPermission() {
+        return ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+            || ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    /** Only this system's own pages may learn where the phone is -- never a page it merely shows. */
+    private static boolean isOurOrigin(String origin) {
+        if (origin == null) return false;
+        Uri o = Uri.parse(origin);
+        return "https".equals(o.getScheme()) && Uri.parse(APP_URL).getHost().equals(o.getHost());
+    }
+
     @SuppressLint("SetJavaScriptEnabled")
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -98,6 +141,7 @@ public class MainActivity extends AppCompatActivity {
         s.setLoadWithOverviewMode(true);
         s.setUseWideViewPort(true);
         s.setSupportZoom(false);
+        s.setGeolocationEnabled(true);         // and onGeolocationPermissionsShowPrompt below decides who may use it
         CookieManager.getInstance().setAcceptCookie(true);
 
         web.addJavascriptInterface(new Bridge(), "SamaritanApp");
@@ -116,6 +160,27 @@ public class MainActivity extends AppCompatActivity {
                     Toast.makeText(MainActivity.this, "This phone has nothing that can choose a picture.", Toast.LENGTH_SHORT).show();
                     return false;   // false, not an unanswered callback: the WebView must be let go
                 }
+            }
+
+            @Override public void onGeolocationPermissionsShowPrompt(String origin, GeolocationPermissions.Callback cb) {
+                if (!isOurOrigin(origin)) { cb.invoke(origin, false, false); return; }
+                if (hasLocationPermission()) { cb.invoke(origin, true, false); return; }
+                answerLocation(false);                 // a stale question is answered before a new one is asked
+                pendingGeoOrigin = origin;
+                pendingGeo = cb;
+                try {
+                    askLocation.launch(new String[] {
+                        Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION });
+                } catch (Exception e) {
+                    answerLocation(false);             // answered, not abandoned: the page then says how to do it by hand
+                }
+            }
+
+            @Override public void onGeolocationPermissionsHidePrompt() {
+                // The page withdrew the question. There is nobody left to answer, so it is
+                // forgotten rather than answered; a late reply from Android then finds nothing.
+                pendingGeo = null;
+                pendingGeoOrigin = null;
             }
         });
 

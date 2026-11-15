@@ -10,8 +10,11 @@
  * and nothing else needs it -- so install it only when you want to run this:
  *
  *     npm run dev &                       # http://localhost:8787
- *     npm install --no-save playwright    # browsers are already on the machine
+ *     npm install --no-save playwright    # only if the machine has none of its own
  *     node tools/smoke.mjs                # screenshots land in tools/.smoke/
+ *
+ * It launches whichever Chromium that Playwright was installed with. BO_CHROMIUM=/path/to/chrome
+ * points it at another one.
  *
  * Blocked external requests (the bootstrap/Chart.js CDNs, Google Fonts, legacy Drive
  * thumbnails) are NOT failures here: a sandbox without outbound network still has to render
@@ -23,8 +26,10 @@ const OUT = new URL('./.smoke/', import.meta.url).pathname;
 import { mkdirSync } from 'node:fs';
 mkdirSync(OUT, { recursive: true });
 const errors = [], failed = [];
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
-const page = await browser.newPage({ viewport: { width: 420, height: 900 } });
+const browser = await chromium.launch(process.env.BO_CHROMIUM ? { executablePath: process.env.BO_CHROMIUM } : {});
+// The location is granted and fixed so "Use my current location" can be pressed for real.
+const context = await browser.newContext({ viewport: { width: 420, height: 900 }, permissions: ['geolocation'], geolocation: { latitude: -6.8, longitude: 39.25 } });
+const page = await context.newPage();
 // Blocked external CDNs/images in this sandbox are not app faults; only page errors count.
 page.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push('console: ' + m.text().slice(0, 200)); });
 page.on('pageerror', e => errors.push('pageerror: ' + String(e.message).slice(0, 200)));
@@ -43,6 +48,177 @@ await step('marketplace loads and lists products', async () => {
   console.log('       ' + n + ' product cards');
 });
 await page.screenshot({ path: OUT + '01-marketplace.png' });
+
+/* THE SHOPFRONT, AS A CUSTOMER WITH NO ACCOUNT. Everything from here to the sign-in is done by
+   tapping what a customer taps. */
+// Bootstrap comes from a CDN; with it a modal is .show, without it (a sandbox, a bad signal) .bo-fb.
+const PD_OPEN = ':is(#productDetailModal.show, #productDetailModal.bo-fb)';
+const cards = () => page.locator('#mkProductGrid .mk-card').count();
+const names = () => page.evaluate(() => [...document.querySelectorAll('#mkProductGrid .mk-name')].map(e => e.textContent));
+await step('the search box and the switch stay on screen while the market scrolls', async () => {
+  const wide = await page.evaluate(() => ({ doc: document.documentElement.scrollWidth, win: window.innerWidth }));
+  if (wide.doc > wide.win) throw new Error('the shopfront is wider than the phone: ' + JSON.stringify(wide));
+  const fit = await page.evaluate(() => [...document.querySelectorAll('#mkSwitch .mk-seg')].map(b => [b.id, b.scrollWidth, b.clientWidth]));
+  for (const [id, sw, cw] of fit) if (sw > cw + 1) throw new Error(id + ' does not fit its tab (' + sw + ' > ' + cw + ')');
+  await page.evaluate(() => { document.body.style.minHeight = '3000px'; window.scrollTo(0, 1400); });
+  await page.waitForTimeout(250);
+  const at = await page.evaluate(() => { const r = id => document.getElementById(id).getBoundingClientRect(); return { y: window.scrollY, search: r('mkSearch').top, sw: r('mkSwitch').top, h: window.innerHeight }; });
+  if (at.y < 300) throw new Error('the page did not scroll: ' + JSON.stringify(at));
+  if (at.search < 0 || at.search > 70 || at.sw < 0 || at.sw > 130) throw new Error('search or switch left the top: ' + JSON.stringify(at));
+  await page.fill('#mkSearch', 'sugar');
+  if (await cards() !== 1) throw new Error('searching from the pinned box found ' + await cards() + ' cards');
+  await page.fill('#mkSearch', '');
+  await page.evaluate(() => { document.body.style.minHeight = ''; window.scrollTo(0, 0); });
+});
+
+await step('a product is saved from its photo without being opened, and waits under Favorites', async () => {
+  const total = await cards();
+  await page.evaluate(() => { localStorage.removeItem('boFavs'); });
+  await page.locator('#mkProductGrid .mk-card').nth(1).locator('.mk-save').click();
+  const st = await page.evaluate(() => ({
+    opened: /(^| )(show|bo-fb)( |$)/.test(document.getElementById('productDetailModal').className),
+    popup: document.getElementById('hintToast').classList.contains('show') && /sav/i.test(document.getElementById('hintText').textContent),
+    on: document.querySelectorAll('#mkProductGrid .mk-save.on').length,
+    kept: JSON.parse(localStorage.getItem('boFavs') || '[]').length,
+    count: document.getElementById('mkFavCount').textContent, countShown: !document.getElementById('mkFavCount').classList.contains('hidden'),
+  }));
+  if (st.opened) throw new Error('saving opened the product');
+  if (st.popup) throw new Error('saving raised a popup');
+  if (st.on !== 1 || st.kept !== 1 || st.count !== '1' || !st.countShown) throw new Error('not saved: ' + JSON.stringify(st));
+  const saved = (await names())[1];
+  await page.click('#mkSeg_favs');
+  if (await cards() !== 1 || (await names())[0] !== saved) throw new Error('Favorites shows ' + JSON.stringify(await names()) + ', expected only ' + saved);
+  // It is on the phone, not in the page: a reload must not lose it.
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForSelector('#mkProductGrid .mk-card', { timeout: 10000 });
+  await page.click('#mkSeg_favs');
+  if (await cards() !== 1 || (await names())[0] !== saved) throw new Error('the saved product did not survive a reload');
+  await page.screenshot({ path: OUT + '01b-favorites.png' });
+  // Taken off from the shelf itself, the shelf says it is empty and offers the way back.
+  await page.locator('#mkProductGrid .mk-save').first().click();
+  const empty = await page.evaluate(() => document.getElementById('mkProductGrid').innerText);
+  if (!/Nothing saved yet/.test(empty)) throw new Error('an empty Favorites said: ' + empty.slice(0, 80));
+  await page.click('#mkProductGrid .mk-empty button');
+  if (await cards() !== total) throw new Error('back on the market there are ' + await cards() + ' cards, not ' + total);
+});
+
+await step('the lens on a photo finds similar products, and a search of your own ends it', async () => {
+  const total = await cards();
+  const idx = (await names()).indexOf('Samsung Galaxy A05');
+  if (idx < 0) throw new Error('the book has no Samsung Galaxy A05 to start from');
+  await page.locator('#mkProductGrid .mk-card').nth(idx).locator('.mk-lens').click();
+  const got = await names();
+  const st = await page.evaluate(() => ({
+    opened: /(^| )(show|bo-fb)( |$)/.test(document.getElementById('productDetailModal').className),
+    bar: !document.getElementById('mkSimBar').classList.contains('hidden'), text: document.getElementById('mkSimText').textContent,
+  }));
+  if (st.opened) throw new Error('the lens opened the product instead of searching');
+  if (!st.bar || st.text !== 'Similar to: Samsung Galaxy A05') throw new Error('no "similar to" line: ' + JSON.stringify(st));
+  // The other phone is like it; the sugar, the gown and the phone COVER are not.
+  if (got[0] !== 'Samsung Galaxy A05' || got.indexOf('Tecno Spark 20') !== 1 || got.length !== 2) throw new Error('similar to a Samsung phone: ' + JSON.stringify(got));
+  await page.screenshot({ path: OUT + '01c-similar.png' });
+  await page.fill('#mkSearch', 'gown');
+  const after = await page.evaluate(() => !document.getElementById('mkSimBar').classList.contains('hidden'));
+  if (after || (await names()).join() !== 'Wedding Gown') throw new Error('typing a search did not end the similar one: ' + JSON.stringify(await names()));
+  await page.fill('#mkSearch', '');
+  if (await cards() !== total) throw new Error('clearing the search left ' + await cards() + ' cards');
+});
+
+await step('every shop says how long it has been here and what it has sold', async () => {
+  const metas = await page.evaluate(() => [...document.querySelectorAll('#mkProductGrid .mk-card')].map(c => [c.querySelector('.mk-cvendor span').textContent, (c.querySelector('.mk-vmeta') || {}).textContent || '']));
+  for (const [shop, meta] of metas) if (!/^(New this week|\d+ (week|month|year)s?|\d+ yr \d+ mo)( · [\d.]+k? sales?)?$/.test(meta)) throw new Error(shop + ' says "' + meta + '"');
+  // The same business says the same thing on every one of its cards: it is the SHOP's number.
+  const byShop = {};
+  for (const [shop, meta] of metas) { if (byShop[shop] && byShop[shop] !== meta) throw new Error(shop + ' says two different things'); byShop[shop] = meta; }
+  if (!Object.values(byShop).some(m => /sales?$/.test(m))) throw new Error('no shop shows a sales count: ' + JSON.stringify(byShop));
+  const idx = (await names()).indexOf('Phone Cover');
+  await page.locator('#mkProductGrid .mk-card').nth(idx).click();
+  await page.waitForSelector(PD_OPEN + ' #pdTrust', { timeout: 8000 });
+  const pd = await page.evaluate(() => ({ trust: document.getElementById('pdTrust').textContent, go: (document.getElementById('pdLocation') || {}).href || '', wa: !!document.querySelector('#pdBody a[href^="https://wa.me/"]') }));
+  if (pd.trust.replace(/^\S+ (Here for )?/, '') !== byShop['Fromville Phones']) throw new Error('the product says "' + pd.trust + '", its card "' + byShop['Fromville Phones'] + '"');
+  // No pin has been given yet, only an address: the button searches the map for that address.
+  if (!pd.wa || pd.go.indexOf('https://www.google.com/maps/search/?api=1&query=') !== 0 || pd.go.indexOf('Sinza') === -1) throw new Error('contact buttons: ' + JSON.stringify(pd));
+  console.log('       ' + JSON.stringify(byShop));
+  await page.evaluate(() => closeModal('productDetailModal'));
+  await page.waitForFunction(() => !/(^| )(show|bo-fb)( |$)/.test(document.getElementById('productDetailModal').className), null, { timeout: 8000 });
+});
+
+await step('a popup is thrown off the screen with a finger, and a nudge does not lose it', async () => {
+  const box = async () => page.evaluate(() => { const r = document.getElementById('hintToast').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2, shown: document.getElementById('hintToast').classList.contains('show') }; });
+  await page.evaluate(() => showToast('A popup in the way', '🧪'));
+  await page.waitForTimeout(450);
+  let b = await box();
+  await page.mouse.move(b.x, b.y); await page.mouse.down(); await page.mouse.move(b.x - 12, b.y - 6, { steps: 3 }); await page.mouse.up();
+  await page.waitForTimeout(450);
+  if (!(await box()).shown) throw new Error('a 13-pixel nudge dismissed the popup');
+  for (const [dx, dy] of [[-150, 0], [140, 0], [0, -150], [30, 140]]) {
+    await page.evaluate(() => showToast('A popup in the way', '🧪'));
+    await page.waitForTimeout(450);
+    b = await box();
+    await page.mouse.move(b.x, b.y); await page.mouse.down(); await page.mouse.move(b.x + dx, b.y + dy, { steps: 6 }); await page.mouse.up();
+    await page.waitForTimeout(500);
+    if ((await box()).shown) throw new Error('dragged by ' + dx + ',' + dy + ' and it is still there');
+  }
+  // And the next one comes up in its own place, not where the last one was thrown.
+  await page.evaluate(() => showToast('The next popup', '🧪'));
+  await page.waitForTimeout(450);
+  const next = await page.evaluate(() => { const t = document.getElementById('hintToast'); return { shown: t.classList.contains('show'), moved: t.style.transform, op: t.style.opacity }; });
+  if (!next.shown || next.moved || next.op) throw new Error('the next popup inherited the swipe: ' + JSON.stringify(next));
+  await page.evaluate(() => toastHide_());
+});
+
+/* THE OTHER HALF OF THAT PROMISE, and the one a shop would notice first if it broke: the popup
+   comes up over the corner of the till every time a sale is recorded, so a TAP on it has to land
+   on the button underneath, exactly as it did before a popup could be dragged at all. Done on a
+   real touch screen (CDP touch events, not synthetic clicks), because touch is where a drag and a
+   scroll and a tap have to be told apart. */
+await step('on a touch screen a tap goes through the popup, and a swipe moves the popup and not the page', async () => {
+  const tctx = await browser.newContext({ viewport: { width: 390, height: 780 }, hasTouch: true, isMobile: true });
+  const tp = await tctx.newPage();
+  tp.on('pageerror', e => errors.push('pageerror (touch): ' + String(e.message).slice(0, 200)));
+  await tp.goto(BASE, { waitUntil: 'networkidle' });
+  await tp.waitForSelector('#mkProductGrid .mk-card', { timeout: 10000 });
+  /* A freshly opened marketplace shows its first tip 2.5 s after it loads -- through this same
+     popup. Let it come and go first, or it lands in the middle of the gestures below and puts
+     back the popup that was just thrown away. */
+  await tp.waitForTimeout(2800);
+  await tp.evaluate(() => { stopHints(); toastHide_(); });
+  const cdp = await tctx.newCDPSession(tp);
+  const touch = (type, pts) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: pts.map(([x, y]) => ({ x, y })) });
+  const state = () => tp.evaluate(() => { const t = document.getElementById('hintToast'), r = t.getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2), shown: t.classList.contains('show'), taps: window._under || 0, scroll: window.scrollY }; });
+  // A button exactly where the popup sits -- the till's Submit, in effect.
+  await tp.evaluate(() => {
+    const b = document.createElement('button'); b.id = 'underToast'; b.textContent = 'under';
+    b.style.cssText = 'position:fixed;right:10px;bottom:10px;width:300px;height:90px;z-index:50;opacity:.01;';
+    b.addEventListener('click', () => { window._under = (window._under || 0) + 1; });
+    document.body.appendChild(b); window.scrollTo(0, 600); showToast('In the way of the button', '🧪');
+  });
+  await tp.waitForTimeout(450);
+  let st = await state();
+  if (!st.shown || st.scroll < 300) throw new Error('setup: ' + JSON.stringify(st));
+  await touch('touchStart', [[st.x, st.y]]); await touch('touchEnd', []);
+  await tp.waitForTimeout(350);
+  let after = await state();
+  if (after.taps !== 1) throw new Error('the tap did not reach the button under the popup: ' + JSON.stringify(after));
+  if (!after.shown) throw new Error('a tap dismissed the popup');
+  // Swiped upwards, where a careless listener would let the page scroll instead: the popup goes, the page stays.
+  await touch('touchStart', [[st.x, st.y]]);
+  for (let i = 1; i <= 8; i++) { await touch('touchMove', [[st.x + i * 3, st.y - i * 20]]); await tp.waitForTimeout(16); }
+  await touch('touchEnd', []);
+  await tp.waitForTimeout(500);
+  after = await state();
+  if (after.shown) throw new Error('swiped 160 px and the popup is still there');
+  if (after.scroll !== st.scroll) throw new Error('the page scrolled under the swipe: ' + st.scroll + ' -> ' + after.scroll);
+  if (after.taps !== 1) throw new Error('letting go of a swipe pressed the button underneath');
+  // And with no popup showing, the same finger scrolls the page as it always did.
+  await tp.evaluate(() => document.getElementById('underToast').remove());
+  await touch('touchStart', [[195, 500]]);
+  for (let i = 1; i <= 8; i++) { await touch('touchMove', [[195, 500 - i * 20]]); await tp.waitForTimeout(16); }
+  await touch('touchEnd', []);
+  await tp.waitForTimeout(400);
+  if ((await state()).scroll <= st.scroll) throw new Error('the page no longer scrolls by touch');
+  await tctx.close();
+});
 
 /* THE EYE ON THE PASSWORD BOX, through the real button. The box is wrapped by a
    MutationObserver in shell.js, so this also proves the wrapper did not break the input:
@@ -308,6 +484,63 @@ await step('a receipt opens for the sale that was just made', async () => {
   await page.screenshot({ path: OUT + '06-receipt.png' });
   await page.evaluate(() => BO.closeDialog());
   await page.waitForSelector('#rcptSheet', { state: 'detached', timeout: 8000 }).catch(() => {});
+});
+
+/* SIGNED IN, AT THE SHOPFRONT. The complaint this answers: somebody already signed in who opened
+   the marketplace was still shown "Log in" and "Register", which reads as having been signed out. */
+await step('someone signed in sees their name and Log out on the marketplace, not Log in', async () => {
+  await page.evaluate(() => openMarketplace());
+  await page.waitForSelector('#landingPage:not(.hidden) #mkProductGrid .mk-card', { timeout: 10000 });
+  const st = await page.evaluate(() => {
+    const shown = id => { const e = document.getElementById(id); return !!e && !e.classList.contains('hidden') && e.getBoundingClientRect().width > 0; };
+    return { doorsIn: shown('mkAuthOut'), who: shown('mkAuthIn'), name: document.getElementById('mkAcctName').textContent, out: shown('mkLogoutBtn'),
+             wide: document.documentElement.scrollWidth > window.innerWidth };
+  });
+  if (st.doorsIn || !st.who || !st.out || st.name !== 'Frank') throw new Error('signed in at the marketplace: ' + JSON.stringify(st));
+  if (st.wide) throw new Error('the signed-in top bar is wider than the phone');
+  await page.screenshot({ path: OUT + '03b-marketplace-signed-in.png' });
+  // The switch takes them back to the till, still signed in, with nothing reloaded.
+  await page.click('#mkSeg_app');
+  await page.waitForSelector('#mainApp:not(.hidden)', { timeout: 8000 });
+  if (!(await page.evaluate(() => !!S.user && S.screen === 'app'))) throw new Error('Business Manager did not go back to the workspace');
+  // And Favorites is one tap from the workspace too.
+  await page.evaluate(() => openFavorites());
+  await page.waitForSelector('#landingPage:not(.hidden)', { timeout: 8000 });
+  if (!(await page.evaluate(() => document.getElementById('mkSeg_favs').classList.contains('active') && /Favorites/.test(document.getElementById('mkSecTitle').textContent)))) throw new Error('Favorites from the sidebar did not open the saved shelf');
+  await page.click('#mkSeg_app');
+  await page.waitForSelector('#mainApp:not(.hidden)', { timeout: 8000 });
+});
+
+/* THE PIN, through the real form: the phone's own position, then a pasted Google Maps link, then
+   something that is not a map at all -- and the Location button a customer gets at the end. */
+await step('a shop sets its place on the map, and customers get a Location button to it', async () => {
+  await page.evaluate(() => switchTab('users'));
+  await page.waitForSelector('#myBusinessPin:not([disabled])', { timeout: 10000 });
+  await page.click('#myPinHere');
+  await page.waitForFunction(() => /^-6\.800000, 39\.250000$/.test(document.getElementById('myBusinessPin').value), null, { timeout: 10000 });
+  await page.fill('#myBusinessPin', 'https://www.google.com/maps/place/Sinza/@-6.7800,39.2200,17z/data=!3m1!4b1!4m6!3m5!1s0x1!8m2!3d-6.7924!4d39.2083!16s');
+  await page.evaluate(() => BOUsers.saveProfile());
+  await page.waitForFunction(() => document.getElementById('myBusinessPin').value === '-6.7924, 39.2083', null, { timeout: 10000 });
+  const link = await page.evaluate(() => { const a = document.getElementById('myPinTest'); return a.classList.contains('hidden') ? '' : a.href; });
+  if (link !== 'https://www.google.com/maps/dir/?api=1&destination=-6.7924,39.2083') throw new Error('"Check it on the map" points at ' + link);
+  // Not a map: refused whole, in words, and the pin that was there stays.
+  await page.fill('#myBusinessPin', 'https://example.com/maps?q=1,2');
+  await page.evaluate(() => BOUsers.saveProfile());
+  await page.waitForFunction(() => /Google Maps/.test(document.getElementById('hintText').textContent), null, { timeout: 8000 });
+  const kept = await page.evaluate(async () => (await BO.srv('businessProfile', {})).place);
+  if (kept.text !== '-6.7924, 39.2083' || !kept.ready) throw new Error('after a refused link the pin is ' + JSON.stringify(kept));
+  await page.evaluate(() => toastHide_());
+  // The customer's side. The storefront is cached for a minute; this is the local way to not wait.
+  await page.evaluate(async () => { await fetch('/api/dev/forget-market', { method: 'POST' }); openMarketplace(); globalRefresh(); });
+  await page.waitForFunction(() => (_market.vendors || []).some(v => v.map), null, { timeout: 10000 });
+  const idx = await page.evaluate(() => _market.products.findIndex(p => p.vendor === 'Fromville Phones'));
+  await page.evaluate(i => openProductDetail(i), idx);
+  await page.waitForSelector(PD_OPEN + ' #pdLocation', { timeout: 8000 });
+  const go = await page.evaluate(() => ({ href: document.getElementById('pdLocation').href, target: document.getElementById('pdLocation').target, note: /searches the map/.test(document.getElementById('pdBody').innerText) }));
+  if (go.href !== 'https://www.google.com/maps/dir/?api=1&destination=-6.7924,39.2083' || go.target !== '_blank' || go.note) throw new Error('the Location button: ' + JSON.stringify(go));
+  await page.screenshot({ path: OUT + '03c-product-location.png' });
+  await page.evaluate(() => { closeModal('productDetailModal'); backToApp(); });
+  await page.waitForSelector('#mainApp:not(.hidden)', { timeout: 8000 });
 });
 
 await step('manager signs in and the manager tabs render', async () => {

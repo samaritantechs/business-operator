@@ -204,7 +204,8 @@ test('the optional list is exactly what the RUN-ME files add — no more, no les
     .map(m => m[1] + '.' + m[2]))
     .filter(c => c !== 'products.image3_url');
   assert.ok(added.length, 'the migration scanner stopped seeing ALTER TABLE lines');
-  const declared = ['products.cost_price', 'sales.unit_cost', 'sales.customer_name', 'sales.customer_phone', 'hints.feature'];
+  const declared = ['products.cost_price', 'sales.unit_cost', 'sales.customer_name', 'sales.customer_phone', 'hints.feature',
+    'vendors.latitude', 'vendors.longitude', 'vendors.map_url'];
   assert.deepEqual(added.sort(), declared.slice().sort(),
     'OPTIONAL_COLUMNS in api/_lib/bo/_shared.js must name exactly the columns the RUN-ME files add');
 

@@ -59,14 +59,95 @@ BO.jsq = jsq;
 BO.esc = esc; BO.fmt = fmt; BO.fmtFull = fmtFull; BO.money = money; BO.cur = cur; BO.fmtDate = fmtDate; BO.fmtTime = fmtTime; BO.fmtDT = fmtDT;
 BO.todayKey = todayKey; BO.daysAgoKey = daysAgoKey; BO.digitsOnly = digitsOnly;
 
-function showToast(msg, icon) {
-  var t = document.getElementById('hintToast'); if (!t) return;
-  document.querySelector('#hintToast .hint-icon').textContent = icon || '✅';
-  document.getElementById('hintText').textContent = msg;
-  t.classList.add('show');
-  clearTimeout(showToast._t);
-  showToast._t = setTimeout(function () { t.classList.remove('show'); }, 2800);
+/* THE POPUP IN THE CORNER -- a confirmation ("Saved.") or a tip -- AND HOW TO BE RID OF IT.
+   It used to be shown by two pieces of code with a timer each, neither of which knew about the
+   other: a tip's timer could take down the confirmation that had replaced it, and nothing but
+   waiting made either go away. Now there is one popup, one timer, and a finger: drag it any
+   way at all and let go, and it leaves in that direction. A tip can stay up for as long as the
+   manager set (Settings: hint lifetime), which is a long time to have something sitting on top
+   of the button you were about to press.
+
+   A TAP STILL GOES STRAIGHT THROUGH IT, as it always has. The popup comes up over the bottom
+   corner of the till the moment a sale is recorded, and a seller serving a queue taps the next
+   thing without waiting for it to leave -- so it must never swallow that tap. That is why the
+   popup itself takes no touches at all (pointer-events:none, as before) and the dragging is
+   watched for on the page instead: a touch that STARTS on the popup and then MOVES is a drag,
+   and belongs to the popup; one that does not move is a tap, and belongs to whatever is under
+   it. A drag shorter than SWIPE_GONE_PX springs back, so a nudge does not lose the message. */
+var _toastTimer = null, SWIPE_GONE_PX = 46, SWIPE_START_PX = 8;
+function toastEl_() { return document.getElementById('hintToast'); }
+function toastHide_() {
+  var t = toastEl_(); if (!t) return;
+  clearTimeout(_toastTimer); _toastTimer = null;
+  t.classList.remove('show'); t.classList.remove('drag'); t.style.transform = ''; t.style.opacity = '';
 }
+function toastShow_(msg, icon, ms) {
+  var t = toastEl_(); if (!t) return;
+  wireToastSwipe_();
+  t.querySelector('.hint-icon').textContent = icon;
+  document.getElementById('hintText').textContent = msg;
+  t.classList.remove('drag'); t.style.transform = ''; t.style.opacity = '';
+  t.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(toastHide_, ms);
+}
+function wireToastSwipe_() {
+  if (wireToastSwipe_.done) return; wireToastSwipe_.done = true;
+  var on = false, dragging = false, sx = 0, sy = 0, dx = 0, dy = 0;
+  var begin = function (x, y) {
+    var t = toastEl_(); on = false; dragging = false;
+    if (!t || !t.classList.contains('show')) return;
+    var r = t.getBoundingClientRect();
+    if (x < r.left || x > r.right || y < r.top || y > r.bottom) return;
+    on = true; sx = x; sy = y; dx = 0; dy = 0;
+  };
+  /** true once this touch has become a drag of the popup (and so is no longer the page's). */
+  var move = function (x, y) {
+    if (!on) return false;
+    var t = toastEl_(); dx = x - sx; dy = y - sy;
+    var far = Math.sqrt(dx * dx + dy * dy);
+    if (!dragging && far < SWIPE_START_PX) return false;             // still a tap, as far as anyone can tell
+    dragging = true; t.classList.add('drag');
+    t.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+    t.style.opacity = String(Math.max(0.3, 1 - far / 240));
+    return true;
+  };
+  /** Lets go. `thrown` is false when the touch was taken away (a call came in): it springs back. */
+  var finish = function (thrown) {
+    if (!on) return false;
+    var t = toastEl_(), was = dragging, far = Math.sqrt(dx * dx + dy * dy);
+    on = false; dragging = false;
+    if (!was) return false;
+    t.classList.remove('drag');                                      // the transition is back: it animates from here
+    if (thrown && far >= SWIPE_GONE_PX) {
+      clearTimeout(_toastTimer);
+      t.style.transform = 'translate(' + dx * 4 + 'px,' + dy * 4 + 'px)'; t.style.opacity = '0';
+      _toastTimer = setTimeout(toastHide_, 260);
+    } else { t.style.transform = ''; t.style.opacity = ''; }
+    return true;
+  };
+  var first = function (e) { return e.touches && e.touches.length === 1 ? e.touches[0] : null; };
+  document.addEventListener('touchstart', function (e) { var p = first(e); if (p) begin(p.clientX, p.clientY); else on = false; }, true);
+  // Not passive: once it is a drag of the popup the page underneath must not scroll with it.
+  document.addEventListener('touchmove', function (e) { var p = first(e); if (p && move(p.clientX, p.clientY) && e.cancelable) e.preventDefault(); }, { capture: true, passive: false });
+  // Ending a DRAG must not also press whatever the finger came up over; ending a tap must.
+  document.addEventListener('touchend', function (e) { if (finish(true) && e.cancelable) e.preventDefault(); }, true);
+  document.addEventListener('touchcancel', function () { finish(false); }, true);
+  document.addEventListener('mousedown', function (e) { if (e.button === 0) begin(e.clientX, e.clientY); }, true);
+  /* With a mouse, a press that starts over a link or a picture UNDER the popup would otherwise
+     become the browser's own drag-and-drop of that link, which takes the mouse away from the
+     page: no more moves, no release, and the popup left hanging half-dragged. */
+  document.addEventListener('dragstart', function (e) { if (on) e.preventDefault(); }, true);
+  document.addEventListener('selectstart', function (e) { if (on) e.preventDefault(); }, true);
+  document.addEventListener('mousemove', function (e) { if (on) move(e.clientX, e.clientY); }, true);
+  document.addEventListener('mouseup', function () {
+    if (!finish(true)) return;
+    var eat = function (ev) { ev.stopPropagation(); ev.preventDefault(); };
+    document.addEventListener('click', eat, true);                   // the click a mouse drag ends with
+    setTimeout(function () { document.removeEventListener('click', eat, true); }, 0);
+  }, true);
+}
+function showToast(msg, icon) { toastShow_(msg, icon || '✅', 2800); }
 BO.toast = showToast;
 
 /* Bootstrap modals, by id, without every tab re-learning the API. */
@@ -301,7 +382,7 @@ function toggleLang() {
   setLang(S.lang === 'sw' ? 'en' : 'sw');
   // One tip straight away in the new language: instant proof the toggle worked.
   var arr = _hintList || [];
-  if (arr.length) { var h = arr[Math.floor(Math.random() * arr.length)]; var msg = (S.lang === 'sw' && h.sw) ? h.sw : h.en; document.querySelector('#hintToast .hint-icon').textContent = (S.lang === 'sw' ? '🇹🇿' : '🇬🇧'); document.getElementById('hintText').textContent = msg; var t = document.getElementById('hintToast'); t.classList.add('show'); setTimeout(function () { t.classList.remove('show'); }, (hintLifetime || 3) * 1000); }
+  if (arr.length) { var h = arr[Math.floor(Math.random() * arr.length)]; var msg = (S.lang === 'sw' && h.sw) ? h.sw : h.en; toastShow_(msg, S.lang === 'sw' ? '🇹🇿' : '🇬🇧', (hintLifetime || 3) * 1000); }
   else showToast(S.lang === 'sw' ? 'Lugha ya vidokezo: Kiswahili' : 'Tips language: English', '🌐');
 }
 function applyTheme(t, remember) {
@@ -337,19 +418,39 @@ function toggleView() { applyView(S.view === 'desktop' ? 'mobile' : 'desktop'); 
 function show_(id, on) { var el = document.getElementById(id); if (!el) return; el.classList.toggle('hidden', !on); if (id === 'mainApp') el.style.display = on ? 'flex' : 'none'; }
 function showLanding() {
   S.screen = 'landing'; show_('loginPage', false); show_('mainApp', false); show_('landingPage', true); window.scrollTo(0, 0);
-  /* Somebody signed in who steps out to the shopfront needs a door back, and somebody signed
-     out must not be offered one. The same screen serves both, so the link is decided here
-     rather than in whichever function happened to open it. */
-  var back = document.getElementById('mkBackToApp');
-  if (back) back.classList.toggle('hidden', !S.user);
+  /* The same screen serves somebody signed in and somebody who is not, so who it greets is
+     decided here, every time it is shown, rather than in whichever function happened to open it. */
+  paintMkAccount_();
   if (!_market.products.length) loadMarketplace(); else startMarketplaceHints();
+}
+/* WHO IS LOOKING AT THE SHOPFRONT. Signed in: the name, and the way out. Signed out: the two
+   doors in. Never both, and never the doors for somebody who is already inside -- which is what
+   it used to show, and it read as having been signed out. The "Business Manager" tab on the bar
+   needs no painting: it is the workspace for the one and the sign-in page for the other. */
+function paintMkAccount_() {
+  var inn = document.getElementById('mkAuthIn'), out = document.getElementById('mkAuthOut'), u = S.user;
+  if (out) out.classList.toggle('hidden', !!u);
+  if (inn) inn.classList.toggle('hidden', !u);
+  if (!u) return;
+  var nm = document.getElementById('mkAcctName'), av = document.getElementById('mkAcctAv');
+  if (nm) nm.textContent = String(u.name || u.handle || 'My account').split(' ')[0];
+  if (av) {
+    if (u.profile_photo_url) av.innerHTML = '<img src="' + esc(u.profile_photo_url) + '" alt="" onerror="this.remove()">';
+    else av.textContent = String(u.name || 'U').split(' ').map(function (w) { return w[0] || ''; }).join('').slice(0, 2).toUpperCase();
+  }
 }
 /* THE MARKETPLACE FROM INSIDE THE APP. It is the same storefront a customer sees, on the same
    page -- no reload and no second sign-in, so a shopkeeper can check how their own listing
    looks and come straight back to the till. The session is untouched throughout. */
 function openMarketplace() {
   closeMobileSidebar();
-  showLanding();
+  _mkView = 'market'; _mkSimilar = null;
+  showLanding(); paintMkMode_(); if (_market.products.length) filterMarket();
+}
+/** Straight to what was saved on this phone -- the same shopfront, the other shelf. */
+function openFavorites() {
+  closeMobileSidebar();
+  showLanding(); mkGo('favs');
 }
 function backToApp() {
   if (!S.user) { showLogin(false); return; }
@@ -666,11 +767,22 @@ function showTerms() { document.getElementById('currentYear').textContent = new 
 
 /* ------------------------------------------------------------------ marketplace (public) */
 var _market = { products: [], vendors: [] }, _mkFilterCat = 'ALL', _mkFilterType = 'ALL', _mkPageSize = 48, _mkShown = 48, _mkFiltered = [];
-function setMkType(t) { _mkFilterType = t; ['ALL', 'Sale', 'Rent'].forEach(function (k) { var el = document.getElementById('mkType_' + k); if (el) el.classList.toggle('active', k === t); }); filterMarket(); }
+/* WHICH SHELF IS OPEN: the whole market, or only what this person saved. And, separately, the
+   product a "more like this" search is about -- null when there is none. */
+var _mkView = 'market', _mkSimilar = null, _mkVendorByName = {}, _mkLoaded = false;
+var MK_SAVE_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>';
+var MK_LENS_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8V6a3 3 0 0 1 3-3h2M16 3h2a3 3 0 0 1 3 3v2M21 16v2a3 3 0 0 1-3 3h-2M8 21H6a3 3 0 0 1-3-3v-2"/><circle cx="12" cy="12" r="3.4"/></svg>';
+
+function paintMkType_() { ['ALL', 'Sale', 'Rent'].forEach(function (k) { var el = document.getElementById('mkType_' + k); if (el) el.classList.toggle('active', k === _mkFilterType); }); }
+function setMkType(t) { _mkFilterType = t; paintMkType_(); filterMarket(); }
 function loadMarketplace() {
   var grid = document.getElementById('mkProductGrid'); if (grid && !_market.products.length) grid.innerHTML = '<div class="mk-empty">Loading products…</div>';
   mk('market').then(function (d) {
-    _market = d || { products: [], vendors: [] };
+    _market = d || { products: [], vendors: [] }; _mkLoaded = true;
+    _mkVendorByName = {}; (_market.vendors || []).forEach(function (v) { _mkVendorByName[v.name] = v; });
+    // A reload hands back new objects: the product a "similar" search was about is found again
+    // by its id, or the search is dropped if it is no longer on sale.
+    if (_mkSimilar) { var sid = String(_mkSimilar.id); _mkSimilar = null; (_market.products || []).forEach(function (p) { if (String(p.id) === sid) _mkSimilar = p; }); }
     renderMarket();
     showAppSection(_market.release);          // the download button and the two printable codes
     checkAppUpdate(_market.release);          // and a nag, only for a phone running an older APK
@@ -684,7 +796,7 @@ function renderMarket() {
   document.getElementById('mkStatProducts').textContent = prods.length;
   document.getElementById('mkStatVendors').textContent = vends.length;
   document.getElementById('mkStatCats').textContent = Object.keys(cats).length;
-  renderMarketCats(); filterMarket();
+  paintMkMode_(); renderMarketCats(); filterMarket();
 }
 function renderMarketCats() {
   var prods = _market.products || [], catClicks = {}, catCount = {};
@@ -704,27 +816,167 @@ function renderMarketCats() {
 function toggleMkMore(ev) { if (ev) ev.stopPropagation(); var m = document.getElementById('mkMoreMenu'); if (m) m.classList.toggle('open'); }
 function setMkCat(c) { _mkFilterCat = c; var mm = document.getElementById('mkMoreMenu'); if (mm) mm.classList.remove('open'); renderMarketCats(); filterMarket(); }
 document.addEventListener('click', function (e) { var m = document.getElementById('mkMoreMenu'); if (!m) return; if (!e.target.closest('.mk-more')) m.classList.remove('open'); });
-function filterMarket() {
-  var q = (document.getElementById('mkSearch').value || '').trim().toLowerCase();
-  _mkFiltered = (_market.products || []).filter(function (p) {
+
+/* ---- favourites: kept on this phone, because a customer has no account to keep them in -----
+   A list of product ids in localStorage. It costs the server nothing, it is there the moment
+   the page opens, and it survives closing the app. It does NOT follow somebody to another
+   phone -- that would take a customer account, which this marketplace deliberately has not got.
+   A saved product that has since been taken off sale simply is not shown; its id is kept, so
+   it comes back by itself if the shop lists it again. */
+var MK_FAV_MAX = 500;
+function favMap_() {
+  if (!favMap_.m) {
+    favMap_.m = {};
+    try { var a = JSON.parse(load('boFavs') || '[]'); if (a && a.forEach) a.forEach(function (id) { favMap_.m[String(id)] = 1; }); } catch (e) {}
+  }
+  return favMap_.m;
+}
+function isFav_(id) { return !!favMap_()[String(id)]; }
+function favShown_() { var m = favMap_(), n = 0; (_market.products || []).forEach(function (p) { if (m[String(p.id)]) n++; }); return n; }
+function paintFavCount_() {
+  var el = document.getElementById('mkFavCount'); if (!el) return;
+  var n = (_market.products || []).length ? favShown_() : Object.keys(favMap_()).length;
+  el.textContent = n; el.classList.toggle('hidden', !n);
+}
+/** Every bookmark on the page for one product: the card's, and the open detail's. */
+function paintFav_(id, on) {
+  var all = document.querySelectorAll('[data-fav]');
+  for (var i = 0; i < all.length; i++) {
+    if (all[i].getAttribute('data-fav') !== String(id)) continue;
+    all[i].classList.toggle('on', on); all[i].setAttribute('aria-pressed', on ? 'true' : 'false');
+    all[i].setAttribute('title', on ? 'Saved — tap to remove' : 'Save to Favorites');
+    var lbl = all[i].querySelector('.pd-act-lbl'); if (lbl) lbl.textContent = on ? 'Saved' : 'Save';
+  }
+}
+/* QUIET ON PURPOSE. Saving is something done in passing, twenty times in a row, while looking
+   at something else: so the bookmark fills, the count on the Favorites tab moves, and that is
+   all. No popup, no page change, and the product is not opened. */
+function toggleFav(ev, gi) {
+  if (ev) { ev.stopPropagation(); ev.preventDefault(); }
+  var p = _market.products[gi]; if (!p) return;
+  var m = favMap_(), id = String(p.id), on = !m[id];
+  if (on) m[id] = 1; else delete m[id];
+  store('boFavs', JSON.stringify(Object.keys(m).slice(-MK_FAV_MAX)));
+  paintFav_(id, on); paintFavCount_();
+  if (!on && _mkView === 'favs') filterMarket(true);        // it leaves the shelf it was taken off
+}
+
+/* ---- "more like this": the lens on the photo -------------------------------------------------
+   Every product is already on the page, so this asks the server nothing: it scores each one
+   against the product that was tapped and shows the ones that score, best first, with the
+   tapped product leading so it is plain what they are being compared to.
+
+   It compares what the listing SAYS -- the words of the name, the category, the brand, the
+   model -- not what the photo shows. Words a seller typed are a far better guide to "the same
+   kind of thing" in a market of a few thousand listings than a picture match would be, and a
+   picture match would mean sending every photo somewhere to be looked at. */
+var MK_STOP = { and: 1, the: 1, for: 1, with: 1, 'new': 1, of: 1, 'in': 1, pcs: 1, pc: 1, na: 1, ya: 1, wa: 1, za: 1, la: 1, kwa: 1 };
+function mkWords_(s) { return String(s || '').toLowerCase().split(/[^a-z0-9À-ɏ]+/).filter(function (w) { return w.length > 1 && !MK_STOP[w]; }); }
+function mkSame_(a, b) { return !!a && !!b && String(a).trim().toLowerCase() === String(b).trim().toLowerCase(); }
+function mkLikeness_(a, b) {
+  var wa = a._w || (a._w = mkWords_(a.name)), wb = b._w || (b._w = mkWords_(b.name)), shared = 0;
+  for (var i = 0; i < wa.length; i++) if (wb.indexOf(wa[i]) !== -1) shared++;
+  return shared * 3 + (mkSame_(a.cat, b.cat) ? 4 : 0) + (mkSame_(a.brand, b.brand) ? 3 : 0) + (mkSame_(a.model, b.model) ? 2 : 0);
+}
+function findSimilar(ev, gi) {
+  if (ev) { ev.stopPropagation(); ev.preventDefault(); }
+  var p = _market.products[gi]; if (!p) return;
+  _mkSimilar = p; _mkView = 'market'; _mkFilterCat = 'ALL'; _mkFilterType = 'ALL';
+  var s = document.getElementById('mkSearch'); if (s) s.value = '';
+  closeModal('productDetailModal');
+  paintMkType_(); paintMkMode_(); renderMarketCats(); filterMarket();
+  mkScrollTo('mkMarketSection');
+}
+function clearSimilar() { _mkSimilar = null; paintMkMode_(); filterMarket(); }
+/** Typing a search of your own ends the "more like this" one: they are two different questions. */
+function mkSearchInput() { if (_mkSimilar) { _mkSimilar = null; paintMkMode_(); } filterMarket(); }
+
+/* ---- the switch on the bar: market / favourites / business manager --------------------------- */
+function paintMkMode_() {
+  var seg = { market: _mkView !== 'favs', favs: _mkView === 'favs' };
+  Object.keys(seg).forEach(function (k) { var el = document.getElementById('mkSeg_' + k); if (el) el.classList.toggle('active', seg[k]); });
+  var title = document.getElementById('mkSecTitle'), sub = document.getElementById('mkSecSub');
+  if (title) title.textContent = _mkView === 'favs' ? '🔖 Favorites' : '🛍️ Marketplace';
+  if (sub) sub.textContent = _mkView === 'favs'
+    ? 'What you saved on this phone. Tap the bookmark on any photo to save it or take it off.'
+    : 'Tap any product to see details and contact the seller. Viewing is always free.';
+  var bar = document.getElementById('mkSimBar'), txt = document.getElementById('mkSimText');
+  if (bar) bar.classList.toggle('hidden', !_mkSimilar);
+  if (txt && _mkSimilar) txt.textContent = 'Similar to: ' + _mkSimilar.name;
+  paintFavCount_();
+}
+function mkGo(where) {
+  if (where === 'app') { if (S.user) backToApp(); else showLogin(false); return; }
+  _mkView = where === 'favs' ? 'favs' : 'market'; _mkSimilar = null;
+  paintMkMode_(); filterMarket();
+  mkScrollTo('mkMarketSection');
+}
+
+function filterMarket(keepShown) {
+  var q = (document.getElementById('mkSearch').value || '').trim().toLowerCase(), favs = _mkView === 'favs' ? favMap_() : null, like = _mkSimilar;
+  var list = (_market.products || []).filter(function (p) {
+    if (favs && !favs[String(p.id)]) return false;
     if (_mkFilterType !== 'ALL' && (p.listingType || 'Sale') !== _mkFilterType) return false;
     if (_mkFilterCat !== 'ALL' && p.cat !== _mkFilterCat) return false;
     if (!q) return true;
     return [p.name, p.cat, p.vendor, p.location, p.brand, p.model].some(function (v) { return String(v || '').toLowerCase().indexOf(q) !== -1; });
   });
-  _mkShown = _mkPageSize; renderMarketPage();
+  if (like) {
+    // Best match first; the market's own order (what is in stock and looked at) settles a tie.
+    var scored = [];
+    list.forEach(function (p, i) { var sc = p === like ? Infinity : mkLikeness_(like, p); if (sc >= 3) scored.push({ p: p, sc: sc, i: i }); });
+    scored.sort(function (a, b) { return (b.sc - a.sc) || (a.i - b.i); });
+    list = scored.map(function (x) { return x.p; });
+  }
+  _mkFiltered = list;
+  if (!keepShown) _mkShown = _mkPageSize;
+  renderMarketPage();
 }
-function findVendor(name) { var vs = _market.vendors || []; for (var i = 0; i < vs.length; i++) if (vs[i].name === name) return vs[i]; return null; }
+function findVendor(name) { return _mkVendorByName[name] || null; }
+
+/* ---- "3 months · 30 sales": what the business has to show for itself -------------------------
+   Both numbers come from the server already worked out (api/_lib/bo/market.js): whole days the
+   business has been here, and its completed sales -- null when the database could not say, in
+   which case nothing is claimed. A business with no sales yet shows only its age: "0 sales" is
+   true, but printing it under a shop that opened this morning helps nobody. */
+function mkPlural_(n, word) { return n + ' ' + word + (n === 1 ? '' : 's'); }
+function mkAge_(days) {
+  if (days == null || !isFinite(days) || days < 0) return '';
+  if (days < 7) return 'New this week';
+  if (days < 30) return mkPlural_(Math.floor(days / 7), 'week');
+  if (days < 365) return mkPlural_(Math.max(1, Math.floor(days / 30.44)), 'month');
+  var years = Math.floor(days / 365.25), months = Math.floor((days - years * 365.25) / 30.44);
+  return (years < 3 && months > 0) ? years + ' yr ' + months + ' mo' : mkPlural_(years, 'year');
+}
+function mkSales_(n) {
+  n = Number(n); if (!isFinite(n) || n <= 0) return '';
+  var shown = n < 1000 ? String(n) : n < 10000 ? (Math.floor(n / 100) / 10) + 'k' : Math.floor(n / 1000) + 'k';
+  return shown + (n === 1 ? ' sale' : ' sales');
+}
+function mkTrust_(v) { return v ? [mkAge_(v.ageDays), v.sales == null ? '' : mkSales_(v.sales)].filter(Boolean).join(' · ') : ''; }
+
 function renderMarketPage() {
   var grid = document.getElementById('mkProductGrid'), wrap = document.getElementById('mkLoadMoreWrap'), list = _mkFiltered || [];
-  if (!list.length) { grid.innerHTML = '<div class="mk-empty">No products match your search.</div>'; if (wrap) wrap.innerHTML = ''; return; }
+  if (!_mkLoaded) return;                       // still "Loading products…": nothing to say about it yet
+  if (!list.length) {
+    var none = 'No products match your search.';
+    if (_mkView === 'favs') {
+      none = favShown_()
+        ? 'None of your saved products match. Clear the search or pick “All” above.'
+        : '🔖 Nothing saved yet.<br>Tap the bookmark on any product photo and it will wait for you here.<br><button class="btn-secondary" style="margin-top:14px;" onclick="mkGo(\'market\')">Browse the marketplace</button>';
+    }
+    grid.innerHTML = '<div class="mk-empty">' + none + '</div>'; if (wrap) wrap.innerHTML = ''; return;
+  }
   var shown = Math.min(_mkShown, list.length), all = _market.products, html = '';
   for (var i = 0; i < shown; i++) {
-    var p = list[i], gi = all.indexOf(p), img = p.image1 || p.image2 || p.image3, isRent = (p.listingType || 'Sale') === 'Rent';
+    var p = list[i], gi = all.indexOf(p), img = p.image1 || p.image2 || p.image3, isRent = (p.listingType || 'Sale') === 'Rent', fav = isFav_(p.id);
     var imgHtml = img ? '<div class="mk-img" style="background-image:url(\'' + BO.jsq(img) + '\');">' : '<div class="mk-img">🛍️';
-    imgHtml += (p.stock > 0 ? '<span class="mk-stock">' + (isRent ? 'Available' : 'In stock') + '</span>' : '<span class="mk-stock out">' + (isRent ? 'Booked' : 'Out') + '</span>') + (p.hot ? '<span class="mk-fire">🔥 Hot</span>' : '') + '</div>';
-    var v = findVendor(p.vendor), vlogo = (v && v.logo) ? '<img src="' + esc(v.logo) + '" onerror="this.style.display=\'none\'">' : '<div class="mk-vinit">' + esc((p.vendor || 'B')[0]).toUpperCase() + '</div>';
-    html += '<div class="mk-card" onclick="openProductDetail(' + gi + ')">' + imgHtml + '<div class="mk-cardbody"><div class="mk-cat">' + (isRent ? 'FOR RENT · ' : '') + esc(p.cat || 'General') + '</div><div class="mk-name">' + esc(p.name) + '</div><div class="mk-price">' + fmtFull(p.price) + ' <span style="font-size:.7rem;color:var(--muted);font-weight:600;">' + esc(p.currency || 'TZS') + (isRent && p.priceUnit ? ' ' + esc(p.priceUnit) : '') + '</span></div><div class="mk-cvendor">' + vlogo + '<span>' + esc(p.vendor) + '</span></div></div></div>';
+    imgHtml += (p.stock > 0 ? '<span class="mk-stock">' + (isRent ? 'Available' : 'In stock') + '</span>' : '<span class="mk-stock out">' + (isRent ? 'Booked' : 'Out') + '</span>') + (p.hot ? '<span class="mk-fire">🔥 Hot</span>' : '')
+      + '<button type="button" class="mk-ibtn mk-save' + (fav ? ' on' : '') + '" data-fav="' + esc(p.id) + '" aria-pressed="' + (fav ? 'true' : 'false') + '" aria-label="Save to Favorites" title="' + (fav ? 'Saved — tap to remove' : 'Save to Favorites') + '" onclick="toggleFav(event,' + gi + ')">' + MK_SAVE_SVG + '</button>'
+      + '<button type="button" class="mk-ibtn mk-lens" aria-label="Find similar products" title="Find similar products" onclick="findSimilar(event,' + gi + ')">' + MK_LENS_SVG + '</button>'
+      + '</div>';
+    var v = findVendor(p.vendor), trust = mkTrust_(v), vlogo = (v && v.logo) ? '<img src="' + esc(v.logo) + '" onerror="this.style.display=\'none\'">' : '<div class="mk-vinit">' + esc((p.vendor || 'B')[0]).toUpperCase() + '</div>';
+    html += '<div class="mk-card" onclick="openProductDetail(' + gi + ')">' + imgHtml + '<div class="mk-cardbody"><div class="mk-cat">' + (isRent ? 'FOR RENT · ' : '') + esc(p.cat || 'General') + '</div><div class="mk-name">' + esc(p.name) + '</div><div class="mk-price">' + fmtFull(p.price) + ' <span style="font-size:.7rem;color:var(--muted);font-weight:600;">' + esc(p.currency || 'TZS') + (isRent && p.priceUnit ? ' ' + esc(p.priceUnit) : '') + '</span></div><div class="mk-cvendor">' + vlogo + '<div class="mk-vtxt"><span>' + esc(p.vendor) + '</span>' + (trust ? '<div class="mk-vmeta">' + esc(trust) + '</div>' : '') + '</div></div></div></div>';
   }
   grid.innerHTML = html;
   var remaining = list.length - shown;
@@ -734,21 +986,41 @@ function loadMoreMarket() { _mkShown += _mkPageSize; renderMarketPage(); }
 function openProductDetail(idx) {
   var p = _market.products[idx]; if (!p) return;
   try { mk('click', { product_id: p.id }).catch(function () {}); } catch (e) {}
-  var v = findVendor(p.vendor) || {}, isRent = (p.listingType || 'Sale') === 'Rent';
+  var v = findVendor(p.vendor) || {}, isRent = (p.listingType || 'Sale') === 'Rent', fav = isFav_(p.id), trust = mkTrust_(v);
   document.getElementById('pdTitle').textContent = p.name;
   var shots = [p.image1, p.image2, p.image3].filter(function (u) { return !!u; });
   var imgs = '<div class="pd-imgs">' + (shots.length
     ? shots.map(function (u, k) { return '<img class="pd-img" src="' + esc(u) + '"' + (k === 0 ? ' onerror="this.outerHTML=\'<div class=\\\'pd-img-ph\\\'>🛍️</div>\'"' : ' onerror="this.remove()"') + '>'; }).join('')
     : '<div class="pd-img-ph">🛍️</div>') + '</div>';
+  // The same two things the photo on the card offers, for somebody who opened the product first.
+  var acts = '<div class="pd-acts">'
+    + '<button type="button" class="pd-act' + (fav ? ' on' : '') + '" data-fav="' + esc(p.id) + '" aria-pressed="' + (fav ? 'true' : 'false') + '" title="' + (fav ? 'Saved — tap to remove' : 'Save to Favorites') + '" onclick="toggleFav(event,' + idx + ')">' + MK_SAVE_SVG + '<span class="pd-act-lbl">' + (fav ? 'Saved' : 'Save') + '</span></button>'
+    + '<button type="button" class="pd-act" title="Find similar products" onclick="findSimilar(event,' + idx + ')">' + MK_LENS_SVG + '<span>Similar products</span></button></div>';
   var phone = digitsOnly(p.vendorPhone || v.phone || '');
-  var contact = phone ? '<a class="btn-primary w-100" style="justify-content:center;margin-top:6px;" href="https://wa.me/' + phone + '?text=' + encodeURIComponent('Hello ' + p.vendor + ', I am interested in "' + p.name + '" I saw on the Samaritan Industrial marketplace.') + '" target="_blank" rel="noopener">📲 Contact seller on WhatsApp</a>' : '<div class="alert-info" style="margin-top:6px;">This seller has not listed a contact number.</div>';
-  document.getElementById('pdBody').innerHTML = imgs
+  var wa = phone ? '<a class="btn-primary" href="https://wa.me/' + phone + '?text=' + encodeURIComponent('Hello ' + p.vendor + ', I am interested in "' + p.name + '" I saw on the Samaritan Industrial marketplace.') + '" target="_blank" rel="noopener">📲 __WA__</a>' : '';
+  /* WHERE THE SHOP IS. v.map is the pin the business gave (api/_lib/bo/place.js -- it can only be
+     a Google Maps address, the server refuses anything else). A business that gave an address
+     but no pin still gets a button, and it is honest about what it does: it searches the map
+     for those words, which finds the area and not necessarily the door. */
+  var pin = v.map || '', area = (!pin && v.address) ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(p.vendor + ', ' + v.address) : '';
+  var go = pin ? '<a class="btn-secondary" id="pdLocation" href="' + esc(pin) + '" target="_blank" rel="noopener" title="Open the shop in Google Maps">📍 Location</a>'
+    : area ? '<a class="btn-secondary" id="pdLocation" href="' + esc(area) + '" target="_blank" rel="noopener" title="Search the shop\'s address in Google Maps">📍 Location</a>' : '';
+  // Alone, the WhatsApp button says the whole thing. Beside Location, on one line of a phone, the short word.
+  wa = wa.replace('__WA__', go ? 'WhatsApp' : 'Contact seller on WhatsApp');
+  // The notes come first and the buttons last, because the buttons stay in view (.pd-go).
+  var contact = '';
+  if (!wa) contact += '<div class="alert-info" style="margin-top:6px;">This seller has not listed a contact number.</div>';
+  if (area) contact += '<div class="small muted" style="margin-top:6px;">📍 Location searches the map for the shop\'s address — ask the seller to confirm the exact place.</div>';
+  if (wa || go) contact += '<div class="pd-go">' + wa + go + '</div>';
+  document.getElementById('pdBody').innerHTML = imgs + acts
     + '<div style="font-size:.7rem;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.05em;">' + (isRent ? 'FOR RENT · ' : '') + esc(p.cat || 'General') + ((p.brand || p.model) ? ' · ' + esc([p.brand, p.model].filter(Boolean).join(' ')) : '') + '</div>'
     + '<div style="font-size:1.3rem;font-weight:800;color:var(--text);margin:2px 0 4px;">' + esc(p.name) + (p.hot ? ' <span style="font-size:.8rem;color:#EF4444;">🔥 Hot</span>' : '') + '</div>'
     + '<div style="font-size:1.4rem;font-weight:800;font-family:var(--mono);color:var(--accent2);margin-bottom:6px;">' + fmtFull(p.price) + ' ' + esc(p.currency || 'TZS') + (isRent && p.priceUnit ? ' <span style="font-size:.85rem;color:var(--muted);">' + esc(p.priceUnit) + '</span>' : '') + '</div>'
     + '<div style="font-size:.84rem;color:var(--text2);margin-bottom:12px;">' + (isRent ? (p.stock > 0 ? '✅ Available now' : '🔴 Currently booked out') : (p.stock > 0 ? ('✅ ' + p.stock + ' in stock') : '🔴 Currently out of stock')) + '</div>'
     + (p.location ? '<div style="font-size:.82rem;color:var(--text2);margin-bottom:12px;">📍 ' + esc(p.location) + '</div>' : '')
-    + '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:6px;"><div style="font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Sold by</div><div style="font-weight:700;color:var(--text);">' + esc(p.vendor) + (v.businessType ? ' <span style="font-weight:500;color:var(--accent);font-size:.8rem;">· ' + esc(v.businessType) + '</span>' : '') + '</div>' + (v.address ? '<div style="font-size:.78rem;color:var(--text2);margin-top:6px;">📍 ' + esc(v.address) + '</div>' : '') + '</div>'
+    + '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:6px;"><div style="font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Sold by</div><div style="font-weight:700;color:var(--text);">' + esc(p.vendor) + (v.businessType ? ' <span style="font-weight:500;color:var(--accent);font-size:.8rem;">· ' + esc(v.businessType) + '</span>' : '') + '</div>'
+      + (trust ? '<div id="pdTrust" style="font-size:.78rem;color:var(--text2);margin-top:6px;">🏪 ' + esc(/^New/.test(trust) ? trust : 'Here for ' + trust) + '</div>' : '')
+      + (v.address ? '<div style="font-size:.78rem;color:var(--text2);margin-top:6px;">📍 ' + esc(v.address) + '</div>' : '') + '</div>'
     + contact;
   openModal('productDetailModal');
 }
@@ -764,8 +1036,7 @@ function startHintTimer(hints, timings) {
   var show = function () {
     var h = _hintList[Math.floor(Math.random() * _hintList.length)];
     var msg = (h && typeof h === 'object') ? ((S.lang === 'sw' && h.sw) ? h.sw : h.en) : h;
-    document.getElementById('hintText').textContent = msg; document.querySelector('#hintToast .hint-icon').textContent = '💡';
-    var el = document.getElementById('hintToast'); el.classList.add('show'); setTimeout(function () { el.classList.remove('show'); }, hintLifetime * 1000);
+    toastShow_(msg, '💡', hintLifetime * 1000);
   };
   hintTimer = setInterval(show, hintInterval * 1000);
   setTimeout(show, 2500);

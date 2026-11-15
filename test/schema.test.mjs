@@ -270,3 +270,29 @@ test('the RUN-ME migration and schema.sql agree about the new tables', () => {
   assert.ok(mig.indexOf('create table if not exists pending_sales') > mig.indexOf('-- PART 3 of 3'),
     'a table using a new enum type belongs after that type is committed');
 });
+
+
+/* A FUNCTION WRITTEN TWICE. db/schema.sql builds a fresh database and db/RUN-ME-006 brings a live
+   one forward; bo_vendor_sale_counts is in both, and it is the ONE definition of "a sale" that the
+   marketplace prints under every shop. Two bodies that disagree would give a new deployment and
+   the live one different numbers for the same business, and nobody could say why. */
+test('bo_vendor_sale_counts is the same function in schema.sql and in RUN-ME-006', () => {
+  const body = file => {
+    const sql = fs.readFileSync(path.join(ROOT, 'db', file), 'utf8');
+    const m = /create or replace function bo_vendor_sale_counts\(\)[\s\S]*?\$\$([\s\S]*?)\$\$;/.exec(sql);
+    assert.ok(m, file + ' does not define bo_vendor_sale_counts()');
+    return { head: m[0].slice(0, m[0].indexOf('$$')).replace(/\s+/g, ' ').trim(), body: m[1].replace(/\s+/g, ' ').trim() };
+  };
+  const a = body('schema.sql'), b = body('RUN-ME-006-marketplace-trust-and-location.sql');
+  assert.deepEqual(a, b);
+  // What it promises the code: these three columns, completed sales only, no row-by-row DISTINCT.
+  assert.match(a.head, /returns table \(vendor_id uuid, sales bigint, first_sale timestamptz\) language sql stable as/);
+  assert.equal(a.body, "select vendor_id, count(*) as sales, min(sold_at) as first_sale from sales where status = 'completed' group by vendor_id");
+  // And the stand-in the tests and the local server use says the same thing, clause for clause.
+  const book = fs.readFileSync(path.join(ROOT, 'test/_book.mjs'), 'utf8');
+  for (const clause of ["where status = 'completed'", 'count(*)', 'min(sold_at)', 'group by vendor_id']) assert.ok(book.includes('// ' + clause), 'saleCountsRpc lost its "' + clause + '"');
+  // The page's only reader has no fallback that walks the sales table.
+  const market = fs.readFileSync(path.join(ROOT, 'api/_lib/bo/market.js'), 'utf8');
+  assert.match(market, /rpcOr\(db, 'bo_vendor_sale_counts', \{\}, async \(\) => null\)/, 'the sales count grew a row-by-row fallback on the public page');
+  assert.ok(!/rowsAll\(db, 'sales'|rows\(db, 'sales'/.test(market), 'the marketplace reads the sales table');
+});

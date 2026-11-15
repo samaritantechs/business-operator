@@ -12,10 +12,16 @@ window.BOUsers = (function () {
       + '<div class="form-group" style="grid-column:span 2;"><label class="form-label">Email</label><input class="form-control" id="newUserEmail" placeholder="email@example.com"></div><div class="form-group" style="grid-column:span 2;"><label class="form-label">Full Name</label><input class="form-control" id="newUserName"></div><div class="form-group"><label class="form-label">Role</label><select class="form-select" id="newUserRole">' + roleOpts + '</select></div><div class="form-group"><label class="form-label">User ID</label><input class="form-control" id="newUserId" autocomplete="off"></div><div class="form-group"><label class="form-label">Password</label><input class="form-control" id="newUserPwd" type="password" autocomplete="new-password"></div>' + shopSelect('newUserBranch') + '<button class="btn-primary" onclick="BOUsers.add()">+ Add</button></div></div></div>';
     if (isAdmin()) {
       var v = S.vendor || {};
-      h += '<div class="section-card" style="margin-bottom:18px;"><div class="section-hdr"><span>🏷️</span><div class="section-hdr-title">Business Profile &amp; Marketplace Listing</div></div><div class="section-body"><div class="fg3" style="align-items:end;"><div class="form-group"><label class="form-label">Business Type</label><input type="text" class="form-control" id="myBusinessType" placeholder="e.g. Groceries" value="' + esc(v.business_type || '') + '"></div><div class="form-group"><label class="form-label">Contact Phone (WhatsApp)</label><input type="text" class="form-control" id="myBusinessPhone" placeholder="Start with code, e.g. +255" value="' + esc(v.phone || '') + '"></div><div class="form-group"><label class="form-label">Currency</label><input type="text" class="form-control mono" id="myCurrencyInput" value="' + esc(v.currency || 'TZS') + '" style="text-transform:uppercase;"></div></div><div class="form-group" style="margin-top:12px;"><label class="form-label">Business Address / Location</label><input type="text" class="form-control" id="myBusinessAddress" placeholder="e.g. Kariakoo, Dar es Salaam" value="' + esc(v.address || '') + '"></div><div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;"><button class="btn-primary" onclick="BOUsers.saveProfile()">Save Profile</button><button class="btn-secondary" onclick="BOUsers.openLogo()">🖼️ Upload Logo</button>' + (v.logo_url ? '<img src="' + esc(v.logo_url) + '" style="max-height:32px;max-width:90px;object-fit:contain;border-radius:6px;" onerror="this.style.display=\'none\'">' : '') + '<span id="bizProfileMsg" class="small muted"></span></div><div class="small muted" style="margin-top:8px;">This appears on your marketplace storefront so customers can reach you.</div></div></div>';
+      h += '<div class="section-card" style="margin-bottom:18px;"><div class="section-hdr"><span>🏷️</span><div class="section-hdr-title">Business Profile &amp; Marketplace Listing</div></div><div class="section-body"><div class="fg3" style="align-items:end;"><div class="form-group"><label class="form-label">Business Type</label><input type="text" class="form-control" id="myBusinessType" placeholder="e.g. Groceries" value="' + esc(v.business_type || '') + '"></div><div class="form-group"><label class="form-label">Contact Phone (WhatsApp)</label><input type="text" class="form-control" id="myBusinessPhone" placeholder="Start with code, e.g. +255" value="' + esc(v.phone || '') + '"></div><div class="form-group"><label class="form-label">Currency</label><input type="text" class="form-control mono" id="myCurrencyInput" value="' + esc(v.currency || 'TZS') + '" style="text-transform:uppercase;"></div></div><div class="form-group" style="margin-top:12px;"><label class="form-label">Business Address / Location</label><input type="text" class="form-control" id="myBusinessAddress" placeholder="e.g. Kariakoo, Dar es Salaam" value="' + esc(v.address || '') + '"></div>'
+        /* THE PIN. One box that takes whatever is to hand -- the phone's own position, a link
+           copied out of Google Maps, or two numbers -- because the person filling this in is a
+           shopkeeper standing at a counter, not somebody who knows what a coordinate is. The
+           server (api/_lib/bo/place.js) works out which it was. */
+        + '<div class="form-group" style="margin-top:12px;"><label class="form-label">Shop location on the map <span class="muted" style="font-weight:400;">— gives customers a 📍 Location button to you</span></label><div style="display:flex;gap:8px;flex-wrap:wrap;"><input type="text" class="form-control" id="myBusinessPin" style="flex:1 1 220px;" placeholder="Loading…" autocomplete="off" disabled><button type="button" class="btn-secondary" id="myPinHere" onclick="BOUsers.pinHere()">📍 Use my current location</button><a class="btn-secondary hidden" id="myPinTest" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;">🗺️ Check it on the map</a></div><div class="small muted" id="myPinNote" style="margin-top:6px;">Stand in your shop and tap “Use my current location”, or paste a Google Maps link (in Google Maps: Share → Copy link). Leave it empty to show no Location button.</div></div><div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;"><button class="btn-primary" onclick="BOUsers.saveProfile()">Save Profile</button><button class="btn-secondary" onclick="BOUsers.openLogo()">🖼️ Upload Logo</button>' + (v.logo_url ? '<img src="' + esc(v.logo_url) + '" style="max-height:32px;max-width:90px;object-fit:contain;border-radius:6px;" onerror="this.style.display=\'none\'">' : '') + '<span id="bizProfileMsg" class="small muted"></span></div><div class="small muted" style="margin-top:8px;">This appears on your marketplace storefront so customers can reach you.</div></div></div>';
     }
     h += '<div class="search-wrap"><span class="search-ico">🔍</span><input type="text" class="form-control" id="userSearch" placeholder="Search name, role, user ID, vendor…" onkeyup="BOUsers.search()"></div><div id="usersTable" class="empty">Loading…</div>';
     el.innerHTML = h;
+    if (isAdmin()) loadPin();
     if (isManager()) srv('vendorList', {}).then(function (r) { vendors = r.rows || []; var s = document.getElementById('newUserVendor'); if (s) s.innerHTML += vendors.map(function (v) { return '<option value="' + esc(v.id) + '">' + esc(v.name) + '</option>'; }).join(''); }).catch(function () {});
     list();
   }
@@ -79,11 +85,57 @@ window.BOUsers = (function () {
       return srv('uploadProfilePhoto', { profile_id: id, data_url: pendingPhoto }).then(function (r) { if (S.user && S.user.id === id) { S.user.profile_photo_url = r.url; document.getElementById('topbarAvatar').innerHTML = '<img src="' + esc(r.url) + '" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">'; } });
     }).then(function () { closeModal('editUserModal'); showToast('User updated.'); list(); }).catch(BO.fail);
   }
+  /* The pin is not part of the session's vendor row (the sign-in path must not depend on a
+     column a database may not have yet), so it is fetched here, once, when the screen opens.
+     Until it has arrived the box is disabled and is NOT sent with a save: an empty box means
+     "take my pin away", and a box that is empty only because it has not loaded must not. */
+  var pinLoaded = false;
+  function paintPin(place) {
+    var box = document.getElementById('myBusinessPin'), test = document.getElementById('myPinTest'), note = document.getElementById('myPinNote');
+    if (!box) return;
+    pinLoaded = true; box.disabled = false; box.value = (place && place.text) || '';
+    box.placeholder = 'Paste a Google Maps link, or tap the button while at the shop';
+    if (test) { test.classList.toggle('hidden', !(place && place.link)); if (place && place.link) test.href = place.link; }
+    if (place && place.ready === false && note) note.innerHTML = '⚠️ The shop location cannot be saved yet: the system manager has to run <span class="mono">db/RUN-ME-006</span> in Supabase first. Everything else on this form saves as usual.';
+  }
+  function loadPin() {
+    pinLoaded = false;
+    srv('businessProfile', {}).then(function (r) { paintPin(r.place); }).catch(function () {
+      var box = document.getElementById('myBusinessPin'); if (box) box.placeholder = 'Could not load the saved location — reopen this tab to edit it';
+    });
+  }
+  /* The phone's own position, written into the box as two numbers the person can see before
+     they save. Nothing is sent until "Save Profile". A phone that will not say where it is
+     (permission refused, no GPS indoors, an older copy of the app) is told how to do it by
+     hand instead of being left with a button that does nothing. */
+  function pinHere() {
+    var box = document.getElementById('myBusinessPin'), btn = document.getElementById('myPinHere');
+    var cannot = function (why) { BO.notify(why + '\n\nYou can still set it by hand: open Google Maps, press and hold on your shop, tap Share, copy the link, and paste it in the box.'); };
+    if (!box || !pinLoaded) { showToast('One moment — still loading the saved location.', '⏳'); return; }
+    if (!navigator.geolocation) { cannot('This phone or app cannot read its location.'); return; }
+    var old = btn ? btn.textContent : ''; if (btn) { btn.disabled = true; btn.textContent = '📡 Finding you…'; }
+    var done = function () { if (btn) { btn.disabled = false; btn.textContent = old; } };
+    navigator.geolocation.getCurrentPosition(function (pos) {
+      done();
+      box.value = pos.coords.latitude.toFixed(6) + ', ' + pos.coords.longitude.toFixed(6);
+      var acc = Math.round(pos.coords.accuracy || 0);
+      showToast('Location found' + (acc ? ' (within about ' + acc + ' m)' : '') + '. Tap Save Profile to keep it.', '📍');
+    }, function (err) {
+      done();
+      cannot(err && err.code === 1 ? 'Permission to use the location was not given. If you are in the Android app, update it to the newest version, then allow Location when it asks.'
+        : 'The phone could not find its location just now. Check that Location is switched on in the phone\'s settings, then try again outside or near a window.');
+    }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
+  }
   function saveProfile() {
     var msg = document.getElementById('bizProfileMsg'); msg.textContent = 'Saving…';
-    srv('setBusinessProfile', { business_type: g('myBusinessType').trim(), phone: g('myBusinessPhone').trim(), address: g('myBusinessAddress').trim(), currency: g('myCurrencyInput').trim().toUpperCase() }).then(function (r) {
+    var args = { business_type: g('myBusinessType').trim(), phone: g('myBusinessPhone').trim(), address: g('myBusinessAddress').trim(), currency: g('myCurrencyInput').trim().toUpperCase() };
+    if (pinLoaded) args.location = g('myBusinessPin').trim();
+    srv('setBusinessProfile', args).then(function (r) {
       if (r.vendor) S.vendor = r.vendor;
-      msg.textContent = '✅ Saved'; setTimeout(function () { msg.textContent = ''; }, 2500);
+      if (r.place) paintPin(r.place);
+      if (r.warning) { msg.textContent = ''; BO.notify(r.warning); return; }
+      msg.textContent = (r.place && r.place.link) ? '✅ Saved — your 📍 Location button reaches the marketplace within a minute' : '✅ Saved';
+      setTimeout(function () { msg.textContent = ''; }, 4500);
     }).catch(function (e) { msg.textContent = ''; BO.fail(e); });
   }
   function openLogo() {
@@ -99,5 +151,5 @@ window.BOUsers = (function () {
   }
 
   BO.tabs.users = { load: load, sync: list };
-  return { load: load, search: search, add: add, toggle: toggle, del: del, edit: edit, save: save, previewPhoto: previewPhoto, saveProfile: saveProfile, openLogo: openLogo, uploadLogo: uploadLogo };
+  return { load: load, search: search, add: add, toggle: toggle, del: del, edit: edit, save: save, previewPhoto: previewPhoto, saveProfile: saveProfile, pinHere: pinHere, openLogo: openLogo, uploadLogo: uploadLogo };
 })();

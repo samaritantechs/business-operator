@@ -56,6 +56,8 @@ export const DEFAULT_HINTS = {
      '\ud83d\udcf2 Programu ikikuomba kusasisha, bonyeza Sasisha sasa \u2013 huchukua muda mfupi na hakuna ulichoandika kinachopotea.'],
     ['\ud83d\udc64 Add the customer\u2019s name and phone \u2013 it puts them on the receipt.',
      '\ud83d\udc64 Andika jina na simu ya mteja \u2013 huonekana kwenye risiti.'],
+    ['\ud83d\udc46 A tip in your way? Swipe it off the screen in any direction.',
+     '\ud83d\udc46 Kidokezo kinakuzuia? Kitelezeshe nje ya skrini upande wowote.'],
   ],
   admin: [
     ['\ud83d\udcf2 If the app asks you to update, tap Update now \u2013 it takes a moment and nothing you entered is lost.',
@@ -88,6 +90,12 @@ export const DEFAULT_HINTS = {
      '\ud83d\udcf1 Unauza simu? Sajili kila simu kwa IMEI kwenye Phone Vending, kisha uuze ile ile hasa.', 'phoneVending'],
     ['\ud83c\udfe6 Financing partners (MOGO, Watu) live under Phone Vending \u2013 pick one when you sell on credit.',
      '\ud83c\udfe6 Wafadhili wa mikopo (MOGO, Watu) wako kwenye Phone Vending \u2013 chagua mmoja unapouza kwa mkopo.', 'phoneVending'],
+    ['\ud83d\udccd Users \u2192 Business Profile: set your shop location, and customers get a Location button to you on the marketplace.',
+     '\ud83d\udccd Users \u2192 Business Profile: weka mahali pa duka lako, na wateja watapata kitufe cha Location sokoni.'],
+    ['\ud83c\udfea The marketplace shows how long your business has been here and how many sales you have recorded \u2013 every sale you record adds to it.',
+     '\ud83c\udfea Soko linaonyesha muda wa biashara yako na idadi ya mauzo uliyorekodi \u2013 kila mauzo unayorekodi yanaongeza.'],
+    ['\ud83d\udc46 A tip in your way? Swipe it off the screen in any direction.',
+     '\ud83d\udc46 Kidokezo kinakuzuia? Kitelezeshe nje ya skrini upande wowote.'],
   ],
   'assistant-admin': [
     ['\ud83d\udc65 You can manage sellers under your admin.',
@@ -104,6 +112,10 @@ export const DEFAULT_HINTS = {
      '\ud83d\udd16 Zilizowekwa huhifadhi bidhaa kwa mteja atakayerudi.'],
     ['\ud83d\udcf1 Handsets tracked one by one live under Phone Vending, not Stock & Shops.',
      '\ud83d\udcf1 Simu zinazofuatiliwa moja moja ziko kwenye Phone Vending, si Stock & Shops.', 'phoneVending'],
+    ['\ud83d\udccd Users \u2192 Business Profile: set your shop location, and customers get a Location button to you on the marketplace.',
+     '\ud83d\udccd Users \u2192 Business Profile: weka mahali pa duka lako, na wateja watapata kitufe cha Location sokoni.'],
+    ['\ud83d\udc46 A tip in your way? Swipe it off the screen in any direction.',
+     '\ud83d\udc46 Kidokezo kinakuzuia? Kitelezeshe nje ya skrini upande wowote.'],
   ],
   /* A MANAGER HAD NO LIST, so hintsForRole fell through to the seller's and the person who
      owns the platform was told "Your User ID is your login \u2013 use it every time you sell."
@@ -122,6 +134,8 @@ export const DEFAULT_HINTS = {
      '\ud83d\udcdd Simamia Vidokezo kwenye Mipangilio \u2013 pakia vidokezo vya msingi mara moja ili uone na uhariri vinavyosomwa na wote.'],
     ['\u2699\ufe0f Applying a permission profile in Settings changes EVERY business at once.',
      '\u2699\ufe0f Kuweka ruhusa kwenye Mipangilio kunabadilisha KILA biashara kwa mara moja.'],
+    ['\ud83d\udc46 A tip in your way? Swipe it off the screen in any direction.',
+     '\ud83d\udc46 Kidokezo kinakuzuia? Kitelezeshe nje ya skrini upande wowote.'],
   ],
   'assistant-manager': [
     ['\ud83c\udfe2 View all vendor performance.',
@@ -130,6 +144,8 @@ export const DEFAULT_HINTS = {
      '\ud83d\udcca Pakua ripoti kamili kwenye kichupo cha Ripoti.'],
     ['\ud83d\udcbc Set commission rates in Management tab.',
      '\ud83d\udcbc Weka viwango vya kamisheni kwenye kichupo cha Usimamizi.'],
+    ['\ud83d\udc46 A tip in your way? Swipe it off the screen in any direction.',
+     '\ud83d\udc46 Kidokezo kinakuzuia? Kitelezeshe nje ya skrini upande wowote.'],
   ],
   marketplace: [
     ['\ud83d\udecd\ufe0f Tap any product to view details and contact the seller.',
@@ -144,6 +160,16 @@ export const DEFAULT_HINTS = {
      '\ud83c\udd95 Biashara mpya zinajiunga mara kwa mara \u2014 rudi tena!'],
     ['\ud83d\udc41\ufe0f Typed your password wrong? Tap the eye on the password box to see what you typed.',
      '\ud83d\udc41\ufe0f Umekosea neno la siri? Bonyeza jicho kwenye kisanduku cha neno la siri uone ulichoandika.'],
+    ['\ud83d\udd16 Tap the bookmark on a product photo to save it. Your saved products wait under Favorites.',
+     '\ud83d\udd16 Bonyeza alama ya kuhifadhi kwenye picha ya bidhaa. Ulizohifadhi zinakusubiri kwenye Favorites.'],
+    ['\ud83d\udd0e Tap the lens on a product photo to see similar products from every shop.',
+     '\ud83d\udd0e Bonyeza lenzi kwenye picha ya bidhaa kuona bidhaa zinazofanana kutoka maduka yote.'],
+    ['\ud83d\udccd Open a product and tap Location to go to the shop with Google Maps.',
+     '\ud83d\udccd Fungua bidhaa kisha bonyeza Location kwenda dukani kwa Google Maps.'],
+    ['\ud83c\udfea Under each shop name: how long the business has been here and how many sales it has made.',
+     '\ud83c\udfea Chini ya jina la duka: muda ambao biashara imekuwepo na idadi ya mauzo iliyofanya.'],
+    ['\ud83d\udc46 A tip in your way? Swipe it off the screen in any direction.',
+     '\ud83d\udc46 Kidokezo kinakuzuia? Kitelezeshe nje ya skrini upande wowote.'],
   ],
 };
 

@@ -20,7 +20,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { fakeDb, setPageCap } from './fake-db.mjs';
-import { emptyBook, PASSWORD } from './_book.mjs';
+import { emptyBook, PASSWORD, saleCountsRpc } from './_book.mjs';
 
 delete process.env.RESEND_API_KEY;
 const { boApi } = await import('../api/_lib/bo-core.js');
@@ -120,6 +120,7 @@ function bigBook() {
 
 /* The database functions of db/schema.sql, as stand-ins over the fake's store. */
 const RPCS = {
+  bo_vendor_sale_counts: saleCountsRpc,
   bo_click_counts: (store, { p_since }) => {
     const m = new Map();
     for (const c of store.product_clicks.rows) { const r = m.get(c.product_id) || { product_id: c.product_id, total: 0, recent: 0 }; r.total++; if (c.clicked_at >= p_since) r.recent++; m.set(c.product_id, r); }
@@ -246,7 +247,15 @@ const BUDGETS = [
      catalogue once, ranks it and filters by category in the browser, which is what makes the
      grid instant and why one build is cached a minute for every visitor behind it. At a few
      thousand products that is the right trade. Past that it is a bounded read with paging on
-     the server, and this budget is where that will show up first. */
+     the server, and this budget is where that will show up first.
+
+     ONE OF THESE TRIPS IS THE SALES COUNT ("3 months · 30 sales" under every shop): a single
+     function call, bo_vendor_sale_counts, on a build whose count is more than fifteen minutes
+     old -- so one build in fifteen pays it and the other fourteen cost a trip less than this.
+     It took the one trip of headroom both worlds had (12 -> 13 without the functions, where it
+     is asked and refused; 10 -> 11 with them); the ceilings themselves did not move. It adds
+     no rows without the function and one row per business with it, and it has NO fallback
+     that reads sales: test/market.test.mjs pins that the public page never touches that table. */
   ['Marketplace home',                'market', 'market',       {},                                   null,    13,   7000,  11,  6000],
   ['Marketplace hints',               'market', 'hints',        {},                                   null,     3,     50,   3,    50],
   ['Sign in',                         'account', 'login',       { id: 'a1', password: PASSWORD },     null,    11,     60,  11,    60],
