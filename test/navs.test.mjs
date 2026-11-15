@@ -383,18 +383,29 @@ test('saving and "similar" are buttons on the photo that never open the product'
   assert.match(fav, /store\('boFavs'/, 'favourites are kept on the phone');
 });
 
-test('the popup can be thrown away, and there is only one timer for it', () => {
+test('the popup can be thrown away, a tap still goes through it, and there is only one timer for it', () => {
   assert.match(shell, /function wireToastSwipe_\(\)/);
-  for (const ev of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel']) assert.ok(shell.includes("'" + ev + "'"), 'the popup does not listen for ' + ev);
-  assert.match(shell, /e\.type === 'pointerup' && far >= SWIPE_GONE_PX/, 'only a real drag, let go of, dismisses it');
+  /* THE POPUP TAKES NO TOUCHES OF ITS OWN. It comes up over the corner of the till the moment a
+     sale is recorded; if it swallowed taps, a seller serving a queue would lose one every sale. So
+     it stays pointer-events:none and the drag is watched for on the page. */
+  const css = /#hintToast\{[^}]*\}#hintToast\.show\{[^}]*\}/.exec(html);
+  assert.ok(css, 'the popup\'s style rules moved');
+  assert.match(css[0], /#hintToast\{[^}]*pointer-events:none;/);
+  assert.ok(!/pointer-events:auto/.test(css[0]), 'the popup must not take taps: they belong to the button underneath it');
+  for (const ev of ['touchstart', 'touchmove', 'touchend', 'touchcancel', 'mousedown', 'mousemove', 'mouseup']) {
+    assert.ok(new RegExp("document\\.addEventListener\\('" + ev + "'").test(shell), 'the page does not watch for ' + ev);
+  }
+  // A drag of the popup must not scroll the page under it, so that one listener cannot be passive...
+  assert.match(shell, /document\.addEventListener\('touchmove', function \(e\) \{[^\n]*e\.preventDefault\(\); \}, \{ capture: true, passive: false \}\);/);
+  // ...and only a touch that MOVED is the popup's: until then it is a tap, and nothing is taken from the page.
+  assert.match(shell, /if \(!dragging && far < SWIPE_START_PX\) return false;/);
+  assert.match(shell, /document\.addEventListener\('touchend', function \(e\) \{ if \(finish\(true\) && e\.cancelable\) e\.preventDefault\(\); \}, true\);/);
+  assert.match(shell, /if \(thrown && far >= SWIPE_GONE_PX\) \{/, 'only a real drag, let go of, dismisses it');
   // Tips and confirmations go through the one door, so neither can take the other down early.
   assert.match(shell, /function showToast\(msg, icon\) \{ toastShow_\(msg, icon \|\| '✅', 2800\); \}/);
   assert.match(shell, /toastShow_\(msg, '💡', hintLifetime \* 1000\);/);
   assert.equal((shell.match(/getElementById\('hintToast'\)/g) || []).length, 1, 'only toastEl_ may reach for the popup: everything else goes through toastShow_ / toastHide_');
   assert.ok(!/querySelector\('#hintToast/.test(shell), 'something reaches into the popup around toastShow_');
-  // It can only be dragged if it takes the finger at all, and only while it is showing.
-  assert.match(html, /#hintToast\{[^}]*pointer-events:none;touch-action:none;/);
-  assert.match(html, /#hintToast\.show\{[^}]*pointer-events:auto;/);
 });
 
 test('the Location button can only ever open Google Maps', () => {

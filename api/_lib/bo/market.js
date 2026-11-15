@@ -109,7 +109,7 @@ async function clickCounts(db, nowMs) {
    it and the answer is kept for the next build whenever it does arrive. A slow database is a
    reason to ask it for less, not to make a customer watch a spinner. */
 const STATS_MS = 15 * 60 * 1000;
-const STATS_RETRY_MS = 2 * 60 * 1000;         // after a miss: soon, but not on every build
+const STATS_RETRY_MS = 2 * 60 * 1000;         // after a miss or a missing function: soon, but not on every build
 /** Read when asked, not when loaded, so it can be turned down without a redeploy -- and by a test. */
 const statsBudgetMs = () => Number(process.env.BO_MARKET_STATS_BUDGET_MS) || 1500;
 const DAY_MS = 86400000;
@@ -140,8 +140,13 @@ async function vendorSales(db, nowMs) {
   const answer = await Promise.race([asked, late]);
   clearTimeout(timer);
   const keep = (list, at) => {
+    /* "The function is not in this database" is remembered for two minutes, not fifteen: it is
+       the state a live system is in until somebody runs db/RUN-ME-006, and the person who has
+       just run it is looking at the marketplace to see the numbers appear. Asking again costs
+       nothing worth saving -- an unknown function is refused by the API layer from its own
+       cache, without a query reaching the database. */
     const entry = list === null
-      ? { at, until: at + STATS_MS, known: false, map: new Map() }
+      ? { at, until: at + STATS_RETRY_MS, known: false, map: new Map() }
       : { at, until: at + STATS_MS, known: true, map: salesMap(list) };
     statsCache.set(db, entry);
     return entry;

@@ -48,6 +48,9 @@ test('place: anything that is not a place on Google Maps is refused, in words a 
     'https://www.google.com.evil.example/maps',         // Google's name, somebody else's site
     'https://google.xyz/maps', 'https://maps.google.evil/x',   // a look-alike ending
     'https://www.google.com/search?q=shop',             // Google, but not Maps
+    'https://www.google.com/url?q=https://evil.example', 'https://maps.google.com/url?q=https://evil.example',   // Google's own redirector
+    'https://maps.google.com/anything', 'https://www.google.com/maps/../url?q=x',            // off the map, by any route
+    'https://www.google.com\\@evil.example/maps',       // a backslash is a slash to a browser
     'https://goo.gl/abc',                               // a shortener, but not a Maps one
     'https://maps.app.goo.gl/',                         // nothing after the host
     'https://user:pw@www.google.com/maps',              // somebody else's name in front

@@ -369,3 +369,17 @@ test('market: a database that has not been given the pin columns still has a sto
     assert.equal(calls.tables.vendors, 4);
   } finally { absentColumns.clear(); }
 });
+
+
+test('market: the count shows within minutes of the function being created, not a quarter of an hour', async () => {
+  /* The person who has just run db/RUN-ME-006 goes straight to the marketplace to see the numbers.
+     "Not in this database" is therefore remembered for two minutes -- an unknown function is
+     refused by the API layer from its own cache, so asking again costs the database nothing. */
+  const rpc = {};                                                  // a live database before the migration
+  const { db } = counted(richBook(), { rpc });
+  assert.equal(vendorOf(await FN.market(db, {}, NOW), 'V1').sales, null);
+  rpc.bo_vendor_sale_counts = saleCountsRpc;                        // ...and somebody runs it
+  assert.equal(vendorOf(await FN.market(db, {}, NOW + 61000), 'V1').sales, null, 'not on the very next build: it was asked a minute ago');
+  const soon = vendorOf(await FN.market(db, {}, NOW + 2.2 * 60000), 'V1').sales;
+  assert.equal(soon, richBook().sales.filter(s => s.vendor_id === 'V1' && s.status === 'completed').length);
+});

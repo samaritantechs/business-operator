@@ -53,7 +53,10 @@ export function safeMapUrl(input) {
   const host = u.hostname.toLowerCase(), path = u.pathname || '/';
   const ok = (host === 'maps.app.goo.gl' && path.length > 1)
     || (host === 'goo.gl' && /^\/maps\/./.test(path))
-    || (GOOGLE.test(host) && (host.startsWith('maps.') || /^\/maps(\/|$)/.test(path)));
+    /* On Google's own hosts only the MAP is let through, never the rest of the site: /maps...
+       anywhere, and the bare "?q=" form on maps.google.com that WhatsApp sends. Not /url, which
+       is Google's redirector and would make this button a way to anywhere after all. */
+    || (GOOGLE.test(host) && (/^\/maps(\/|$)/.test(path) || (host.startsWith('maps.') && path === '/')));
   if (!ok) return null;
   u.protocol = 'https:';
   return u.toString();

@@ -67,9 +67,14 @@ BO.todayKey = todayKey; BO.daysAgoKey = daysAgoKey; BO.digitsOnly = digitsOnly;
    manager set (Settings: hint lifetime), which is a long time to have something sitting on top
    of the button you were about to press.
 
-   It takes taps only while it is showing, and only so that it can be thrown; a drag shorter
-   than SWIPE_GONE_PX springs back, so a tap or a nudge does not lose the message. */
-var _toastTimer = null, SWIPE_GONE_PX = 46;
+   A TAP STILL GOES STRAIGHT THROUGH IT, as it always has. The popup comes up over the bottom
+   corner of the till the moment a sale is recorded, and a seller serving a queue taps the next
+   thing without waiting for it to leave -- so it must never swallow that tap. That is why the
+   popup itself takes no touches at all (pointer-events:none, as before) and the dragging is
+   watched for on the page instead: a touch that STARTS on the popup and then MOVES is a drag,
+   and belongs to the popup; one that does not move is a tap, and belongs to whatever is under
+   it. A drag shorter than SWIPE_GONE_PX springs back, so a nudge does not lose the message. */
+var _toastTimer = null, SWIPE_GONE_PX = 46, SWIPE_START_PX = 8;
 function toastEl_() { return document.getElementById('hintToast'); }
 function toastHide_() {
   var t = toastEl_(); if (!t) return;
@@ -87,35 +92,60 @@ function toastShow_(msg, icon, ms) {
   _toastTimer = setTimeout(toastHide_, ms);
 }
 function wireToastSwipe_() {
-  var t = toastEl_(); if (!t || t._swipe) return; t._swipe = true;
-  var id = null, sx = 0, sy = 0, dx = 0, dy = 0;
-  t.addEventListener('pointerdown', function (e) {
-    if (!t.classList.contains('show') || id !== null) return;
-    id = e.pointerId; sx = e.clientX; sy = e.clientY; dx = 0; dy = 0;
-    try { t.setPointerCapture(id); } catch (x) {}
-  });
-  t.addEventListener('pointermove', function (e) {
-    if (e.pointerId !== id) return;
-    dx = e.clientX - sx; dy = e.clientY - sy;
+  if (wireToastSwipe_.done) return; wireToastSwipe_.done = true;
+  var on = false, dragging = false, sx = 0, sy = 0, dx = 0, dy = 0;
+  var begin = function (x, y) {
+    var t = toastEl_(); on = false; dragging = false;
+    if (!t || !t.classList.contains('show')) return;
+    var r = t.getBoundingClientRect();
+    if (x < r.left || x > r.right || y < r.top || y > r.bottom) return;
+    on = true; sx = x; sy = y; dx = 0; dy = 0;
+  };
+  /** true once this touch has become a drag of the popup (and so is no longer the page's). */
+  var move = function (x, y) {
+    if (!on) return false;
+    var t = toastEl_(); dx = x - sx; dy = y - sy;
     var far = Math.sqrt(dx * dx + dy * dy);
-    if (far < 6 && !t.classList.contains('drag')) return;           // a tap is not a drag
-    t.classList.add('drag');
+    if (!dragging && far < SWIPE_START_PX) return false;             // still a tap, as far as anyone can tell
+    dragging = true; t.classList.add('drag');
     t.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
     t.style.opacity = String(Math.max(0.3, 1 - far / 240));
-  });
-  var done = function (e) {
-    if (e.pointerId !== id) return;
-    try { t.releasePointerCapture(id); } catch (x) {}
-    id = null;
-    var far = Math.sqrt(dx * dx + dy * dy);
+    return true;
+  };
+  /** Lets go. `thrown` is false when the touch was taken away (a call came in): it springs back. */
+  var finish = function (thrown) {
+    if (!on) return false;
+    var t = toastEl_(), was = dragging, far = Math.sqrt(dx * dx + dy * dy);
+    on = false; dragging = false;
+    if (!was) return false;
     t.classList.remove('drag');                                      // the transition is back: it animates from here
-    if (e.type === 'pointerup' && far >= SWIPE_GONE_PX) {
-      clearTimeout(_toastTimer); _toastTimer = null;
+    if (thrown && far >= SWIPE_GONE_PX) {
+      clearTimeout(_toastTimer);
       t.style.transform = 'translate(' + dx * 4 + 'px,' + dy * 4 + 'px)'; t.style.opacity = '0';
       _toastTimer = setTimeout(toastHide_, 260);
     } else { t.style.transform = ''; t.style.opacity = ''; }
+    return true;
   };
-  t.addEventListener('pointerup', done); t.addEventListener('pointercancel', done);
+  var first = function (e) { return e.touches && e.touches.length === 1 ? e.touches[0] : null; };
+  document.addEventListener('touchstart', function (e) { var p = first(e); if (p) begin(p.clientX, p.clientY); else on = false; }, true);
+  // Not passive: once it is a drag of the popup the page underneath must not scroll with it.
+  document.addEventListener('touchmove', function (e) { var p = first(e); if (p && move(p.clientX, p.clientY) && e.cancelable) e.preventDefault(); }, { capture: true, passive: false });
+  // Ending a DRAG must not also press whatever the finger came up over; ending a tap must.
+  document.addEventListener('touchend', function (e) { if (finish(true) && e.cancelable) e.preventDefault(); }, true);
+  document.addEventListener('touchcancel', function () { finish(false); }, true);
+  document.addEventListener('mousedown', function (e) { if (e.button === 0) begin(e.clientX, e.clientY); }, true);
+  /* With a mouse, a press that starts over a link or a picture UNDER the popup would otherwise
+     become the browser's own drag-and-drop of that link, which takes the mouse away from the
+     page: no more moves, no release, and the popup left hanging half-dragged. */
+  document.addEventListener('dragstart', function (e) { if (on) e.preventDefault(); }, true);
+  document.addEventListener('selectstart', function (e) { if (on) e.preventDefault(); }, true);
+  document.addEventListener('mousemove', function (e) { if (on) move(e.clientX, e.clientY); }, true);
+  document.addEventListener('mouseup', function () {
+    if (!finish(true)) return;
+    var eat = function (ev) { ev.stopPropagation(); ev.preventDefault(); };
+    document.addEventListener('click', eat, true);                   // the click a mouse drag ends with
+    setTimeout(function () { document.removeEventListener('click', eat, true); }, 0);
+  }, true);
 }
 function showToast(msg, icon) { toastShow_(msg, icon || '✅', 2800); }
 BO.toast = showToast;

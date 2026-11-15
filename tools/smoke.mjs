@@ -167,6 +167,59 @@ await step('a popup is thrown off the screen with a finger, and a nudge does not
   await page.evaluate(() => toastHide_());
 });
 
+/* THE OTHER HALF OF THAT PROMISE, and the one a shop would notice first if it broke: the popup
+   comes up over the corner of the till every time a sale is recorded, so a TAP on it has to land
+   on the button underneath, exactly as it did before a popup could be dragged at all. Done on a
+   real touch screen (CDP touch events, not synthetic clicks), because touch is where a drag and a
+   scroll and a tap have to be told apart. */
+await step('on a touch screen a tap goes through the popup, and a swipe moves the popup and not the page', async () => {
+  const tctx = await browser.newContext({ viewport: { width: 390, height: 780 }, hasTouch: true, isMobile: true });
+  const tp = await tctx.newPage();
+  tp.on('pageerror', e => errors.push('pageerror (touch): ' + String(e.message).slice(0, 200)));
+  await tp.goto(BASE, { waitUntil: 'networkidle' });
+  await tp.waitForSelector('#mkProductGrid .mk-card', { timeout: 10000 });
+  /* A freshly opened marketplace shows its first tip 2.5 s after it loads -- through this same
+     popup. Let it come and go first, or it lands in the middle of the gestures below and puts
+     back the popup that was just thrown away. */
+  await tp.waitForTimeout(2800);
+  await tp.evaluate(() => { stopHints(); toastHide_(); });
+  const cdp = await tctx.newCDPSession(tp);
+  const touch = (type, pts) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: pts.map(([x, y]) => ({ x, y })) });
+  const state = () => tp.evaluate(() => { const t = document.getElementById('hintToast'), r = t.getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2), shown: t.classList.contains('show'), taps: window._under || 0, scroll: window.scrollY }; });
+  // A button exactly where the popup sits -- the till's Submit, in effect.
+  await tp.evaluate(() => {
+    const b = document.createElement('button'); b.id = 'underToast'; b.textContent = 'under';
+    b.style.cssText = 'position:fixed;right:10px;bottom:10px;width:300px;height:90px;z-index:50;opacity:.01;';
+    b.addEventListener('click', () => { window._under = (window._under || 0) + 1; });
+    document.body.appendChild(b); window.scrollTo(0, 600); showToast('In the way of the button', '🧪');
+  });
+  await tp.waitForTimeout(450);
+  let st = await state();
+  if (!st.shown || st.scroll < 300) throw new Error('setup: ' + JSON.stringify(st));
+  await touch('touchStart', [[st.x, st.y]]); await touch('touchEnd', []);
+  await tp.waitForTimeout(350);
+  let after = await state();
+  if (after.taps !== 1) throw new Error('the tap did not reach the button under the popup: ' + JSON.stringify(after));
+  if (!after.shown) throw new Error('a tap dismissed the popup');
+  // Swiped upwards, where a careless listener would let the page scroll instead: the popup goes, the page stays.
+  await touch('touchStart', [[st.x, st.y]]);
+  for (let i = 1; i <= 8; i++) { await touch('touchMove', [[st.x + i * 3, st.y - i * 20]]); await tp.waitForTimeout(16); }
+  await touch('touchEnd', []);
+  await tp.waitForTimeout(500);
+  after = await state();
+  if (after.shown) throw new Error('swiped 160 px and the popup is still there');
+  if (after.scroll !== st.scroll) throw new Error('the page scrolled under the swipe: ' + st.scroll + ' -> ' + after.scroll);
+  if (after.taps !== 1) throw new Error('letting go of a swipe pressed the button underneath');
+  // And with no popup showing, the same finger scrolls the page as it always did.
+  await tp.evaluate(() => document.getElementById('underToast').remove());
+  await touch('touchStart', [[195, 500]]);
+  for (let i = 1; i <= 8; i++) { await touch('touchMove', [[195, 500 - i * 20]]); await tp.waitForTimeout(16); }
+  await touch('touchEnd', []);
+  await tp.waitForTimeout(400);
+  if ((await state()).scroll <= st.scroll) throw new Error('the page no longer scrolls by touch');
+  await tctx.close();
+});
+
 /* THE EYE ON THE PASSWORD BOX, through the real button. The box is wrapped by a
    MutationObserver in shell.js, so this also proves the wrapper did not break the input:
    the value survives the toggle, the id still resolves, and Enter still signs in below. */
