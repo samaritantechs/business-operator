@@ -23,7 +23,9 @@ window.BOPO = (function () {
     /* ------------------------------------------------------------ raise one */
     h += '<div class="section-card" style="margin-bottom:18px;"><div class="section-hdr"><span>🚚</span><div class="section-hdr-title">New Purchase Order</div></div><div class="section-body">';
     if (!products.length) {
-      h += '<div class="empty">Add a counted product first. Phones tracked by IMEI are received as IMEIs under <strong>Stock &amp; Shops</strong>, not as a quantity.</div>';
+      h += '<div class="empty">' + (S.features.phone_vending
+        ? 'Add a counted product first. Phones tracked by IMEI are received as IMEIs under <strong>Phone Vending</strong>, not as a quantity.'
+        : 'Add a product first, under <strong>Products</strong>. Then you can order more of it here.') + '</div>';
     } else {
       h += '<div class="form-grid" style="margin-bottom:14px;max-width:820px;">'
         + '<div class="form-group"><label class="form-label">Supplier</label><input class="form-control" id="poSupplier" placeholder="e.g. Kariakoo Wholesale"></div>'

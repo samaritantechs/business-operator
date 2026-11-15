@@ -61,9 +61,11 @@ window.BODash = (function () {
         + statCard('sc-green', '💵', 'Cash Sales', fmtFull(s.cash), c) + statCard('sc-blue', '📱', 'Lipa Sales', fmtFull(s.lipa), c)
         + statCard('sc-purple', '🏦', 'Credit Sales', fmtFull(s.credit), c) + statCard('sc-amber', '🛍️', 'Items sold today', s.items || 0, '') + '</div></div>');
     }
-    var pt = '<div class="table-wrap" style="max-height:360px;overflow-y:auto;"><table class="bo-table"><thead><tr><th>ID</th><th>Product</th><th>Brand / Model</th><th>Stock</th><th>Price</th><th>Value</th><th>Status</th></tr></thead><tbody>';
-    (d.products || []).forEach(function (p) { pt += '<tr><td class="muted small mono">' + esc(p.legacy_id || '') + '</td><td>' + esc(p.name) + (p.is_serialized ? ' <span class="badge badge-seller">IMEI</span>' : '') + '</td><td class="muted">' + esc([p.brand, p.model].filter(Boolean).join(' ')) + '</td><td>' + p.stock + '</td><td class="mono">' + fmtFull(p.price) + '</td><td class="mono">' + fmtFull(p.value) + '</td><td>' + BO.stockBadge(p.status) + '</td></tr>'; });
-    if (!(d.products || []).length) pt += '<tr><td colspan="7" class="empty">No products yet.</td></tr>';
+    // Drawn only when some product has a brand or model: empty, the column just pushes Price off a phone.
+    var hasBM = (d.products || []).some(function (p) { return p.brand || p.model; });
+    var pt = '<div class="table-wrap" style="max-height:360px;overflow-y:auto;"><table class="bo-table"><thead><tr><th>ID</th><th>Product</th>' + (hasBM ? '<th>Brand / Model</th>' : '') + '<th>Stock</th><th>Price</th><th>Value</th><th>Status</th></tr></thead><tbody>';
+    (d.products || []).forEach(function (p) { pt += '<tr><td class="muted small mono">' + esc(p.legacy_id || '') + '</td><td>' + esc(p.name) + (p.is_serialized ? ' <span class="badge badge-seller">IMEI</span>' : '') + '</td>' + (hasBM ? '<td class="muted">' + esc([p.brand, p.model].filter(Boolean).join(' ')) + '</td>' : '') + '<td>' + p.stock + '</td><td class="mono">' + fmtFull(p.price) + '</td><td class="mono">' + fmtFull(p.value) + '</td><td>' + BO.stockBadge(p.status) + '</td></tr>'; });
+    if (!(d.products || []).length) pt += '<tr><td colspan="' + (hasBM ? 7 : 6) + '" class="empty">No products yet.</td></tr>';
     html += section('📦', 'Stock Overview', pt + '</tbody></table></div>');
     el.innerHTML = html;
     if (d.chart && d.chart.length) drawChart(d.chart, c);
