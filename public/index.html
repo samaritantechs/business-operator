@@ -459,11 +459,13 @@ html.bo-desktop .tb-vendor-badge{display:inline-block;}
 .pay-num.pay-none{background:var(--surface2);border-color:var(--border);color:var(--text2);font-size:.82rem;}
 .pay-hd{font-size:.72rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--accent);margin-bottom:6px;}
 .pay-row{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;padding:4px 0;}
+/* Two or three numbers: a line between them, so the eye cannot give one number the next one's name. */
+.pay-row + .pay-row{border-top:1px dashed var(--border);margin-top:4px;padding-top:8px;}
 .pay-net{font-size:.8rem;font-weight:600;color:var(--text2);}.pay-row .pay-no{font-size:1.25rem;font-weight:700;color:var(--text);letter-spacing:.04em;}.pay-row .pay-name{font-size:.9rem;font-weight:700;color:var(--accent);}
 .pay-warn{margin-top:6px;font-size:.76rem;color:#92400E;}
 html[data-theme="dark"] .pay-warn{color:#FCD34D;}
 .pay-edit{display:grid;grid-template-columns:1.1fr 1fr 1.6fr;gap:8px;margin-bottom:8px;}
-@media(max-width:640px){.pay-edit{grid-template-columns:1fr 1fr;}.pay-edit .pay-name{grid-column:1/-1;}}
+@media(max-width:640px){.pay-edit{grid-template-columns:1fr 1fr;margin-bottom:12px;padding-bottom:12px;border-bottom:1px dashed var(--border);}.pay-edit .pay-name{grid-column:1/-1;}.pay-edit:last-child{border-bottom:none;padding-bottom:0;}}
 .rcpt-pay{margin-top:10px;padding-top:8px;border-top:1px dashed var(--border);font-size:.84rem;}
 /* THE TILL'S OWN ROW. Widths are here and not on the cells so a phone can take them back. */
 .sale-tbl .prodSelect{min-width:170px;}.sale-tbl td.sr-qty{width:80px;}.sale-tbl td.sr-price{width:130px;}.sale-tbl td.sr-disc,.sale-tbl td.sr-total{width:110px;}.sale-tbl .sr-off{display:none !important;}
