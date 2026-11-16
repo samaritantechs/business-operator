@@ -720,6 +720,11 @@ const BUILDERS = {
 };
 
 /* ------------------------------------------------------------------ the answer */
+/** What the file is called, from the scope alone -- so the ticket can say it before the file
+    exists (the Android app saves the download under it) and the file itself can never be
+    called anything else. One definition, read twice. */
+const fileStem = s => s.def.stem + '_' + slug(s.vendor ? s.vendor.name : 'All Vendors') + '_' + s.range.startKey + '_to_' + s.range.endKey;
+
 async function buildReport(db, user, args, nowMs) {
   const s = await scopeFor(db, user, args, nowMs);
   const part = await BUILDERS[s.type](db, s);
@@ -732,7 +737,7 @@ async function buildReport(db, user, args, nowMs) {
   return {
     type: s.type, title: who + ' – ' + (part.title || s.def.label), subtitle, meta,
     columns: pruneColumns(part.columns, part.rows), rows: part.rows, totals: part.totals || [], currency: s.currency,
-    start: s.range.startKey, end: s.range.endKey, vendor_name: who,
+    start: s.range.startKey, end: s.range.endKey, vendor_name: who, stem: fileStem(s),
   };
 }
 
@@ -747,10 +752,13 @@ export const FN = {
     const a = args || {};
     const format = String(a.format || 'pdf').toLowerCase();
     if (format !== 'pdf' && format !== 'xlsx') throw badRequest('Format must be pdf or xlsx.');
-    await scopeFor(db, user, a, nowMs);
+    const scope = await scopeFor(db, user, a, nowMs);
     const report = { format };
     for (const k of TICKET_KEYS) if (a[k] != null && a[k] !== '') report[k] = String(a[k]);
-    return { url: '/api/report?t=' + signTicket({ uid: user.id, report }, nowMs) };
+    /* `filename` is what the file will be called when the ticket is presented. A browser reads
+       that off the download itself; the Android app is handed the address to fetch on its own
+       and has to be told, or the report lands in the phone's Downloads as "report". */
+    return { url: '/api/report?t=' + signTicket({ uid: user.id, report }, nowMs), filename: fileStem(scope) + '.' + format };
   },
 };
 export const WRITES = [];
@@ -777,7 +785,7 @@ export async function reportFile(db, user, report, nowMs = Date.now()) {
   const format = String(r.format || 'pdf').toLowerCase();
   if (format !== 'pdf' && format !== 'xlsx') throw badRequest('Format must be pdf or xlsx.');
   const data = await buildReport(db, user, r, nowMs);
-  const stem = REPORT_TYPES[data.type].stem + '_' + slug(data.vendor_name) + '_' + data.start + '_to_' + data.end;
+  const stem = data.stem;
   if (format === 'xlsx') {
     return {
       bytes: buildXlsx([sheetOf(data)], nowMs),

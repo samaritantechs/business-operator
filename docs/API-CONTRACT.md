@@ -181,7 +181,7 @@ Exports `buildBoot(db, user, nowMs)` used by account.login / me.
 | fn | args | returns |
 |---|---|---|
 | `reportData` | `{ type, start?, end?, vendor_id?, branch_id?, status?, group?, partner_id? }` | `{ title, subtitle, meta: [string], columns: [{ key, label, align? }], rows, totals: [[label, value]], currency }` |
-| `reportTicket` | same + `format: 'pdf'\|'xlsx'` | `{ url: '/api/report?t=…' }` |
+| `reportTicket` | same + `format: 'pdf'\|'xlsx'` | `{ url: '/api/report?t=…', filename }` — `filename` is exactly what the file will be served as; the Android app fetches the address itself and saves it under that name |
 Types: `sales`, `stock`, `cashdue`, `lending` (status Active/Returned/ALL), `commission` (manager), `brandmodel`,
 `partner` (financed sales, by partner), `cancelled`, `employee`, `branch`, `payment` (by method),
 `movements`, `units` (serialized stock list), `imei` (sales by IMEI). Sellers: only `sales` of their own

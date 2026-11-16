@@ -282,9 +282,10 @@ test('setAnnouncement writes the five keys and stamps the version with the clock
 const TIP_FILES = [
   { file: 'RUN-ME-006-marketplace-trust-and-location.sql', atLeast: 15,
     words: ['Tap the bookmark', 'Tap the lens', 'tap Location', 'Under each shop name', 'Swipe it off', 'set your shop location', 'how many sales you have recorded'] },
-  { file: 'RUN-ME-007-hints-phone-screens-and-landing.sql', atLeast: 20,
+  { file: 'RUN-ME-007-hints-phone-screens-and-landing.sql', atLeast: 27,
     words: ['opens on the marketplace', 'bottom of the ☰ menu', 'the way you say it', 'also counts products that have run out',
-      'leaves out the columns', 'also lets its owner sign in', 'Have a shop here', 'Save this code as a picture'] },
+      'leaves out the columns', 'also lets its owner sign in', 'Have a shop here', 'Save this code as a picture',
+      'saved in the Downloads', 'opens the print screen'] },
 ];
 for (const { file, atLeast, words } of TIP_FILES) {
   test('every tip db/' + file.slice(0, 10) + ' adds is word for word a built-in tip of the same role', async () => {

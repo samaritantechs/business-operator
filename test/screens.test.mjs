@@ -208,3 +208,114 @@ test('the page asks the app who it is, instead of waiting to be told', () => {
   assert.match(who, /if \(!a\.versionCode && typeof a\.getVersionCode === 'function'\) \{ a\.versionCode = a\.getVersionCode\(\); a\.versionName = a\.getVersionName\(\); \}/);
   assert.match(read('public/bo/receipt.js'), /function androidApp\(\) \{ return !!androidApp_\(\); \}/, 'one way of knowing, not two');
 });
+
+/* ---- the ways out of the page ---------------------------------------------------------
+   "Make sure whatever build works like jpg excel pdf location buttons etc." The Android app is
+   a WebView, and a WebView refuses, in silence, several things a browser simply does. So every
+   way out of the page goes through one block of the shell (BO.openOutside, BO.fileDoor), and
+   these tests hold every screen to that -- a new button cannot bring the old fault back. */
+import { readdirSync } from 'node:fs';
+const PUBLIC_BO = new URL('../public/bo/', import.meta.url).pathname;
+/** Every script the page runs, with its comments taken out: what the browser actually executes. */
+const code = Object.fromEntries(readdirSync(PUBLIC_BO).filter(f => f.endsWith('.js')).map(f => [f,
+  readFileSync(PUBLIC_BO + f, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').split('\n').map(l => l.replace(/(^|\s)\/\/.*$/, '$1')).join('\n')]));
+const inlineJs = (html.match(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g) || []).join('\n') + '\n' + (html.match(/on[a-z]+="[^"]*"/g) || []).join('\n');
+
+test('no button opens a window by itself: a WebView refuses one once the tap is five seconds old', () => {
+  for (const [file, src] of Object.entries(code)) {
+    const hits = (src.match(/window\.open\(/g) || []).length;
+    if (file === 'shell.js') continue;
+    assert.equal(hits, 0, file + ' calls window.open; use BO.openOutside (another app or site) or BO.fileDoor (a file)');
+  }
+  assert.doesNotMatch(inlineJs, /window\.open\(/, 'an onclick in index.html calls window.open');
+  // In the shell it appears twice, and only inside the two doors.
+  const a = code['shell.js'].indexOf('BO.openOutside = function'), b = code['shell.js'].indexOf('\n};', code['shell.js'].indexOf('BO.fileDoor = function'));
+  assert.ok(a > 0 && b > a, 'the shell lost its doors');
+  const outside = code['shell.js'].slice(0, a) + code['shell.js'].slice(b);
+  assert.doesNotMatch(outside, /window\.open\(/, 'window.open is called in the shell outside BO.openOutside / BO.fileDoor');
+  assert.equal((code['shell.js'].slice(a, b).match(/window\.open\(/g) || []).length, 2);
+});
+
+test('a file is always a real https address: nothing made inside the page is handed to the phone to save', () => {
+  for (const [file, src] of Object.entries(code)) {
+    assert.doesNotMatch(src, /createObjectURL|\.download\s*=(?!=)|setAttribute\('download'|msSaveBlob/, file + ' saves a file that exists only in the page; the app cannot fetch it');
+    assert.doesNotMatch(src, /intent:\/\//, file + ' uses an intent: link');
+  }
+  // The one canvas-to-picture in the page is the photo being shrunk before it is UPLOADED.
+  const pics = Object.entries(code).filter(([, src]) => /toDataURL\(/.test(src)).map(([f]) => f);
+  assert.deepEqual(pics, ['shell.js']);
+  assert.match(code['shell.js'], /cb\(c\.toDataURL\('image\/jpeg', 0\.86\)\)/);
+});
+
+test('a report goes through the door that was opened at the tap, under the name the server gave it', () => {
+  assert.match(code['reports.js'], /var door = BO\.fileDoor\(format === 'pdf'\);\s*srv\('reportTicket', a\)\.then\(function \(r\) \{ if \(st\) st\.textContent = ''; door\.go\(r\.url, r\.filename\); \}\)\.catch\(function \(e\) \{ if \(st\) st\.textContent = ''; door\.close\(\); BO\.fail\(e\); \}\);/);
+  const door = code['shell.js'].slice(code['shell.js'].indexOf('BO.fileDoor = function'));
+  // In the app: the app's own downloader when it has one, the hidden frame when it does not -- never a new window.
+  assert.match(door, /if \(typeof app\.download === 'function'\) \{ app\.download\(absUrl_\(url\), String\(name \|\| ''\)\); handed = true; \}/);
+  assert.match(door, /if \(!handed\) saveFrame_\(url\);/);
+  // In a browser the tab for a PDF is opened while the tap is fresh, and cut loose from this page.
+  assert.match(door, /if \(!app && inTab\) \{\s*try \{\s*win = window\.open\('', '_blank'\);\s*if \(win\) \{ win\.opener = null;/);
+  // A frame that loads instead of downloading is the server refusing: it is read out, not lost.
+  const frame = fnSource('saveFrame_');
+  assert.match(frame, /f\.onload = function \(\) \{[\s\S]*JSON\.parse\(said\)[\s\S]*BO\.fail\(new Error\(/);
+  assert.match(frame, /f\.style\.display = 'none'/);
+  /* One frame per file. A shared one dropped the first download when a second was asked for
+     before the phone had been handed the first (tap PDF, then Excel). */
+  assert.match(frame, /var f = document\.createElement\('iframe'\);/);
+  assert.doesNotMatch(frame, /getElementById\(/, 'the save frame must not be looked up and reused');
+  assert.match(frame, /setTimeout\(gone, 180000\);/, 'and each is cleared away later, so they do not pile up');
+});
+
+test('WhatsApp, a map or a mail app: in the app the address is simply gone to, and the app hands it on', () => {
+  const out = code['shell.js'].slice(code['shell.js'].indexOf('BO.openOutside = function'), code['shell.js'].indexOf('function absUrl_'));
+  assert.match(out, /if \(androidApp_\(\)\) \{ window\.location\.href = url; return; \}/);
+  assert.match(out, /if \(!w\) window\.location\.href = url;/, 'a browser that blocks new tabs still gets there');
+  assert.match(code['receipt.js'], /BO\.openOutside\('https:\/\/wa\.me\/\?text=' \+ encodeURIComponent\(t\)\)/);
+  assert.match(code['shell.js'], /BO\.openOutside\('https:\/\/wa\.me\/' \+ WA_NUMBER \+ '\?text=' \+ encodeURIComponent\(text\)\)/);
+  // The app sends every address that is not this system's to the phone -- which is what makes that work.
+  assert.match(java, /for \(String allowed : IN_APP_HOSTS\) \{\s*if \(host\.equals\(allowed\) \|\| host\.endsWith\("\." \+ allowed\)\) return false;\s*\}/);
+  assert.match(java, /try \{ startActivity\(new Intent\(Intent\.ACTION_VIEW, u\)\); \}/);
+  for (const host of ['wa.me', 'google.com', 'maps.app.goo.gl', 'goo.gl']) assert.doesNotMatch(/IN_APP_HOSTS = \{([\s\S]*?)\};/.exec(java)[1], new RegExp('"' + host.replace(/\./g, '\\.') + '"'), host + ' must leave the app, not open inside it');
+});
+
+test('Print works in the app that has the door, and an older app is told to update, not left silent', () => {
+  const print = code['receipt.js'].slice(code['receipt.js'].indexOf('function print()'), code['receipt.js'].indexOf('function androidApp()'));
+  assert.match(print, /if \(typeof app\.print !== 'function'\) \{ showToast\('Update the app to print from it\. For now use Copy or Share\.'/);
+  assert.match(print, /document\.body\.classList\.add\('printing-receipt'\);[\s\S]*app\.print\('Receipt ' \+/);
+  assert.match(print, /document\.addEventListener\('visibilitychange', back\);/, 'the receipt-only styling stays on while the phone\'s print screen is open');
+  const inApp = print.slice(0, print.indexOf('window.print()'));
+  assert.match(inApp, /if \(app\) \{[\s\S]*return;\s*\}/, 'window.print() is never reached inside the app, where it does nothing');
+  for (const [file, src] of Object.entries(code)) if (file !== 'receipt.js') assert.doesNotMatch(src, /window\.print\(/, file + ' prints without asking whether it is in the app');
+  const door = /@JavascriptInterface public void print\(final String title\) \{[\s\S]*?\n        \}/.exec(java);
+  assert.ok(door, 'the app lost its print door');
+  assert.match(door[0], /getSystemService\(Context\.PRINT_SERVICE\)/);
+  assert.match(door[0], /web\.createPrintDocumentAdapter\(job\)/);
+  assert.match(door[0], /runOnUiThread/);
+});
+
+test('the app saves a file where the phone shows it, fetches it once -- and leaves its own update exactly alone', () => {
+  const save = /private void saveFile\(String url, String name\) \{[\s\S]*?\n    \}/.exec(java);
+  assert.ok(save, 'the app lost saveFile');
+  assert.match(java, /web\.setDownloadListener\(\(url, agent, disposition, mime, size\) -> saveFile\(url, nameFrom\(url, disposition, mime\)\)\);/, 'one way of saving, whoever asked');
+  assert.match(save[0], /boolean keep = !file\.isEmpty\(\) && !file\.toLowerCase\(Locale\.US\)\.endsWith\("\.apk"\);/,
+    'the APK is not moved: updating the app is the one download that must never break');
+  assert.match(save[0], /if \(!keep\) throw noSharedFolder;\s*dm\.enqueue\(downloadOf\(url, file, false\)\);/, 'a phone that will not give the shared folder still gets the file, the old way');
+  assert.match(java, /if \(toDownloads\) \{\s*req\.setTitle\(file\);\s*req\.setDestinationInExternalPublicDir\(Environment\.DIRECTORY_DOWNLOADS, file\);/);
+  // The page's own request to download: this deployment's https addresses only.
+  const door = /@JavascriptInterface public void download\(final String url, final String name\) \{[\s\S]*?\n        \}/.exec(java);
+  assert.ok(door, 'the app lost its download door');
+  assert.match(door[0], /if \(!isOurOrigin\(url\)\) \{/);
+  assert.match(door[0], /saveFile\(url, name\);/);
+  // A PDF is served "inline; filename=...", which Android's own helper does not read.
+  assert.match(java, /Pattern\.compile\("\(\?i\)filename\\\\s\*=\\\\s\*\\"\?\(\[\^\\";\]\+\)\\"\?"\)/);
+  for (const imp of ['android.os.Environment', 'android.print.PrintAttributes', 'android.print.PrintManager', 'android.webkit.URLUtil', 'android.content.Context', 'java.util.regex.Matcher', 'java.util.regex.Pattern'])
+    assert.ok(java.includes('import ' + imp + ';'), 'missing import ' + imp);
+});
+
+test('"Use my current location" tries the satellites, then what the phone already knows -- a shop is indoors', () => {
+  const pin = code['users.js'].slice(code['users.js'].indexOf('function pinHere()'), code['users.js'].indexOf('function saveProfile()'));
+  assert.match(pin, /navigator\.geolocation\.getCurrentPosition\(found, function \(err\) \{\s*if \(err && err\.code === 1\) \{ failed\(err\); return; \}\s*navigator\.geolocation\.getCurrentPosition\(found, failed, \{ enableHighAccuracy: false, timeout: 15000, maximumAge: 300000 \}\);\s*\}, \{ enableHighAccuracy: true, timeout: 12000, maximumAge: 0 \}\);/);
+  // And the app answers the phone's permission question exactly once, for this system's pages only.
+  assert.match(java, /if \(!isOurOrigin\(origin\)\) \{ cb\.invoke\(origin, false, false\); return; \}/);
+  assert.match(java, /s\.setGeolocationEnabled\(true\);/);
+});

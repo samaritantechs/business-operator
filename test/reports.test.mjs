@@ -152,6 +152,27 @@ test('a ticket names exactly one report, can be read back, and is refused for a 
   await rejects(FN.reportTicket(db, ADM(), { type: 'commission', ...D }, NOW), 403);
 });
 
+/* The Android app is handed the address and fetches it by itself, so it never sees the name
+   the file is served under: it has to be told, in the ticket. If the two ever differed, a
+   report would be saved on the phone under one name and served to a browser under another. */
+test('the ticket says what the file will be called, and that is exactly what the file is called', async () => {
+  const db = bookDb();
+  for (const [who, a] of [
+    [ADM(), { type: 'sales', ...D }], [ADM(), { type: 'stock' }], [ADM(), { type: 'profit', ...D }],
+    [SEL(), { type: 'sales', ...D }], [MGR(), { type: 'sales', ...D }], [MGR(), { type: 'sales', ...D, vendor_id: 'V2' }],
+  ]) {
+    for (const format of ['pdf', 'xlsx']) {
+      const t = await FN.reportTicket(db, who, { ...a, format }, NOW);
+      const payload = readTicket(t.url.split('t=')[1], NOW + 1000);
+      const file = await reportFile(db, who, payload.report, NOW + 1000);
+      assert.equal(t.filename, file.filename, a.type + '.' + format + ' for ' + who.role);
+      assert.match(t.filename, new RegExp('^[A-Za-z0-9_.-]+\\.' + format + '$'), 'a name any phone can save under: ' + t.filename);
+    }
+  }
+  const all = await FN.reportTicket(db, MGR(), { type: 'sales', ...D, format: 'pdf' }, NOW);
+  assert.match(all.filename, /^Sales_All_Vendors_/, 'a manager\'s every-business report says so in its name');
+});
+
 test('reportFile: a real PDF and a real .xlsx', async () => {
   const db = bookDb();
   const pdf = await reportFile(db, ADM(), { type: 'sales', ...D, format: 'pdf' });

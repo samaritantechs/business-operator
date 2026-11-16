@@ -209,9 +209,17 @@ what the app keeps inside. It accepts `http`/`https` only — it is a door to a 
 any app on the phone. An app installed before this existed is sent to Chrome's own address
 form by the page instead.
 
-Downloads go to the phone's download manager, which fetches *addresses*. A file that exists
-only inside the page (`data:`, `blob:`) is refused in words rather than crashing; the site
-serves everything it offers for download as an ordinary https file for that reason.
+**Save a file.** Downloads go to the phone's download manager, which fetches *addresses*. A
+file that exists only inside the page (`data:`, `blob:`) is refused in words rather than
+crashing; the site serves everything it offers for download as an ordinary https file for that
+reason. A report, a sheet or a picture is saved in the phone's **Downloads** folder under its
+real name, where the Files app shows it. `SamaritanApp.download(address, name)` lets the page
+ask for one of this system's own files directly, so it is fetched once instead of twice. The
+APK itself is the exception: the update download is left exactly where it always went, because
+it is the one download that must never break.
+
+**Print.** `SamaritanApp.print(title)` opens the phone's own print screen for the page as it
+is styled for paper (a printer, or "Save as PDF"). `window.print()` does nothing in a WebView.
 
 ## What is in this folder
 

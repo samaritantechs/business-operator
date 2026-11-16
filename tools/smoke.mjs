@@ -790,6 +790,164 @@ await step('inside the app, "Open in the phone\'s browser" hands the address ove
   console.log('       handed to the phone: ' + opened[0] + ' · saved: ' + file.suggestedFilename() + ' (' + png.length + ' bytes)');
 });
 
+/* EVERY FILE AND EVERY HAND-OFF, AS THE APP MEETS THEM. "Make sure whatever build works like
+   jpg excel pdf location buttons etc." A WebView refuses in silence what a browser just does, so
+   each way out is driven three times: in the app that has the doors, in an app from before
+   them, and in a plain browser. The app is faked (there is no APK in this browser); the page,
+   the server and the files are real. */
+const signInOn = async (p, who) => {
+  await p.goto(BASE + '/?login=1', { waitUntil: 'load' });
+  await p.waitForSelector('#loginId', { state: 'visible', timeout: 15000 });
+  await p.fill('#loginId', who); await p.fill('#loginPwd', 'pass1234');
+  await p.evaluate(() => doLogin());
+  await p.waitForSelector('#mainApp:not(.hidden)', { timeout: 15000 });
+  await p.evaluate(() => { stopHints(); toastHide_(); });
+};
+const openReports = async p => {
+  await p.evaluate(() => switchTab('reports'));
+  await p.waitForSelector('[onclick="BORep.dl(\'stock\',\'pdf\')"]', { timeout: 10000 });
+};
+const newestReceipt = async p => {
+  const g = await p.evaluate(async () => (await BO.srv('recentSales', { limit: 1 })).rows[0].group_id);
+  await p.evaluate(id => BORcpt.open({ group_id: id }), g);
+  await p.waitForSelector('#rcptSheet .rcpt-total', { timeout: 10000 });
+};
+
+await step('in the app: a report is fetched once by the app itself, under its real name; Print opens the phone\'s print screen', async () => {
+  const inApp = await browser.newContext({ viewport: { width: 390, height: 800 } });
+  await inApp.addInitScript(() => {
+    window.__app = { downloads: [], prints: [], opened: [] };
+    window.SamaritanApp = { getVersionCode: () => 99999, getVersionName: () => '9.9.9',
+      openExternal: u => { window.__app.opened.push(u); }, download: (u, n) => { window.__app.downloads.push([u, n]); }, print: t => { window.__app.prints.push(t); } };
+  });
+  const p = watch(await inApp.newPage());
+  /* The real app takes an address that is not this system's away from the WebView and hands it
+     to the phone, so the page never leaves. Here that is stood in for by answering "no content",
+     which a browser also treats as "stay where you are". */
+  const gone = []; await p.route(/^https:\/\/wa\.me\//, r => { gone.push(r.request().url()); return r.fulfill({ status: 204, body: '' }); });
+  const reportGets = []; p.on('request', r => { if (/\/api\/report\?t=/.test(r.url())) reportGets.push(r.url()); });
+  await signInOn(p, 'frank');
+  await openReports(p);
+  for (const [fmt, type] of [['pdf', 'application/pdf'], ['xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']]) {
+    await p.evaluate(() => { window.__app.downloads.length = 0; });
+    await p.click('[onclick="BORep.dl(\'stock\',\'' + fmt + '\')"]');
+    await p.waitForFunction(() => window.__app.downloads.length === 1, null, { timeout: 10000 });
+    const [url, name] = await p.evaluate(() => window.__app.downloads[0]);
+    if (url.indexOf(BASE + '/api/report?t=') !== 0) throw new Error('the app was not handed a whole address: ' + url);
+    if (!new RegExp('^Stock_[A-Za-z0-9_-]+\\.' + fmt + '$').test(name)) throw new Error('the app was handed the name: ' + name);
+    // What the app would fetch: the file, of the right kind, called exactly what the page said.
+    const res = await p.request.get(url);
+    const cd = res.headers()['content-disposition'] || '';
+    if (res.status() !== 200 || res.headers()['content-type'] !== type || cd.indexOf('filename="' + name + '"') === -1) throw new Error(fmt + ' served as ' + res.status() + ' ' + res.headers()['content-type'] + ' ' + cd);
+    if ((await res.body()).length < 400) throw new Error('the ' + fmt + ' is empty');
+  }
+  if (reportGets.length) throw new Error('the page itself asked for the file as well; the report would be built twice: ' + reportGets.length);
+  if (!/Downloads/.test(await p.evaluate(() => document.getElementById('hintText').textContent))) throw new Error('nothing said where the file went');
+
+  await newestReceipt(p);
+  await p.click('[onclick="BORcpt.print()"]');
+  const pr = await p.evaluate(() => ({ jobs: window.__app.prints, styled: document.body.classList.contains('printing-receipt') }));
+  if (pr.jobs.length !== 1 || !/^Receipt /.test(pr.jobs[0]) || !pr.styled) throw new Error('Print in the app: ' + JSON.stringify(pr));
+  // Share has no share sheet in a WebView: it goes to WhatsApp, by an address the app hands to the phone.
+  await p.evaluate(() => { if (navigator.share) navigator.share = undefined; });
+  await p.click('[onclick="BORcpt.share()"]');
+  await p.waitForTimeout(400);
+  if (gone.length !== 1 || !/^https:\/\/wa\.me\/\?text=/.test(gone[0]) || !/TOTAL/.test(decodeURIComponent(gone[0]))) throw new Error('Share in the app went to: ' + JSON.stringify(gone).slice(0, 200));
+  if (!/localhost:8787/.test(p.url())) throw new Error('and the app page itself left: ' + p.url());
+  await inApp.close();
+  console.log('       PDF and Excel: one request each, by the app, named by the server · Print: the phone\'s print screen · Share: WhatsApp');
+});
+
+await step('in an app from before the doors: a report still downloads, a refusal is said in words, Print says to update', async () => {
+  const older = await browser.newContext({ viewport: { width: 390, height: 800 } });
+  await older.addInitScript(() => { window.SamaritanApp = { getVersionCode: () => 99999, getVersionName: () => '9.9.9' }; });
+  const p = watch(await older.newPage());
+  await signInOn(p, 'frank');
+  await openReports(p);
+  // No new window is asked for at all -- the thing a WebView refuses once the tap is stale.
+  await p.evaluate(() => { window.__opens = 0; const o = window.open; window.open = function () { window.__opens++; return o.apply(window, arguments); }; });
+  const [file] = await Promise.all([p.waitForEvent('download', { timeout: 15000 }), p.click('[onclick="BORep.dl(\'stock\',\'xlsx\')"]')]);
+  if (!/^Stock_[A-Za-z0-9_-]+\.xlsx$/.test(file.suggestedFilename())) throw new Error('the sheet came down as ' + file.suggestedFilename());
+  const frames = () => p.evaluate(() => Array.from(document.querySelectorAll('iframe.bo-save-frame')).map(f => ({ src: f.getAttribute('src'), shown: f.style.display })));
+  const st = await p.evaluate(() => ({ opens: window.__opens, app: !document.getElementById('mainApp').classList.contains('hidden') }));
+  let fr = await frames();
+  if (st.opens || fr.length !== 1 || fr[0].shown !== 'none' || !st.app) throw new Error('an older app saving a report: ' + JSON.stringify(st) + ' ' + JSON.stringify(fr));
+  /* The PDF goes the same way -- and in a frame of ITS OWN: asking for a second file must not
+     take the first one's frame away before the phone has been handed it. (This Chromium may
+     draw a PDF in the hidden frame instead of saving it; a WebView cannot draw one at all.) */
+  await p.click('[onclick="BORep.dl(\'stock\',\'pdf\')"]');
+  await p.waitForFunction(() => document.querySelectorAll('iframe.bo-save-frame').length === 2, null, { timeout: 10000 });
+  fr = await frames();
+  if (fr[0].src === fr[1].src || !fr.every(f => /^\/api\/report\?t=/.test(f.src))) throw new Error('two files, but the frames are: ' + JSON.stringify(fr));
+  if (await p.evaluate(() => window.__opens)) throw new Error('the PDF asked for a new window inside the app');
+  // The server saying no is read out of the frame and shown; the app is not replaced by a line of text.
+  await p.evaluate(() => { toastHide_(); BO.fileDoor(false).go('/api/report?t=not.a.ticket'); });
+  await p.waitForFunction(() => /ticket/i.test(document.getElementById('hintText').textContent), null, { timeout: 10000 });
+  if (!(await p.evaluate(() => !document.getElementById('mainApp').classList.contains('hidden')))) throw new Error('a refused download took the app off the screen');
+  if ((await frames()).some(f => /not\.a\.ticket/.test(f.src))) throw new Error('the frame that carried the refusal was left behind');
+  await newestReceipt(p);
+  await p.evaluate(() => toastHide_());
+  await p.click('[onclick="BORcpt.print()"]');
+  const said = await p.evaluate(() => ({ t: document.getElementById('hintText').textContent, styled: document.body.classList.contains('printing-receipt') }));
+  if (!/Update the app to print/.test(said.t) || said.styled) throw new Error('Print in an older app: ' + JSON.stringify(said));
+  await older.close();
+  console.log('       saved as ' + file.suggestedFilename() + ' through a hidden frame, no window asked for · a bad ticket is said in words');
+});
+
+await step('in a browser: a PDF gets a tab of its own, opened at the tap; an Excel file just downloads', async () => {
+  await signIn('frank');
+  await page.evaluate(() => { stopHints(); toastHide_(); });
+  await openReports(page);
+  const [tab] = await Promise.all([context.waitForEvent('page', { timeout: 10000 }), page.click('[onclick="BORep.dl(\'stock\',\'pdf\')"]')]);
+  // The tab exists before the server has answered; then it is sent to the file (this Chromium saves a PDF rather than drawing it).
+  const got = await new Promise((resolve, reject) => {
+    let left = 2; const no = () => { if (--left === 0) reject(new Error('the PDF tab neither showed the file nor saved it')); };
+    tab.waitForEvent('download', { timeout: 15000 }).then(d => resolve('saved ' + d.suggestedFilename()), no);
+    tab.waitForURL(/\/api\/report\?t=/, { timeout: 15000 }).then(() => resolve('shown ' + tab.url().slice(0, 40)), no);
+  });
+  if (!/^saved Stock_[A-Za-z0-9_-]+\.pdf$|^shown /.test(got)) throw new Error('the PDF tab: ' + got);
+  if (await tab.evaluate(() => !!window.opener).catch(() => false)) throw new Error('the report tab can reach back into the app page');
+  await tab.close().catch(() => {});
+  const before = context.pages().length;
+  const [sheet] = await Promise.all([page.waitForEvent('download', { timeout: 15000 }), page.click('[onclick="BORep.dl(\'stock\',\'xlsx\')"]')]);
+  if (!/^Stock_[A-Za-z0-9_-]+\.xlsx$/.test(sheet.suggestedFilename())) throw new Error('the sheet came down as ' + sheet.suggestedFilename());
+  if (context.pages().length !== before || !(await page.evaluate(() => S.screen === 'app' && S.tab === 'reports'))) throw new Error('an Excel download opened a tab or moved the page');
+  // A report the server refuses closes the tab that was opened for it, and says why here.
+  const [dead] = await Promise.all([context.waitForEvent('page', { timeout: 10000 }), page.evaluate(() => { toastHide_(); var d = BO.fileDoor(true); BO.srv('reportTicket', { type: 'nonsense', format: 'pdf' }).then(function (r) { d.go(r.url, r.filename); }).catch(function (e) { d.close(); BO.fail(e); }); })]);
+  await page.waitForFunction(() => /report type/i.test(document.getElementById('hintText').textContent), null, { timeout: 8000 });
+  await dead.waitForEvent('close', { timeout: 5000 }).catch(() => { if (!dead.isClosed()) throw new Error('the empty tab was left open after the server refused'); });
+  console.log('       PDF: ' + got + ' · Excel: ' + sheet.suggestedFilename());
+});
+
+await step('"Use my current location" asks the satellites, then settles for what the phone already knows', async () => {
+  await signIn('mama');
+  await page.evaluate(() => { stopHints(); toastHide_(); switchTab('users'); });
+  await page.waitForSelector('#myPinHere', { timeout: 10000 });
+  await page.waitForFunction(() => { const b = document.getElementById('myBusinessPin'); return !!b && !b.disabled; }, null, { timeout: 10000 });   // the saved pin has loaded
+  // A shop under a roof: the precise fix times out, the rough one answers.
+  const asked = await page.evaluate(() => new Promise(resolve => {
+    const calls = [];
+    navigator.geolocation.getCurrentPosition = function (ok, bad, opts) {
+      calls.push(!!opts.enableHighAccuracy);
+      if (opts.enableHighAccuracy) setTimeout(() => bad({ code: 3, message: 'Timeout expired' }), 30);
+      else setTimeout(() => { ok({ coords: { latitude: -6.816, longitude: 39.2803, accuracy: 900 } }); setTimeout(() => resolve(calls), 50); }, 30);
+    };
+    document.getElementById('myBusinessPin').value = '';
+    BOUsers.pinHere();
+  }));
+  const box = await page.inputValue('#myBusinessPin');
+  if (asked.join() !== 'true,false' || box !== '-6.816000, 39.280300') throw new Error('location under a roof: asked ' + asked.join() + ', box ' + JSON.stringify(box));
+  // Permission refused is final: asking again would only show the same no twice.
+  const refused = await page.evaluate(() => new Promise(resolve => {
+    let n = 0;
+    navigator.geolocation.getCurrentPosition = function (ok, bad) { n++; setTimeout(() => { bad({ code: 1 }); setTimeout(() => resolve(n), 60); }, 20); };
+    BOUsers.pinHere();
+  }));
+  if (refused !== 1) throw new Error('a refused permission was asked for ' + refused + ' times');
+  await page.evaluate(() => { const b = document.querySelector('.bo-ask button'); if (b) b.click(); });
+  console.log('       precise fix timed out -> ' + box + ' from the network; a refusal is asked once');
+});
+
 /* THE PHONE. The top bar needed 510px and a phone has 360, so the whole app was drawn at three
    quarters of its size and Log out sat off the edge; the Sell row's quantity box was 29px wide.
    Measured here, at the two widths that matter, rather than looked at. */

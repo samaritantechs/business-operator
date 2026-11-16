@@ -99,3 +99,16 @@ Routine calls made while building, so nobody has to re-derive them. Newest at th
     On a phone the top bar keeps its buttons and drops its words, Log out is also the last row
     of the ☰ menu, and a sale line is a card (product; quantity and price; total) instead of
     six columns. `tools/smoke.mjs` measures it at 360 and 320px.
+
+25. **Every way out of the page goes through one block, because the Android app can take only
+    some.** A WebView opens a new window only while a tap is fresh (about five seconds), cannot
+    show a PDF, saves nothing itself, and prints nothing. So a report asked for on a slow line
+    did nothing at all, every report was built twice (the WebView asked, then the download
+    manager asked again), and a refusal replaced the app with a line of text. Now nothing but
+    `BO.openOutside` and `BO.fileDoor` (the shell) calls `window.open`; a file is fetched by
+    the app itself where it has the door (`SamaritanApp.download`, one request, saved in the
+    phone's Downloads under the name the ticket carries), through a hidden frame of its own
+    where it has not, and in a browser a PDF gets a tab opened at the tap. Print goes to the
+    phone's print screen (`SamaritanApp.print`). `test/screens.test.mjs` fails if a screen
+    opens a window, saves an in-page file or prints on its own. The app's own update download
+    is deliberately left exactly as it was.

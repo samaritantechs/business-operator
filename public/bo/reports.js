@@ -62,7 +62,11 @@ window.BORep = (function () {
   }
   function open(a, format, statusEl) {
     a.format = format; var st = document.getElementById(statusEl); if (st) st.textContent = 'Generating… please wait.';
-    srv('reportTicket', a).then(function (r) { if (st) st.textContent = ''; window.open(r.url, '_blank'); }).catch(function (e) { if (st) st.textContent = ''; BO.fail(e); });
+    /* The door is opened NOW, at the tap, and the file is sent through it when the address
+       arrives (BO.fileDoor says why): a PDF gets a tab of its own in a browser and the phone's
+       Downloads in the app; an Excel file is a download everywhere. */
+    var door = BO.fileDoor(format === 'pdf');
+    srv('reportTicket', a).then(function (r) { if (st) st.textContent = ''; door.go(r.url, r.filename); }).catch(function (e) { if (st) st.textContent = ''; door.close(); BO.fail(e); });
   }
   function dl(type, format) { var a = args(type); if (a) open(a, format, 'repStatus'); }
   function preview(type) { var a = args(type); if (a) showPreview(a); }

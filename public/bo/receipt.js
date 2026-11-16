@@ -120,12 +120,28 @@ window.BORcpt = (function () {
     var t = asText();
     if (navigator.share) { navigator.share({ title: 'Receipt ' + (last ? last.receipt_no : ''), text: t }).catch(function () {}); return; }
     /* No share sheet: WhatsApp is where it was going anyway. */
-    window.open('https://wa.me/?text=' + encodeURIComponent(t), '_blank');
+    BO.openOutside('https://wa.me/?text=' + encodeURIComponent(t));
   }
   function print() {
-    /* window.print() is a no-op inside the Android WebView, and a button that silently does
-       nothing is worse than no button -- so we say so and leave Copy and Share to do the job. */
-    if (androidApp()) { showToast('The app cannot print. Use Copy or Share.', '📤'); return; }
+    var app = androidApp_();
+    if (app) {
+      /* window.print() is a no-op inside the Android WebView. The app has its own way to the
+         phone's print screen (a printer, or "Save as PDF") -- SamaritanApp.print -- and an app
+         from before that existed says so, because a button that silently does nothing is worse
+         than no button. */
+      if (typeof app.print !== 'function') { showToast('Update the app to print from it. For now use Copy or Share.', '📤'); return; }
+      document.body.classList.add('printing-receipt');
+      /* The phone lays the page out for paper WHILE its print screen is open, and again each
+         time the paper size is changed there -- so the receipt-only styling has to stay on
+         until this page is looked at again, not for a moment. */
+      var off = function () { document.body.classList.remove('printing-receipt'); document.removeEventListener('visibilitychange', back); };
+      var back = function () { if (!document.hidden) setTimeout(off, 600); };
+      document.addEventListener('visibilitychange', back);
+      setTimeout(off, 180000);
+      try { app.print('Receipt ' + ((last && last.receipt_no) || '')); }
+      catch (e) { off(); showToast('The phone would not open its print screen. Use Copy or Share.', '⚠️'); }
+      return;
+    }
     document.body.classList.add('printing-receipt');
     var done = function () { document.body.classList.remove('printing-receipt'); };
     window.addEventListener('afterprint', done, { once: true });

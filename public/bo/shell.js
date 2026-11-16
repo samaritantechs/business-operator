@@ -740,6 +740,96 @@ function openInBrowser(ev) {
   window.location.href = 'googlechrome://navigate?url=' + url;
   return false;
 }
+
+/* =====================================================================================
+   THE WAYS OUT OF THE PAGE -- in one place, because the Android app can take only some.
+   =====================================================================================
+   The app is a WebView. Three things a browser does without being asked, it does not do:
+
+     - it opens a new window only while a tap is still fresh (about five seconds). A report is
+       asked for, the server takes a moment on a slow line, and by the time the address comes
+       back the tap has gone stale -- so window.open() was refused, in silence, and the PDF or
+       Excel button did nothing at all;
+     - it cannot show a PDF, and it saves nothing itself: every file goes to the phone's
+       download manager, which fetches the address a SECOND time -- so each report was built
+       twice;
+     - an answer that is not a file (the server saying no) replaced the whole app with a line
+       of raw text.
+
+   So nothing outside this block calls window.open, and a file is never opened by navigating
+   the app itself. test/screens.test.mjs holds every screen to that.
+
+   BO.openOutside(address)   another app or site: WhatsApp, a map, a mail app.
+   BO.fileDoor(inTab)        a file that is asked for now and ready in a moment. Call it AT THE
+                             TAP, before the request; call .go(address, fileName) when the
+                             address arrives, or .close() if it never does. */
+BO.openOutside = function (url) {
+  /* In the app the address is simply gone to: the app hands every address that is not this
+     system's to the phone (WhatsApp, Maps, the dialler) and this page stays where it is. No
+     new window is involved, so no tap has to be fresh. */
+  if (androidApp_()) { window.location.href = url; return; }
+  var w = null; try { w = window.open(url, '_blank'); } catch (e) {}
+  if (!w) window.location.href = url;              // a browser that blocks new tabs still gets there
+};
+function absUrl_(url) { var a = document.createElement('a'); a.href = url; return a.href; }
+/* A file through a hidden frame: a download starts and the page does not move. A frame that
+   LOADS instead is the server answering with something that is not a file -- its refusal --
+   and that is read out and shown, instead of being left invisible or replacing the app.
+
+   EVERY FILE GETS A FRAME OF ITS OWN. One shared frame looked tidier and lost downloads: tap
+   PDF and then Excel, and pointing the frame at the second file dropped the first request
+   before the phone had been handed anything. A frame is cleared away three minutes later, by
+   which time a file that was coming has long since been passed to the download manager. */
+function saveFrame_(url) {
+  var f = document.createElement('iframe');
+  f.className = 'bo-save-frame'; f.setAttribute('aria-hidden', 'true'); f.style.display = 'none';
+  var gone = function () { if (f.parentNode) f.parentNode.removeChild(f); };
+  f.onload = function () {
+    var said = '';
+    try { said = (f.contentDocument && f.contentDocument.body && f.contentDocument.body.textContent) || ''; } catch (e) {}
+    said = String(said).replace(/^\s+|\s+$/g, '');
+    if (!said) return;                             // nothing drawn: the file went to be saved
+    var msg = said; try { var j = JSON.parse(said); if (j && j.error) msg = j.error; } catch (e) {}
+    gone();
+    BO.fail(new Error(String(msg).slice(0, 300)));
+  };
+  f.src = url;
+  document.body.appendChild(f);
+  setTimeout(gone, 180000);
+}
+BO.fileDoor = function (inTab) {
+  var app = androidApp_(), win = null;
+  /* A browser shows a PDF in a tab of its own, and will only open that tab while the tap is
+     fresh -- so it is opened now, empty, and sent to the file when the address arrives. */
+  if (!app && inTab) {
+    try {
+      win = window.open('', '_blank');
+      if (win) { win.opener = null; win.document.write('<title>Report</title><p style="font:16px system-ui,sans-serif;padding:28px;color:#333">Inaandaa ripoti… / Preparing the report…</p>'); }
+    } catch (e) { win = null; }
+  }
+  return {
+    go: function (url, name) {
+      if (app) {
+        /* The app with the door downloads the address itself: one request, and a refusal is a
+           failed download in the phone's own list rather than a page of text. An app from
+           before the door gets the hidden frame, which its download manager picks up. */
+        var handed = false;
+        try { if (typeof app.download === 'function') { app.download(absUrl_(url), String(name || '')); handed = true; } } catch (e) {}
+        if (!handed) saveFrame_(url);
+        showToast('Inahifadhiwa… / Saving — look in your phone\'s Downloads.', '⬇️');
+        return;
+      }
+      if (inTab) {
+        var shown = false;
+        try { if (win && !win.closed) { win.location.href = url; shown = true; } } catch (e) {}
+        if (!shown) window.location.href = url;    // new tabs are blocked here: the file opens in this one, Back returns
+        return;
+      }
+      saveFrame_(url);
+    },
+    close: function () { try { if (win && !win.closed) win.close(); } catch (e) {} }
+  };
+};
 /** Draws the two codes and the download button from whatever the market payload reported. */
 function showAppSection(release) {
   var origin = window.location.origin;
@@ -1219,8 +1309,8 @@ function sendSuggestionWhatsApp() {
   var who = S.user ? (S.user.name + (S.vendor ? ' (' + S.vendor.name + ')' : '')) : 'A visitor';
   var text = '*Samaritan Industrial Feedback*\nFrom: ' + who + '\nTopic: ' + cat + '\n\n' + msg;
   if (S.token) srv('suggestion', { category: cat, message: msg }).catch(function () {});
-  window.open('https://wa.me/' + WA_NUMBER + '?text=' + encodeURIComponent(text), '_blank');
   closeModal('suggestionModal'); showToast('Opening WhatsApp…', '📲');
+  BO.openOutside('https://wa.me/' + WA_NUMBER + '?text=' + encodeURIComponent(text));
 }
 function showLoader(ms) {
   var el = document.getElementById('loadingScreen'), fill = document.getElementById('loaderFill'); if (!el) return;
