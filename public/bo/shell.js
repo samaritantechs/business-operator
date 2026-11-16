@@ -804,7 +804,14 @@ BO.fileDoor = function (inTab) {
   if (!app && inTab) {
     try {
       win = window.open('', '_blank');
-      if (win) { win.opener = null; win.document.write('<title>Report</title><p style="font:16px system-ui,sans-serif;padding:28px;color:#333">Inaandaa ripoti… / Preparing the report…</p>'); }
+      if (win) {
+        win.opener = null;
+        /* What the tab says while the server works. A browser set to SAVE PDFs rather than show
+           them never replaces this page, so it also says what to do then -- a tab left reading
+           "Preparing…" for ever looks like a report that never came. */
+        win.document.write('<title>Report</title><p style="font:16px/1.6 system-ui,sans-serif;padding:28px;color:#333">Inaandaa ripoti… / Preparing the report…<br><span style="font-size:13px;color:#777">Ikipakuliwa badala ya kufunguka hapa, funga ukurasa huu. / If it downloads instead of opening here, you can close this tab.</span></p>');
+        win.document.close();
+      }
     } catch (e) { win = null; }
   }
   return {

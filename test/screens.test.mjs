@@ -254,7 +254,8 @@ test('a report goes through the door that was opened at the tap, under the name 
   assert.match(door, /if \(typeof app\.download === 'function'\) \{ app\.download\(absUrl_\(url\), String\(name \|\| ''\)\); handed = true; \}/);
   assert.match(door, /if \(!handed\) saveFrame_\(url\);/);
   // In a browser the tab for a PDF is opened while the tap is fresh, and cut loose from this page.
-  assert.match(door, /if \(!app && inTab\) \{\s*try \{\s*win = window\.open\('', '_blank'\);\s*if \(win\) \{ win\.opener = null;/);
+  assert.match(door, /if \(!app && inTab\) \{\s*try \{\s*win = window\.open\('', '_blank'\);\s*if \(win\) \{\s*win\.opener = null;/);
+  assert.match(door, /win\.document\.close\(\);/, 'the waiting page is finished, not left spinning');
   // A frame that loads instead of downloading is the server refusing: it is read out, not lost.
   const frame = fnSource('saveFrame_');
   assert.match(frame, /f\.onload = function \(\) \{[\s\S]*JSON\.parse\(said\)[\s\S]*BO\.fail\(new Error\(/);
