@@ -104,7 +104,7 @@ test('being signed in and standing in the workspace are two steps, and only a si
   // Entering opens a tab the first time only, and prefers the one they were on.
   assert.match(enter, /var fresh = !S\.entered; S\.entered = true;/);
   assert.match(enter, /var btn = navOpen_\(tab\) \|\| firstNav_\(\);/, 'the remembered tab only if their role still has it');
-  assert.match(enter, /startHintTimer\(S\.hints \|\| \[\]\)/, 'the workspace tips come back with the workspace');
+  assert.match(enter, /startHintTimer\(S\.hints \|\| \[\], null, !fresh\)/, 'the workspace tips come back with the workspace -- and only a first arrival gets one at once');
   assert.match(shell, /\nfunction applyLogin\(boot\) \{ adoptSession_\(boot\); enterApp_\(\); \}/, 'typing a password is asking for the workspace');
   assert.match(shell, /\nfunction backToApp\(\) \{ enterApp_\(\); \}/, 'Business Manager is the same door');
   // The boot: decided once, before the session is checked, and the shopfront unless told otherwise.
@@ -119,9 +119,26 @@ test('idle sign-out follows the person, not the screen: signed in on the shopfro
   assert.match(shell, /document\.addEventListener\(ev, function \(\) \{ if \(S\.user && _idleMs\) resetIdle\(\); \}, \{ passive: true \}\)/);
 });
 
+test('the update notice reaches a signed-in phone wherever it is resting', () => {
+  assert.match(shell, /BO\.recheckUpdate = function \(force\) \{[\s\S]{0,520}if \(!androidApp_\(\) \|\| !S\.user\) return;/,
+    'the re-check goes by who is signed in, not by which screen is showing');
+});
+
+test('on a phone the menu says who is signed in, since the bar no longer can', () => {
+  assert.match(html, /<nav class="sidebar" id="sidebar">\s*<div class="sb-who" id="sbWho"><div class="sb-who-name" id="sbWhoName"><\/div><div class="sb-who-sub" id="sbWhoSub"><\/div><\/div>/);
+  assert.match(html, /\.sb-who\{display:none;\}\s*@media\(max-width:768px\)\{\.sb-who\{display:block;/, 'shown on a phone only');
+  assert.match(fnSource('adoptSession_'), /wn\.textContent = S\.user\.name[\s\S]{0,120}ws\.textContent = S\.user\.role \+ \(S\.vendor \? ' · ' \+ S\.vendor\.name/);
+});
+
 test('a tip meant for one screen cannot go off over another', () => {
-  assert.match(fnSource('startHintTimer'), /hintFirst = setTimeout\(function \(\) \{ hintFirst = null; show\(\); \}, 2500\);/);
+  assert.match(fnSource('startHintTimer'), /if \(!quiet\) hintFirst = setTimeout\(function \(\) \{ hintFirst = null; show\(\); \}, 2500\);/);
   assert.match(fnSource('stopHints'), /if \(hintFirst\) \{ clearTimeout\(hintFirst\); hintFirst = null; \}/, 'stopping the tips stops the first one too');
+});
+
+test('the sign-in page never takes the cursor out of a box somebody is already typing in', () => {
+  /* Found by signing in forty times in a row: twice, the password ended up in the User ID box,
+     readable, because the page moved the cursor there 60ms after it appeared. */
+  assert.match(fnSource('showLogin'), /if \(c && openReg !== true && !\(at && \/\^\(INPUT\|TEXTAREA\|SELECT\)\$\/\.test\(at\.tagName\)\)\) c\.focus\(\);/);
 });
 
 /* ---- the phone ------------------------------------------------------------------------ */

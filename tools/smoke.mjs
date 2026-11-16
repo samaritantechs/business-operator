@@ -837,6 +837,11 @@ await step('on a phone the top bar fits, the menu has Log out, and a sale line c
   // The way out, in the menu: a full-width row instead of a 32px button at the edge.
   await p.click('.mobile-menu-btn');
   await p.waitForSelector('#sidebar.open #nav-logout', { state: 'visible', timeout: 5000 });
+  // ...which also says who is signed in, now that the bar has no room to.
+  await p.waitForTimeout(350);                       // the menu slides in
+  const who = await p.evaluate(() => { const e = document.getElementById('sbWho'), r = e.getBoundingClientRect(); return { shown: r.width > 0 && r.left >= 0, name: document.getElementById('sbWhoName').textContent, sub: document.getElementById('sbWhoSub').textContent }; });
+  if (!who.shown || who.name !== 'Mama Ntilie' || !/^admin · Mama Ntilie/.test(who.sub)) throw new Error('the menu does not say who is signed in: ' + JSON.stringify(who));
+  await p.screenshot({ path: OUT + '06b-phone-menu.png' });
   await p.click('#nav-logout');
   await p.waitForSelector('#landingPage:not(.hidden)', { timeout: 8000 });
   const after = await p.evaluate(() => ({ user: S.user, token: localStorage.getItem('boToken'), menuOpen: document.getElementById('sidebar').classList.contains('open') }));

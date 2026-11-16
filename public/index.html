@@ -427,6 +427,10 @@ html.bo-desktop .tb-vendor-badge{display:inline-block;}
   .topbar .icon-btn{width:32px;height:32px;}.tb-avatar{width:30px;height:30px;}.tb-logo{width:30px;height:30px;border-radius:8px;}
 }
 @media(max-width:345px){.tb-brand{display:none;}}
+/* What the phone's bar no longer has room to say -- who is signed in, as what, for which
+   business -- is the first thing in the menu instead. A desk has it on the bar, so not here. */
+.sb-who{display:none;}
+@media(max-width:768px){.sb-who{display:block;padding:2px 12px 12px;margin-bottom:6px;border-bottom:1px solid var(--border);}.sb-who-name{font-size:.9rem;font-weight:700;color:var(--text);}.sb-who-sub{font-size:.74rem;color:var(--muted);margin-top:2px;text-transform:capitalize;}}
 .page-hdr{margin-bottom:24px;display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px;}.page-title{font-size:1.4rem;font-weight:800;color:var(--text);letter-spacing:-.02em;}.page-sub{font-size:.83rem;color:var(--muted);margin-top:3px;}
 .stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:14px;margin-bottom:22px;}.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;cursor:pointer;transition:all .2s;position:relative;overflow:hidden;}.stat-card:hover{transform:translateY(-2px);box-shadow:var(--shadow-md);}.stat-card .sc-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1rem;margin-bottom:12px;}.stat-card .sc-label{font-size:.72rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;}.stat-card .sc-value{font-size:1.35rem;font-weight:800;color:var(--text);letter-spacing:-.02em;margin-top:3px;line-height:1;}.stat-card .sc-unit{font-size:.72rem;color:var(--muted);font-weight:400;margin-left:2px;}.stat-card .sc-accent{position:absolute;bottom:0;left:0;right:0;height:3px;border-radius:0 0 var(--radius) var(--radius);}
 .sc-blue .sc-icon{background:var(--accent-lt);}.sc-blue .sc-accent{background:var(--accent);}.sc-green .sc-icon{background:var(--accent2-lt);}.sc-green .sc-accent{background:var(--accent2);}.sc-amber .sc-icon{background:var(--amber-lt);}.sc-amber .sc-accent{background:var(--amber);}.sc-rose .sc-icon{background:var(--rose-lt);}.sc-rose .sc-accent{background:var(--rose);}.sc-purple .sc-icon{background:var(--purple-lt);}.sc-purple .sc-accent{background:var(--purple);}
@@ -573,6 +577,7 @@ body.bo-restricted .topbar{position:relative;z-index:260;}
   </div>
   <div class="app-layout">
     <nav class="sidebar" id="sidebar">
+      <div class="sb-who" id="sbWho"><div class="sb-who-name" id="sbWhoName"></div><div class="sb-who-sub" id="sbWhoSub"></div></div>
       <div class="nav-group-label" data-nav-group="main">Main</div>
       <button class="nav-item active" id="nav-dashboard" data-roles="seller admin assistant-admin manager assistant-manager" onclick="switchTab('dashboard',this)"><span class="ni">📊</span>Dashboard</button>
       <button class="nav-item" id="nav-sale" data-roles="seller admin assistant-admin" onclick="switchTab('sale',this)"><span class="ni">🛒</span>Sell</button>

@@ -194,6 +194,25 @@ release and shows its own update bar when the phone is behind. A browser has no 
 a browser is never nagged. If you rename that bridge, the update notice goes silent — the web
 side looks for exactly that name.
 
+## The two other things the app tells or does for the site
+
+**Started, or brought back.** The site opens on the marketplace when the app is *started* and
+returns to the screen the person was on when it is only being *restored*. Android says which:
+`onCreate` receives saved state only when Android itself put the app away (cleared from memory
+while still in the recent-apps list), never after the person swiped it off that list or backed
+out of it. In the first case the app loads the site with `?resume=1`; otherwise the plain
+address. Nothing else about the load differs.
+
+**Open in the phone's browser.** `SamaritanApp.openExternal(address)` hands a web address to
+the phone's browser. The page cannot do that for itself: this system's own address is exactly
+what the app keeps inside. It accepts `http`/`https` only — it is a door to a browser, not to
+any app on the phone. An app installed before this existed is sent to Chrome's own address
+form by the page instead.
+
+Downloads go to the phone's download manager, which fetches *addresses*. A file that exists
+only inside the page (`data:`, `blob:`) is refused in words rather than crashing; the site
+serves everything it offers for download as an ordinary https file for that reason.
+
 ## What is in this folder
 
 | | |

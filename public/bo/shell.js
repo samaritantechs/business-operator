@@ -465,7 +465,13 @@ function showLogin(openReg) {
   document.getElementById('loginFieldsWrap').style.display = ''; document.getElementById('resetForm').style.display = 'none';
   document.getElementById('lbl_signin').style.display = ''; document.getElementById('lbl_signin_sub').style.display = '';
   window.scrollTo(0, 0);
-  setTimeout(function () { var c = document.getElementById('loginId'); if (c && openReg !== true) c.focus(); }, 60);
+  /* The cursor is put in the User ID box a moment after the page appears -- unless the person
+     is already in a box. Taking it back then moves what they are typing into the wrong field:
+     a password typed in that instant used to land after the user id, in plain sight. */
+  setTimeout(function () {
+    var c = document.getElementById('loginId'), at = document.activeElement;
+    if (c && openReg !== true && !(at && /^(INPUT|TEXTAREA|SELECT)$/.test(at.tagName))) c.focus();
+  }, 60);
 }
 function mkScrollTo(id) { var el = document.getElementById(id); if (el) el.scrollIntoView({ behavior: 'smooth' }); }
 
@@ -505,6 +511,11 @@ function adoptSession_(boot) {
   var av = document.getElementById('topbarAvatar');
   if (S.user.profile_photo_url) av.innerHTML = '<img src="' + esc(S.user.profile_photo_url) + '" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" onerror="this.parentNode.textContent=\'' + BO.jsq(initials) + '\'">'; else av.textContent = initials;
   document.getElementById('tbUserInfo').style.display = '';
+  /* On a phone the bar has no room for the name, the role or the business, so the menu carries
+     them: the first thing in it says who is signed in and where. */
+  var wn = document.getElementById('sbWhoName'), ws = document.getElementById('sbWhoSub');
+  if (wn) wn.textContent = S.user.name || S.user.handle || '';
+  if (ws) ws.textContent = S.user.role + (S.vendor ? ' · ' + S.vendor.name : ' · System Manager');
   if (S.vendor && S.vendor.logo_url) { document.getElementById('customLogoImg').src = S.vendor.logo_url; document.getElementById('customLogoRow').classList.remove('hidden'); }
   /* Which doors this person gets: the role list on each nav item, then the two seller flags. */
   var role = S.user.role;
@@ -550,8 +561,10 @@ function enterApp_(tab) {
     showAnnouncement();
   }
   /* The workspace's own tips. They were started once at sign-in and silenced for good by the
-     first visit to the shopfront; now they come back with the workspace. */
-  startHintTimer(S.hints || []);
+     first visit to the shopfront; now they come back with the workspace -- on their ordinary
+     interval. Only the first arrival gets one straight away: a tip two seconds after every
+     trip to the marketplace and back is a tip in the way. */
+  startHintTimer(S.hints || [], null, !fresh);
   rememberWhere_();
 }
 function applyLogin(boot) { adoptSession_(boot); enterApp_(); }
@@ -831,7 +844,11 @@ function checkAppUpdate(release) {
     up forty times a day is not forty reads. MainActivity.onResume calls this, and so does the
     page's own visibility event, which is what reaches phones still carrying an older APK. */
 BO.recheckUpdate = function (force) {
-  if (!androidApp_() || S.screen !== 'app') return;
+  /* Whoever is signed in, wherever they are looking: a fresh open now rests on the marketplace,
+     and a phone that only ever rested there would otherwise never be told about a new build
+     after the first look. (A visitor with no session cannot ask -- the shopfront's own load
+     checks for them.) */
+  if (!androidApp_() || !S.user) return;
   var now = Date.now();
   if (!force && now - _lastUpdateCheck < UPDATE_RECHECK_MS) return;
   _lastUpdateCheck = now;
@@ -1144,7 +1161,7 @@ function openProductDetail(idx) {
 
 /* ------------------------------------------------------------------ hints (bilingual tips) */
 var hintTimer = null, hintFirst = null, hintLifetime = 5, hintInterval = 300, _hintList = [];
-function startHintTimer(hints, timings) {
+function startHintTimer(hints, timings, quiet) {
   stopHints();
   var t = timings || S.timings || {};
   hintLifetime = Number(t.hintLifetime) || 5; hintInterval = Math.max(10, Number(t.hintInterval) || 300);
@@ -1159,7 +1176,7 @@ function startHintTimer(hints, timings) {
   /* The first tip is on a short fuse so the list is seen at all -- and the fuse is put out with
      the list, or a tip meant for the workspace goes off over the shopfront two seconds after
      somebody has walked out of it. */
-  hintFirst = setTimeout(function () { hintFirst = null; show(); }, 2500);
+  if (!quiet) hintFirst = setTimeout(function () { hintFirst = null; show(); }, 2500);
 }
 function stopHints() { if (hintTimer) { clearInterval(hintTimer); hintTimer = null; } if (hintFirst) { clearTimeout(hintFirst); hintFirst = null; } }
 function startMarketplaceHints() { if (!hintTimer && _market.hints) startHintTimer(_market.hints, _market.timings); }

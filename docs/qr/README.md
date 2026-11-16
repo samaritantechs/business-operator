@@ -22,9 +22,12 @@ white margin alone, and never print them on a dark background.
 
 ## Regenerating
 
-The Settings screen inside the app draws both codes live from whatever address it is being
+The marketplace's **Get the app** section shows both codes for whatever address it is being
 served on, with a **Save this code as a picture** button under each — that is the easiest way,
-and it cannot get the address wrong.
+and it cannot get the address wrong. The button downloads a PNG the server draws
+(`/api/download?qr=site` and `?qr=app`), so it works in any browser and inside the Android app,
+where the file lands in the phone's Downloads. Those two are drawn at the medium error
+correction level; the files in this folder are at the highest.
 
 To make them from a terminal instead:
 
