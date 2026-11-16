@@ -249,3 +249,31 @@ test('smart punctuation is nothing typed, and a letter of another script is some
   assert.deepEqual(F.search(shelf, '😀').list.map(p => p.id), [3], 'an emoji');
   assert.deepEqual(F.search(shelf, '手机').list.map(p => p.id), [4]);
 });
+
+/* WHAT WORKED BEFORE STILL WORKS, AS A PROPERTY. The box used to look for the typed text inside what a
+   product says. So whatever a person types that IS a piece of a product's own text must still find
+   that product -- however the text is spelt: capitals, accents, punctuation, numbers, another
+   script, an emoji, the word "constructor". Random products and random pieces of them, from a
+   fixed seed so a failure is the same failure next time. */
+test('any piece of a product\'s own text still finds that product', () => {
+  let seed = 20261116;
+  const rnd = () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+  const pick = a => a[Math.floor(rnd() * a.length)];
+  const WORDS = ['samsung', 'galaxy', 'tecno', 'spark', 'phone', 'phones', 'simu', 'saa', 'watch', 'tv', 'tvs', 'cover', 'a05', 'a', '05', '128', 'gb', '128gb', 'pro', 'note', '12', 'mama', 'mama\'s',
+    'café', 'müller', 'niño', 'kjøkken', 'straße', '手机', 'قهوة', '😀', 'chai', 'maji', 'peter', 'pete', 'ring', 'solar', 'kiti', 'x10', 's23', 'fe',
+    'usb', '3.0', '5g', '100%', 't-shirt', 'a&b', 'co.', '#1', 'constructor', 'tostring', 'sukari', 'dresses'];
+  const SEPS = [' ', ' ', ' ', '-', '/', ', ', ' - ', '  '];
+  const text = () => { const n = 1 + Math.floor(rnd() * 4); let s = ''; for (let i = 0; i < n; i++) s += (i ? pick(SEPS) : '') + pick(WORDS); return rnd() < 0.3 ? s.toUpperCase() : s; };
+  const list = [];
+  for (let i = 0; i < 300; i++) list.push({ id: i, name: text(), cat: text(), vendor: text(), location: rnd() < 0.5 ? text() : '', brand: rnd() < 0.5 ? text() : '', model: rnd() < 0.5 ? text() : '' });
+  let trials = 0;
+  for (let n = 0; n < 2500; n++) {
+    const p = pick(list), field = p[pick(['name', 'name', 'cat', 'vendor'])];
+    if (!field) continue;
+    const a = Math.floor(rnd() * field.length), typed = field.slice(a, a + 1 + Math.floor(rnd() * (field.length - a)));
+    if (!typed.trim()) continue;
+    trials++;
+    assert.ok(F.search(list, typed).list.indexOf(p) !== -1, JSON.stringify(typed) + ' is a piece of ' + JSON.stringify(field) + ' and did not find it');
+  }
+  assert.ok(trials > 2000, 'the property ran on ' + trials + ' pieces');
+});
