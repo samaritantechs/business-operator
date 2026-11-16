@@ -12,7 +12,7 @@ window.BOUsers = (function () {
       + '<div class="form-group" style="grid-column:span 2;"><label class="form-label">Email</label><input class="form-control" id="newUserEmail" placeholder="email@example.com"></div><div class="form-group" style="grid-column:span 2;"><label class="form-label">Full Name</label><input class="form-control" id="newUserName"></div><div class="form-group"><label class="form-label">Role</label><select class="form-select" id="newUserRole">' + roleOpts + '</select></div><div class="form-group"><label class="form-label">User ID</label><input class="form-control" id="newUserId" autocomplete="off"></div><div class="form-group"><label class="form-label">Password</label><input class="form-control" id="newUserPwd" type="password" autocomplete="new-password"></div>' + shopSelect('newUserBranch') + '<button class="btn-primary" onclick="BOUsers.add()">+ Add</button></div></div></div>';
     if (isAdmin()) {
       var v = S.vendor || {};
-      h += '<div class="section-card" style="margin-bottom:18px;"><div class="section-hdr"><span>🏷️</span><div class="section-hdr-title">Business Profile &amp; Marketplace Listing</div></div><div class="section-body"><div class="fg3" style="align-items:end;"><div class="form-group"><label class="form-label">Business Type</label><input type="text" class="form-control" id="myBusinessType" placeholder="e.g. Groceries" value="' + esc(v.business_type || '') + '"></div><div class="form-group"><label class="form-label">Contact Phone (WhatsApp)</label><input type="text" class="form-control" id="myBusinessPhone" placeholder="Start with code, e.g. +255" value="' + esc(v.phone || '') + '"></div><div class="form-group"><label class="form-label">Currency</label><input type="text" class="form-control mono" id="myCurrencyInput" value="' + esc(v.currency || 'TZS') + '" style="text-transform:uppercase;"></div></div><div class="form-group" style="margin-top:12px;"><label class="form-label">Business Address / Location</label><input type="text" class="form-control" id="myBusinessAddress" placeholder="e.g. Kariakoo, Dar es Salaam" value="' + esc(v.address || '') + '"></div>'
+      h += '<div class="section-card" style="margin-bottom:18px;"><div class="section-hdr"><span>🏷️</span><div class="section-hdr-title">Business Profile &amp; Marketplace Listing</div></div><div class="section-body"><div class="fg3" style="align-items:end;"><div class="form-group"><label class="form-label">Business Type</label><input type="text" class="form-control" id="myBusinessType" placeholder="e.g. Groceries" value="' + esc(v.business_type || '') + '"></div><div class="form-group"><label class="form-label">Contact Phone (WhatsApp)</label><input type="text" class="form-control" id="myBusinessPhone" placeholder="e.g. 0712 345 678" value="' + esc(v.phone || '') + '"></div><div class="form-group"><label class="form-label">Currency</label><input type="text" class="form-control mono" id="myCurrencyInput" value="' + esc(v.currency || 'TZS') + '" style="text-transform:uppercase;"></div></div><div class="form-group" style="margin-top:12px;"><label class="form-label">Business Address / Location</label><input type="text" class="form-control" id="myBusinessAddress" placeholder="e.g. Kariakoo, Dar es Salaam" value="' + esc(v.address || '') + '"></div>'
         /* THE PIN. One box that takes whatever is to hand -- the phone's own position, a link
            copied out of Google Maps, or two numbers -- because the person filling this in is a
            shopkeeper standing at a counter, not somebody who knows what a coordinate is. The
@@ -115,16 +115,26 @@ window.BOUsers = (function () {
     if (!navigator.geolocation) { cannot('This phone or app cannot read its location.'); return; }
     var old = btn ? btn.textContent : ''; if (btn) { btn.disabled = true; btn.textContent = '📡 Finding you…'; }
     var done = function () { if (btn) { btn.disabled = false; btn.textContent = old; } };
-    navigator.geolocation.getCurrentPosition(function (pos) {
+    var found = function (pos) {
       done();
       box.value = pos.coords.latitude.toFixed(6) + ', ' + pos.coords.longitude.toFixed(6);
       var acc = Math.round(pos.coords.accuracy || 0);
       showToast('Location found' + (acc ? ' (within about ' + acc + ' m)' : '') + '. Tap Save Profile to keep it.', '📍');
-    }, function (err) {
+    };
+    var failed = function (err) {
       done();
       cannot(err && err.code === 1 ? 'Permission to use the location was not given. If you are in the Android app, update it to the newest version, then allow Location when it asks.'
         : 'The phone could not find its location just now. Check that Location is switched on in the phone\'s settings, then try again outside or near a window.');
-    }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
+    };
+    /* TWO TRIES, BECAUSE A SHOP IS INDOORS. The satellites are asked first -- that is the pin a
+       customer can walk to -- but under a roof they often do not answer in time. Rather than
+       give up there, the phone is asked again for the position it already knows from the
+       network, which is quick and good to a street. A refusal of permission is final: asking
+       twice would only show the same "no" twice. */
+    navigator.geolocation.getCurrentPosition(found, function (err) {
+      if (err && err.code === 1) { failed(err); return; }
+      navigator.geolocation.getCurrentPosition(found, failed, { enableHighAccuracy: false, timeout: 15000, maximumAge: 300000 });
+    }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 });
   }
   function saveProfile() {
     var msg = document.getElementById('bizProfileMsg'); msg.textContent = 'Saving…';
@@ -133,9 +143,18 @@ window.BOUsers = (function () {
     srv('setBusinessProfile', args).then(function (r) {
       if (r.vendor) S.vendor = r.vendor;
       if (r.place) paintPin(r.place);
+      /* THE NUMBER COMES BACK WHOLE. A shopkeeper types 0712 345 678, the way the number is
+         said aloud, and a WhatsApp link needs +255712345678 -- the server now completes it
+         (phone.js). Showing the completed number in the box, and saying so, is what tells them
+         the button on the marketplace will reach them; leaving their own spelling on screen
+         would leave them wondering which of the two was kept. */
+      var typed = args.phone, kept = (r.vendor && r.vendor.phone) || '', box = document.getElementById('myBusinessPhone');
+      if (box) box.value = kept;
+      var fixed = kept && typed.replace(/[^\d+]/g, '') !== kept;
       if (r.warning) { msg.textContent = ''; BO.notify(r.warning); return; }
-      msg.textContent = (r.place && r.place.link) ? '✅ Saved — your 📍 Location button reaches the marketplace within a minute' : '✅ Saved';
-      setTimeout(function () { msg.textContent = ''; }, 4500);
+      msg.textContent = fixed ? '✅ Saved — your number is kept as ' + kept + ', so the WhatsApp button reaches you'
+        : (r.place && r.place.link) ? '✅ Saved — your 📍 Location button reaches the marketplace within a minute' : '✅ Saved';
+      setTimeout(function () { msg.textContent = ''; }, fixed ? 8000 : 4500);
     }).catch(function (e) { msg.textContent = ''; BO.fail(e); });
   }
   function openLogo() {

@@ -150,3 +150,25 @@ test('vendorSalesSummary: the fallback bounds days by instant, not by spelling',
   book2.sales.push({ id: 'SY', vendor_id: 'V1', status: 'completed', total: 500, sold_at: '2026-09-02T06:00:00+03:00' });
   assert.equal((await vendorSalesSummary(bookDb(book2), NOW)).get('V1').today, 355500);
 });
+
+
+/* THE TILE THAT WENT DOWN WHEN THINGS GOT WORSE. "Low Stock" counted only LOW, so a product that
+   sold its last unit left the count at the moment it most needed restocking. */
+test('Low Stock counts what has run out as well as what is running low', async () => {
+  const book = richBook();
+  const sugar = book.products.find(p => p.id === 'P5');           // V2: 8 in stock, reorder at 10 -> LOW
+  let d = await FN.dashboard(bookDb(book), ADM2(), {}, NOW);
+  assert.equal(d.low_count, 1); assert.equal(d.out_count, 0);
+  sugar.stock = 0;                                                // ...and now it has run out
+  d = await FN.dashboard(bookDb(book), ADM2(), {}, NOW);
+  assert.equal(d.low_count, 1, 'running out must not take a product OFF the tile');
+  assert.equal(d.out_count, 1);
+  assert.equal(d.products.find(p => p.name === 'Sugar 1kg').status, 'OUT', 'the same rule the list beside it uses');
+  // One low and one out are two things to restock; a well-stocked product is not on the tile.
+  book.products.find(p => p.id === 'P6').reorder_point = 5;       // the gown: 1 in stock -> LOW
+  d = await FN.dashboard(bookDb(book), ADM2(), {}, NOW);
+  assert.equal(d.low_count, 2); assert.equal(d.out_count, 1);
+  sugar.stock = 500; book.products.find(p => p.id === 'P6').stock = 50;
+  d = await FN.dashboard(bookDb(book), ADM2(), {}, NOW);
+  assert.equal(d.low_count, 0); assert.equal(d.out_count, 0);
+});

@@ -1,5 +1,6 @@
 import { rowsAll, one, insertOne, rpcOr, sel, getSettings, num, int, iso, currencyOf, mustText, badRequest } from './_shared.js';
 import { mapLinkOf } from './place.js';
+import { intlDigits } from './phone.js';
 import { hintsForRole } from './hints.js';
 import { currentRelease, publicRelease } from './releases.js';
 
@@ -169,6 +170,12 @@ function ageDaysOf(v, stat, nowMs) {
   return seen.length ? Math.floor((nowMs - Math.min(...seen)) / DAY_MS) : null;
 }
 
+/** The shop's number as a customer's phone can use it -- '+255712345678' -- or '' when what is
+    stored cannot be a number at all, which the page shows as "no contact listed" rather than as
+    a button that opens an error. The rule is phone.js's; this is the only place the public
+    page gets a number from. */
+function reach(v) { const d = intlDigits(v.phone, currencyOf(v)); return d ? '+' + d : ''; }
+
 async function buildMarket(db, nowMs) {
   // Vendors first: they are the gate. A restricted or inactive vendor is simply not in this
   // map, and every product whose vendor is missing from it falls off the page -- the same join
@@ -195,7 +202,7 @@ async function buildMarket(db, nowMs) {
       price: num(p.price), stock,
       vendor: String(v.name || ''), vendor_id: String(v.id),
       image1: String(p.image1_url || ''), image2: String(p.image2_url || ''), image3: String(p.image3_url || ''),
-      currency: currencyOf(v), vendorPhone: String(v.phone || ''), vendorType: String(v.business_type || ''),
+      currency: currencyOf(v), vendorPhone: reach(v), vendorType: String(v.business_type || ''),
       listingType: String(p.listing_type || '').trim() === 'Rent' ? 'Rent' : 'Sale',
       priceUnit: String(p.price_unit || ''), location: String(p.location || ''),
       clicks: c.total, hot: c.total > 0 && avgClicks > 0 && c.total >= avgClicks,
@@ -214,7 +221,7 @@ async function buildMarket(db, nowMs) {
       const stat = stats.map.get(String(v.id));
       return {
         id: String(v.id), name: String(v.name || ''), admin: '', logo: String(v.logo_url || ''),
-        businessType: String(v.business_type || ''), phone: String(v.phone || ''), address: String(v.address || ''), currency: currencyOf(v),
+        businessType: String(v.business_type || ''), phone: reach(v), address: String(v.address || ''), currency: currencyOf(v),
         /* ageDays: whole days this business has been here (null if no date could be read).
            sales:   completed checkouts for the whole business; null = not known, 0 = none yet.
            map:     the address the Location button opens, '' when no pin has been given. */

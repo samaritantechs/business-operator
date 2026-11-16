@@ -15,6 +15,8 @@ both directions.
 | `/api/market` | GET | — | the public marketplace payload (ranked, cached ~60 s) |
 | `/api/market` | POST | `{ fn: 'click' \| 'hints', args }` | log a product view; visitor tips |
 | `/api/report` | GET | `?t=TICKET` | a report as a file (PDF / .xlsx). Ticket from `reportTicket` |
+| `/download` | GET | — | redirects to the current APK (what the printed app code points at) |
+| `/api/download` | GET | `?qr=site` \| `?qr=app` | one of the two printable QR codes as a PNG **file** (`Content-Disposition: attachment`), drawn for the host the request arrived on. No other text can be asked for; no database read |
 
 Answers are JSON `{ ok: true, ...result }` or `{ ok: false, error: "message", restricted?: true }` with
 an HTTP status (400 bad input, 401 sign in again, 403 not allowed, 404, 500). Error messages are
@@ -75,7 +77,7 @@ Every write goes through `audited()`; module `WRITES` arrays are the source of t
 | fn | args | returns |
 |---|---|---|
 | `login` | `{ id, password }` — id = handle **or** email, case-insensitive | bootPayload + `token` (401 on bad credentials / inactive) |
-| `register` | `{ business_name, business_type, phone, address, admin_email, admin_name, admin_handle, password }` | `{ message, active }` — vendor + admin profile; active iff setting `FreeRegistration === 'Yes'`; 400 if email/handle exists |
+| `register` | `{ business_name, business_type, phone, address, admin_email, admin_name, admin_handle, password }` | `{ message, active }` — vendor + admin profile; active iff setting `FreeRegistration === 'Yes'`; 400 if email/handle exists. `phone` is stored whole (`+255712345678`): `0712…` and `712…` are completed with Tanzania's code, and anything that is not a phone number is refused (400) |
 | `requestReset` | `{ email }` | `{ message }` — emails `APP_URL/?reset=TOKEN` (10-minute token) via `email.sendEmail`; message is the same whether or not the email exists |
 | `resetPassword` | `{ token, password }` (min 4 chars) | `{ message }` |
 | `logout` | `{ token }` | `{}` |
@@ -93,7 +95,7 @@ Exports `buildBoot(db, user, nowMs)` used by account.login / me.
 ### dashboard — `dashboard.js`
 | fn | args | returns |
 |---|---|---|
-| `dashboard` | `{ branch_id?, vendor_id? }` | `{ currency, today_total, week_total, month_total, year_total, low_count, stock_value, chart: [{ label, value }] (7 days, last = 'Today'), seller_rows: [{ seller_id, name, handle, cash_sales, lipa_sales, credit_sales, cash_received, lipa_received, cash_due, lipa_due }] (admin only, today, active sellers), self: { cash, lipa, credit, items } (seller only, today), products: [{ id, legacy_id, name, brand, model, stock, price, value, status: 'OK'\|'LOW'\|'OUT', is_serialized }], branch_rows: [{ branch_id, name, today, week, month, year, units }] (only when the vendor has branches) }`. Seller: totals over their own sales. Completed sales only. |
+| `dashboard` | `{ branch_id?, vendor_id? }` | `{ currency, today_total, week_total, month_total, year_total, low_count (LOW **and** OUT), out_count (OUT only), stock_value, chart: [{ label, value }] (7 days, last = 'Today'), seller_rows: [{ seller_id, name, handle, cash_sales, lipa_sales, credit_sales, cash_received, lipa_received, cash_due, lipa_due }] (admin only, today, active sellers), self: { cash, lipa, credit, items } (seller only, today), products: [{ id, legacy_id, name, brand, model, stock, price, value, status: 'OK'\|'LOW'\|'OUT', is_serialized }], branch_rows: [{ branch_id, name, today, week, month, year, units }] (only when the vendor has branches) }`. Seller: totals over their own sales. Completed sales only. |
 | `managerDashboard` | `{}` | `{ vendor_count, today, week, month, year, stock_value, rows: [{ vendor_id, name, admin_name, admin_handle, today, week, month, year, products, sellers, stock_value, currency }] }` — uses `bo_vendor_sales_summary` with a JS fallback |
 
 ### sales — `sales.js`
@@ -159,7 +161,7 @@ Exports `buildBoot(db, user, nowMs)` used by account.login / me.
 | `uploadProfilePhoto` | `{ profile_id, data_url }` | `{ url }` |
 | `changePassword` | `{ current, password }` | `{ message }` (own account) |
 | `businessProfile` | `{}` | `{ vendor, place: { text, link, ready } }` — `place` is the shop's pin as the form shows it (`text`), the Google Maps address it opens (`link`), and whether this database can keep one yet (`ready`, false until `db/RUN-ME-006` is run). 2 reads |
-| `setBusinessProfile` | `{ business_type, phone, address, currency, location? }` | `{ vendor, place?, warning? }` (admin). `location` is the pin in any form the box takes — `-6.79, 39.20`, a Google Maps link, or `''` to remove it; anything that is not Google Maps is refused whole (400). Not sent = pin untouched. `warning` is set when the rest was saved but the pin could not be (migration pending) |
+| `setBusinessProfile` | `{ business_type, phone, address, currency, location? }` | `{ vendor, place?, warning? }` (admin). `location` is the pin in any form the box takes — `-6.79, 39.20`, a Google Maps link, or `''` to remove it; anything that is not Google Maps is refused whole (400). Not sent = pin untouched. `warning` is set when the rest was saved but the pin could not be (migration pending). `phone` comes back whole in `vendor.phone` (`+255…`; completed with the country code of the `currency` saved with it — TZS, KES, UGX, RWF, BIF), `''` clears it, and something that is not a phone number is refused (400) |
 | `uploadLogo` | `{ vendor_id?, data_url }` | `{ url }` (admin own; manager any) |
 
 ### vendors — `vendors.js` (manager unless noted)
@@ -168,7 +170,7 @@ Exports `buildBoot(db, user, nowMs)` used by account.login / me.
 | `managerSummary` | `{}` | `{ rows: [{ vendor..., admin_id, admin_name, admin_handle, admin_email, admin_role, admin_active, product_count, today_sales, stock_value, trial_days_left }] }` |
 | `vendorList` | `{}` | `{ rows: [{ id, name, currency }] }` active vendors |
 | `updateAdmin` | `{ profile_id, name?, role?, active? }` | `{ message }` |
-| `setVendorActive` | `{ vendor_id, active }` | `{ message }` — reactivation resets `registered_on` |
+| `setVendorActive` | `{ vendor_id, active }` | `{ message }` — reactivation resets `registered_on`. Activating a business none of whose admins is active also activates its owner (the earliest `admin`), so approving a new shop is one press; the message names them |
 | `setVendorRestricted` | `{ vendor_id, restricted }` | `{ message }` |
 | `allVendorPermissions` | `{}` | `{ rows: [{ vendor_id, name, active, permissions }] }` |
 | `setAllVendorPermissions` | `{ profile }` | `{ message }` |
@@ -179,7 +181,7 @@ Exports `buildBoot(db, user, nowMs)` used by account.login / me.
 | fn | args | returns |
 |---|---|---|
 | `reportData` | `{ type, start?, end?, vendor_id?, branch_id?, status?, group?, partner_id? }` | `{ title, subtitle, meta: [string], columns: [{ key, label, align? }], rows, totals: [[label, value]], currency }` |
-| `reportTicket` | same + `format: 'pdf'\|'xlsx'` | `{ url: '/api/report?t=…' }` |
+| `reportTicket` | same + `format: 'pdf'\|'xlsx'` | `{ url: '/api/report?t=…', filename }` — `filename` is exactly what the file will be served as; the Android app fetches the address itself and saves it under that name |
 Types: `sales`, `stock`, `cashdue`, `lending` (status Active/Returned/ALL), `commission` (manager), `brandmodel`,
 `partner` (financed sales, by partner), `cancelled`, `employee`, `branch`, `payment` (by method),
 `movements`, `units` (serialized stock list), `imei` (sales by IMEI). Sellers: only `sales` of their own

@@ -68,6 +68,27 @@ const slug = s => String(s || '').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+
 const col = (key, name, opts) => ({ key, label: name, ...(opts || {}) });
 const R = { align: 'right' };                 // money
 const I = { align: 'right', int: true };      // counts
+/* A COLUMN WITH NOTHING IN IT IS NOT PRINTED. The reports were laid out for a phone shop: every
+   sale line has room for a brand, a model, an IMEI, a discount and a financing partner. A shop
+   that sells bracelets fills in none of them, and still got all five -- empty -- in every
+   preview, sheet and PDF: nineteen columns across one page, squeezed until "SALE-0001" broke in
+   two and a total of 45,000 printed as "45,00" over "0".
+
+   So a column marked E is left out when NOT ONE ROW of that report has anything in it. It is
+   decided by the data, not by a switch: a phone shop's IMEIs are there because its rows have
+   them, and a business whose Phone Vending was switched off keeps every column its old sales
+   still fill. `with` ties a column to another's fate -- the list price says nothing the unit
+   price does not, once there is no discount between them. Done once, in buildReport, so the
+   preview, the sheet and the PDF can never disagree about which columns a report has. */
+const E = { skipEmpty: true };
+const ER = { align: 'right', skipEmpty: true };
+const blank = v => v == null || v === '' || v === 0;
+export function pruneColumns(columns, rows) {
+  const list = rows || [];
+  const gone = new Set(columns.filter(c => c.skipEmpty && list.every(r => blank(r[c.key]))).map(c => c.key));
+  return columns.filter(c => !gone.has(c.key) && !(c.with && gone.has(c.with)))
+    .map(({ skipEmpty, with: _tied, ...c }) => c);
+}
 const cur = (s, v) => fmtMoney(v) + ' ' + s.currency;
 const bump = (map, key, make) => { let r = map.get(key); if (!r) { r = make(); map.set(key, r); } return r; };
 function mapById(list, key = 'name') { const m = new Map(); for (const r of list || []) m.set(String(r.id), r[key]); return m; }
@@ -165,10 +186,11 @@ async function salesReport(db, s) {
   });
   const columns = withVendor(s, [
     col('n', '#', I), col('sale_id', 'Sale ID'), col('sold_at', 'Date/Time'), col('seller_name', 'Seller'),
-    col('customer_name', 'Customer'), col('customer_phone', 'Customer Phone'), col('product_name', 'Product'),
-    col('brand', 'Brand'), col('model', 'Model'), col('imei', 'IMEI'), col('qty', 'Qty', I), col('list_price', 'List Price', R),
-    col('discount', 'Discount', R), col('price', 'Unit Price', R), col('total', 'Total', R), col('payment_method', 'Payment'),
-    col('partner_name', 'Partner'), col('branch_name', 'Branch'), col('group_id', 'Group ID'),
+    col('customer_name', 'Customer', E), col('customer_phone', 'Customer Phone', E), col('product_name', 'Product'),
+    col('brand', 'Brand', E), col('model', 'Model', E), col('imei', 'IMEI', E), col('qty', 'Qty', I),
+    col('list_price', 'List Price', { ...R, with: 'discount' }),
+    col('discount', 'Discount', ER), col('price', 'Unit Price', R), col('total', 'Total', R), col('payment_method', 'Payment'),
+    col('partner_name', 'Partner', E), col('branch_name', 'Branch', E), col('group_id', 'Group ID'),
   ]);
   return { columns, rows: out, totals: [['GRAND TOTAL', cur(s, grand)]] };
 }
@@ -189,7 +211,7 @@ async function stockReport(db, s) {
     return { legacy_id: label(p.legacy_id), name: label(p.name), category: label(p.category), brand: label(p.brand), model: label(p.model),
       price: num(p.price), stock: num(p.stock), value, status: stockStatus(p), vendor_name: vendorName(s, maps, p) };
   });
-  const columns = withVendor(s, [col('legacy_id', 'ID'), col('name', 'Name'), col('category', 'Category'), col('brand', 'Brand'), col('model', 'Model'),
+  const columns = withVendor(s, [col('legacy_id', 'ID'), col('name', 'Name'), col('category', 'Category'), col('brand', 'Brand', E), col('model', 'Model', E),
     col('price', 'Price', R), col('stock', 'Stock', I), col('value', 'Value', R), col('status', 'Status')]);
   return { columns, rows: out, totals: [['TOTAL', cur(s, total)]] };
 }
@@ -344,7 +366,7 @@ async function lendingReport(db, s) {
     }
   }
   const columns = withVendor(s, [col('lending_id', 'Lending ID'), col('created_at', 'Date'), col('borrower_name', 'Borrower'), col('borrower_email', 'Email'),
-    col('borrower_phone', 'Phone'), col('product_name', 'Product'), col('imei', 'IMEI'), col('qty', 'Qty', I), col('price', 'Unit Price', R),
+    col('borrower_phone', 'Phone'), col('product_name', 'Product'), col('imei', 'IMEI', E), col('qty', 'Qty', I), col('price', 'Unit Price', R),
     col('total', 'Total', R), col('status', 'Status'), col('return_date', 'Returned On')]);
   return { columns, rows: out, totals: [['GRAND TOTAL', cur(s, grand)]], title: 'Lending Report (' + status + ')' };
 }
@@ -390,9 +412,9 @@ async function profitReport(db, s) {
   }).sort((a, b) => b.profit - a.profit);
   const grossProfit = money(revenue - cost);
   const columns = withVendor(s, [
-    col('product_name', 'Product'), col('brand', 'Brand'), col('model', 'Model'), col('units', 'Units', I),
+    col('product_name', 'Product'), col('brand', 'Brand', E), col('model', 'Model', E), col('units', 'Units', I),
     col('revenue', 'Revenue', R), col('cost', 'Cost', R), col('profit', 'Profit', R), col('margin', 'Margin'),
-    col('discount', 'Discounted', R),
+    col('discount', 'Discounted', ER),
   ]);
   const meta = ['Cost is the price recorded on the product at the moment of each sale, not today\'s.'];
   if (noCost) {
@@ -405,7 +427,8 @@ async function profitReport(db, s) {
     totals: [['REVENUE', cur(s, money(revenue))], ['COST OF GOODS', cur(s, money(cost))],
       ['GROSS PROFIT', cur(s, grossProfit)],
       ['MARGIN', revenue > 0 ? (grossProfit / revenue * 100).toFixed(1) + '%' : '—'],
-      ['GIVEN AWAY IN DISCOUNTS', cur(s, money(discount))]],
+      // Said only when something was given away: a shop with no discounts has no such line to read.
+      ...(money(discount) > 0 ? [['GIVEN AWAY IN DISCOUNTS', cur(s, money(discount))]] : [])],
   };
 }
 
@@ -554,7 +577,7 @@ async function cancelledReport(db, s) {
       qty: num(r.qty), total: num(r.total), seller_name: label(r.seller_name), cancelled_by_name: label(r.cancelled_by_name),
       cancelled_at: fmtDateTime(r.cancelled_at), cancel_reason: label(r.cancel_reason), vendor_name: vendorName(s, maps, r) };
   });
-  const columns = withVendor(s, [col('sold_at', 'Date'), col('sale_id', 'Sale ID'), col('product_name', 'Product'), col('imei', 'IMEI'), col('qty', 'Qty', I),
+  const columns = withVendor(s, [col('sold_at', 'Date'), col('sale_id', 'Sale ID'), col('product_name', 'Product'), col('imei', 'IMEI', E), col('qty', 'Qty', I),
     col('total', 'Total', R), col('seller_name', 'Seller'), col('cancelled_by_name', 'Cancelled By'), col('cancelled_at', 'Cancelled On'), col('cancel_reason', 'Reason')]);
   return { columns, rows: out, totals: [['CANCELLED TOTAL', cur(s, grand)]] };
 }
@@ -638,8 +661,8 @@ async function movementsReport(db, s) {
       from_branch: nameOf(maps.branches, m.from_branch_id), to_branch: nameOf(maps.branches, m.to_branch_id), by_name: label(m.by_name),
       note: label(m.note), reference: ref, vendor_name: vendorName(s, maps, m) };
   });
-  const columns = withVendor(s, [col('created_at', 'Date/Time'), col('product_name', 'Product'), col('imei', 'IMEI'), col('type', 'Type'), col('qty', 'Qty', I),
-    col('from_branch', 'From'), col('to_branch', 'To'), col('by_name', 'By'), col('note', 'Note'), col('reference', 'Reference')]);
+  const columns = withVendor(s, [col('created_at', 'Date/Time'), col('product_name', 'Product'), col('imei', 'IMEI', E), col('type', 'Type'), col('qty', 'Qty', I),
+    col('from_branch', 'From', E), col('to_branch', 'To', E), col('by_name', 'By'), col('note', 'Note', E), col('reference', 'Reference', E)]);
   return { columns, rows: out, totals: [['TOTAL IN', String(qtyIn)], ['TOTAL OUT', String(qtyOut)], ['RECORDS', String(out.length)]] };
 }
 
@@ -697,6 +720,11 @@ const BUILDERS = {
 };
 
 /* ------------------------------------------------------------------ the answer */
+/** What the file is called, from the scope alone -- so the ticket can say it before the file
+    exists (the Android app saves the download under it) and the file itself can never be
+    called anything else. One definition, read twice. */
+const fileStem = s => s.def.stem + '_' + slug(s.vendor ? s.vendor.name : 'All Vendors') + '_' + s.range.startKey + '_to_' + s.range.endKey;
+
 async function buildReport(db, user, args, nowMs) {
   const s = await scopeFor(db, user, args, nowMs);
   const part = await BUILDERS[s.type](db, s);
@@ -708,8 +736,8 @@ async function buildReport(db, user, args, nowMs) {
   for (const m of (part.meta || [])) meta.push(m);
   return {
     type: s.type, title: who + ' – ' + (part.title || s.def.label), subtitle, meta,
-    columns: part.columns, rows: part.rows, totals: part.totals || [], currency: s.currency,
-    start: s.range.startKey, end: s.range.endKey, vendor_name: who,
+    columns: pruneColumns(part.columns, part.rows), rows: part.rows, totals: part.totals || [], currency: s.currency,
+    start: s.range.startKey, end: s.range.endKey, vendor_name: who, stem: fileStem(s),
   };
 }
 
@@ -724,10 +752,13 @@ export const FN = {
     const a = args || {};
     const format = String(a.format || 'pdf').toLowerCase();
     if (format !== 'pdf' && format !== 'xlsx') throw badRequest('Format must be pdf or xlsx.');
-    await scopeFor(db, user, a, nowMs);
+    const scope = await scopeFor(db, user, a, nowMs);
     const report = { format };
     for (const k of TICKET_KEYS) if (a[k] != null && a[k] !== '') report[k] = String(a[k]);
-    return { url: '/api/report?t=' + signTicket({ uid: user.id, report }, nowMs) };
+    /* `filename` is what the file will be called when the ticket is presented. A browser reads
+       that off the download itself; the Android app is handed the address to fetch on its own
+       and has to be told, or the report lands in the phone's Downloads as "report". */
+    return { url: '/api/report?t=' + signTicket({ uid: user.id, report }, nowMs), filename: fileStem(scope) + '.' + format };
   },
 };
 export const WRITES = [];
@@ -754,7 +785,7 @@ export async function reportFile(db, user, report, nowMs = Date.now()) {
   const format = String(r.format || 'pdf').toLowerCase();
   if (format !== 'pdf' && format !== 'xlsx') throw badRequest('Format must be pdf or xlsx.');
   const data = await buildReport(db, user, r, nowMs);
-  const stem = REPORT_TYPES[data.type].stem + '_' + slug(data.vendor_name) + '_' + data.start + '_to_' + data.end;
+  const stem = data.stem;
   if (format === 'xlsx') {
     return {
       bytes: buildXlsx([sheetOf(data)], nowMs),

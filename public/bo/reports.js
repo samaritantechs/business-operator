@@ -40,7 +40,16 @@ window.BORep = (function () {
     var today = BO.todayKey();
     var h = '<div class="section-card" style="margin-bottom:18px;"><div class="section-hdr"><span>📅</span><div class="section-hdr-title">Date Range</div></div><div class="section-body"><div class="form-grid" style="max-width:720px;"><div class="form-group"><label class="form-label">Start Date</label><input type="date" id="repStart" class="form-control" value="' + today + '"></div><div class="form-group"><label class="form-label">End Date</label><input type="date" id="repEnd" class="form-control" value="' + today + '"></div>' + shopSelect('repBranch') + '<div class="form-group"><label class="form-label">Lending status</label><select id="repLendStatus" class="form-select"><option value="ALL">All</option><option value="Active">Active only</option><option value="Returned">Returned only</option></select></div></div><div id="repStatus" class="small muted" style="margin-top:8px;"></div></div></div>';
     var list = (seller ? TYPES.filter(function (t) { return t[0] === 'sales'; }) : TYPES)
-      .filter(function (t) { return phoneReports() || !PHONE_ONLY[t[0]]; });
+      .filter(function (t) { return phoneReports() || !PHONE_ONLY[t[0]]; })
+      /* Two cards are worded for a phone shop: a handset for "Sales by Brand & Model", and a
+         profit report that mentions discounts -- a column only Phone Vending has. A shop without
+         it gets the same two reports under a neutral picture and a line that is true of it. */
+      .map(function (t) {
+        if (phoneReports()) return t;
+        if (t[0] === 'brandmodel') return [t[0], '🏷️', t[2], t[3]];
+        if (t[0] === 'profit') return [t[0], t[1], t[2], 'Revenue minus cost'];
+        return t;
+      });
     h += '<div class="report-grid">' + list.map(function (t) { return '<div class="report-card" style="cursor:default;flex-wrap:wrap;"><span class="rc-icon">' + t[1] + '</span><div style="flex:1;"><div class="rc-title">' + esc(t[2]) + '</div><div class="rc-sub">' + esc(t[3]) + '</div></div><div style="display:flex;gap:6px;width:100%;margin-top:6px;"><button class="btn-sm-primary" onclick="BORep.dl(\'' + t[0] + '\',\'pdf\')">📄 PDF</button><button class="btn-sm-success" onclick="BORep.dl(\'' + t[0] + '\',\'xlsx\')">📊 Excel</button><button class="btn-sm-warning" onclick="BORep.preview(\'' + t[0] + '\')">👁 Preview</button></div></div>'; }).join('') + '</div>';
     el.innerHTML = h;
   }
@@ -53,7 +62,11 @@ window.BORep = (function () {
   }
   function open(a, format, statusEl) {
     a.format = format; var st = document.getElementById(statusEl); if (st) st.textContent = 'Generating… please wait.';
-    srv('reportTicket', a).then(function (r) { if (st) st.textContent = ''; window.open(r.url, '_blank'); }).catch(function (e) { if (st) st.textContent = ''; BO.fail(e); });
+    /* The door is opened NOW, at the tap, and the file is sent through it when the address
+       arrives (BO.fileDoor says why): a PDF gets a tab of its own in a browser and the phone's
+       Downloads in the app; an Excel file is a download everywhere. */
+    var door = BO.fileDoor(format === 'pdf');
+    srv('reportTicket', a).then(function (r) { if (st) st.textContent = ''; door.go(r.url, r.filename); }).catch(function (e) { if (st) st.textContent = ''; door.close(); BO.fail(e); });
   }
   function dl(type, format) { var a = args(type); if (a) open(a, format, 'repStatus'); }
   function preview(type) { var a = args(type); if (a) showPreview(a); }

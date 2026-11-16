@@ -3,14 +3,19 @@ package com.samaritantechs.industrial;
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.DownloadManager;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Environment;
+import android.print.PrintAttributes;
+import android.print.PrintManager;
 import android.provider.MediaStore;
 import android.webkit.CookieManager;
 import android.webkit.GeolocationPermissions;
 import android.webkit.JavascriptInterface;
+import android.webkit.URLUtil;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
@@ -25,6 +30,9 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 import java.io.File;
+import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * A window onto the live site, and deliberately nothing more.
@@ -200,17 +208,7 @@ public class MainActivity extends AppCompatActivity {
 
         /* Reports download as real files, and so does the APK itself when somebody updates from
          * inside the app -- so the phone's own download manager handles them. */
-        web.setDownloadListener((url, agent, disposition, mime, size) -> {
-            try {
-                DownloadManager.Request req = new DownloadManager.Request(Uri.parse(url));
-                req.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-                req.allowScanningByMediaScanner();
-                ((DownloadManager) getSystemService(DOWNLOAD_SERVICE)).enqueue(req);
-                Toast.makeText(this, "Downloading…", Toast.LENGTH_SHORT).show();
-            } catch (Exception e) {
-                startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
-            }
-        });
+        web.setDownloadListener((url, agent, disposition, mime, size) -> saveFile(url, nameFrom(url, disposition, mime)));
 
         // Back goes back through the app's own history before it leaves the app.
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
@@ -219,7 +217,87 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        web.loadUrl(APP_URL);
+        /* STARTED, OR BROUGHT BACK? The site opens on the marketplace when the app is started,
+         * and goes back to the screen the person was on when it is only being restored. Android
+         * says which: saved state exists only when IT put the app away -- cleared from memory
+         * while still in the recent-apps list -- and never after the person swiped it off that
+         * list or backed out of it. The page cannot tell these apart by itself (a rebuilt
+         * WebView remembers nothing of its session), so it is told, in the address. */
+        web.loadUrl(state != null ? APP_URL + "?resume=1" : APP_URL);
+    }
+
+    /* ONE WAY OF SAVING A FILE, whoever asked for it: a link that turned out to be a download
+     * (the WebView tells us, above) or the page itself (SamaritanApp.download, below).
+     *
+     * The download manager fetches ADDRESSES. A picture or file that exists only inside the
+     * page (data:, blob:) has none, and asking for it threw -- into a fallback that threw
+     * again, with nothing to catch it. Such a file is refused in words; the site serves its
+     * own downloads as ordinary https files for exactly this reason.
+     *
+     * A report, a picture or a sheet goes to the phone's own Downloads folder under its real
+     * name: that is where the Files app shows it, and nothing clears it away. The download
+     * manager's own store -- where everything used to go -- is hidden from the Files app on
+     * Android 10 and later and may be emptied by the phone at any time.
+     *
+     * THE APK IS THE EXCEPTION, ON PURPOSE. Updating the app is the one download that must
+     * never break, and it has always worked from that store; it is left exactly as it was. */
+    private void saveFile(String url, String name) {
+        if (url == null || !(url.startsWith("https://") || url.startsWith("http://"))) {
+            Toast.makeText(this, "This file cannot be saved from inside the app.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String file = cleanName(name);
+        boolean keep = !file.isEmpty() && !file.toLowerCase(Locale.US).endsWith(".apk");
+        try {
+            DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+            try {
+                dm.enqueue(downloadOf(url, file, keep));
+            } catch (Exception noSharedFolder) {
+                // Android 9 and older want a storage permission for the shared folder, and a
+                // phone may have no such folder at all: the manager's own store still works.
+                if (!keep) throw noSharedFolder;
+                dm.enqueue(downloadOf(url, file, false));
+            }
+            Toast.makeText(this, "Downloading…", Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); }
+            catch (Exception e2) { Toast.makeText(this, "Nothing on this phone can download that.", Toast.LENGTH_SHORT).show(); }
+        }
+    }
+
+    private DownloadManager.Request downloadOf(String url, String file, boolean toDownloads) {
+        DownloadManager.Request req = new DownloadManager.Request(Uri.parse(url));
+        req.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+        req.allowScanningByMediaScanner();
+        if (toDownloads) {
+            req.setTitle(file);
+            req.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, file);
+        }
+        return req;
+    }
+
+    /** What the server called the file. URLUtil only reads "attachment; filename=", and a PDF
+     *  is served "inline; filename=" -- so the name is read here first, and URLUtil's guess
+     *  (from the address and the type) is what is left when there is none. */
+    private static String nameFrom(String url, String disposition, String mime) {
+        if (disposition != null) {
+            Matcher m = Pattern.compile("(?i)filename\\s*=\\s*\"?([^\";]+)\"?").matcher(disposition);
+            if (m.find()) return m.group(1).trim();
+        }
+        try { return URLUtil.guessFileName(url, disposition, mime); } catch (Exception e) { return ""; }
+    }
+
+    /** A file name and nothing else: no folders, nothing a file system chokes on.
+     *
+     *  '%' and '#' go too, and not for tidiness. The download manager reads the destination
+     *  back as an ADDRESS, so "%2F" in a name is a slash again by the time it is used -- a file
+     *  named "..%2FPictures%2Fx.png" by any server the app shows would land outside Downloads
+     *  -- and everything after a '#' is dropped, extension included. */
+    private static String cleanName(String name) {
+        if (name == null) return "";
+        String n = name.replaceAll("[\\\\/:*?\"<>|%#\\p{Cntrl}]", "_").trim();
+        while (n.startsWith(".")) n = n.substring(1);
+        return n.length() > 120 ? n.substring(n.length() - 120) : n;
     }
 
     /** The gallery, plus the camera alongside it. A shop registering a product has the thing in
@@ -257,6 +335,54 @@ public class MainActivity extends AppCompatActivity {
     public class Bridge {
         @JavascriptInterface public int getVersionCode() { return BuildConfig.VERSION_CODE; }
         @JavascriptInterface public String getVersionName() { return BuildConfig.VERSION_NAME; }
+
+        /** "Open in the phone's browser" -- the one thing the page cannot do for itself, because
+         *  this system's own address is exactly what shouldOverrideUrlLoading keeps inside the
+         *  app. A web address only: this is a door to a browser, not to any app on the phone. */
+        /** A file of this system's own, saved without the WebView having to ask for it first:
+         *  one request instead of two (a report is not built twice), and a refusal is a failed
+         *  download in the phone's own list rather than a page of raw text where the app was.
+         *  Only this deployment's own https addresses -- it is not a downloader for the web. */
+        @JavascriptInterface public void download(final String url, final String name) {
+            runOnUiThread(() -> {
+                if (!isOurOrigin(url)) {
+                    Toast.makeText(MainActivity.this, "This file cannot be saved from inside the app.", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                saveFile(url, name);
+            });
+        }
+
+        /** The page on paper, or as a PDF: the phone's own print screen, fed by this WebView.
+         *  window.print() does nothing in a WebView, so the page asks for this instead and
+         *  sets its own print styling (a receipt prints as a receipt, not as the whole app). */
+        @JavascriptInterface public void print(final String title) {
+            runOnUiThread(() -> {
+                try {
+                    String job = (title == null || title.trim().isEmpty()) ? "Samaritan Industrial" : title.trim();
+                    PrintManager pm = (PrintManager) getSystemService(Context.PRINT_SERVICE);
+                    pm.print(job, web.createPrintDocumentAdapter(job), new PrintAttributes.Builder().build());
+                } catch (Exception e) {
+                    Toast.makeText(MainActivity.this, "This phone could not open its print screen.", Toast.LENGTH_SHORT).show();
+                }
+            });
+        }
+
+        @JavascriptInterface public void openExternal(final String url) {
+            runOnUiThread(() -> {
+                try {
+                    Uri u = Uri.parse(url == null ? "" : url);
+                    String scheme = u.getScheme() == null ? "" : u.getScheme().toLowerCase(Locale.US);
+                    if (!scheme.equals("https") && !scheme.equals("http")) return;
+                    Intent i = new Intent(Intent.ACTION_VIEW, u);
+                    i.addCategory(Intent.CATEGORY_BROWSABLE);
+                    i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(i);
+                } catch (Exception e) {
+                    Toast.makeText(MainActivity.this, "No browser on this phone could open that.", Toast.LENGTH_SHORT).show();
+                }
+            });
+        }
         /* The site reads window.SamaritanApp.versionCode, so expose it as a property too --
          * addJavascriptInterface only exposes methods, hence the tiny shim injected below. */
     }

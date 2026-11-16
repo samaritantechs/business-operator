@@ -76,7 +76,21 @@ test('every registered function is reachable from the page (or is a named server
    below demand the button actually reach the marketplace and offer a way back. */
 /* Favorites is the same screen opened on its other shelf (what this phone saved), so it is exempt
    for the same reason and held to the same demand: it must go somewhere and come back. */
-const SCREEN_NAVS = ['market', 'favs'];
+/* Log out is a door too -- the way out, repeated at the bottom of the menu because on a phone
+   the one on the top bar is a 32px target at the far edge. It has no panel for the same reason
+   the other two have none, and the test below holds it to what it is for. */
+const SCREEN_NAVS = ['market', 'favs', 'logout'];
+test('Log out is in the menu, closes the menu, and is never mistaken for a tab', () => {
+  assert.match(html, /id="nav-logout"[^>]*onclick="closeMobileSidebar\(\);logout\(\)"/, 'the menu lost its Log out');
+  const account = html.indexOf('id="nav-account"'), out = html.indexOf('id="nav-logout"');
+  assert.ok(account > 0 && out > account, 'Log out sits last, under My Account');
+  /* The first tab a person lands on is the first nav THEIR ROLE has that has a panel behind it.
+     It used to be "the first nav on show", and a door (Marketplace, Favorites, Log out) is on
+     show for everybody -- a role with no tabs of its own would have been walked straight into one. */
+  assert.match(shell, /function navOpen_\(name\) \{[\s\S]{0,200}b\.style\.display !== 'none' && document\.getElementById\('tab-' \+ name\)/,
+    'a nav counts as a tab only when it is on show AND has a panel');
+  assert.match(shell, /function firstNav_\(\) \{[\s\S]{0,260}navOpen_\(b\.id\.replace\('nav-', ''\)\)/, 'the first tab is chosen through navOpen_');
+});
 test('the marketplace nav is a screen, and it goes somewhere and comes back', () => {
   assert.match(html, /id="nav-market"[^>]*onclick="openMarketplace\(\)"/, 'the Marketplace button lost its handler');
   assert.match(shell, /function openMarketplace\(\)/, 'openMarketplace is gone');
@@ -349,7 +363,7 @@ test('somebody signed in is never offered Log in on the marketplace', () => {
   assert.match(html, /<div class="mk-acct" id="mkAuthOut">[\s\S]*?showLogin\(false\)[\s\S]*?showLogin\(true\)[\s\S]*?<\/div>/, 'the signed-out doors are gone');
   assert.match(html, /<div class="mk-acct hidden" id="mkAuthIn">[\s\S]*?id="mkLogoutBtn"[^>]*onclick="logout\(\)"/, 'the signed-in slot has no Log out');
   assert.match(shell, /function paintMkAccount_\(\) \{[\s\S]*?out\.classList\.toggle\('hidden', !!u\);[\s\S]*?inn\.classList\.toggle\('hidden', !u\);/, 'the slot is no longer decided by who is signed in');
-  assert.match(shell, /function showLanding\(\) \{[\s\S]*?paintMkAccount_\(\);/, 'showLanding must repaint who is looking, every time');
+  assert.match(shell, /function showLanding\(unrecorded\) \{[\s\S]*?paintMkAccount_\(\);/, 'showLanding must repaint who is looking, every time');
   // logout() ends on showLanding(), so signing out from the shopfront flips the slot with no extra call.
   assert.match(shell, /function logout\(silent\) \{[\s\S]*?showLanding\(\);/, 'logout no longer lands on the marketplace');
 });

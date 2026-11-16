@@ -17,7 +17,7 @@ window.BOSell = (function () {
   }
 
   function productSelect(selected) {
-    var h = '<select class="form-select prodSelect" style="min-width:170px;" onchange="BOSell.pick(this)"><option value="">Select product…</option>';
+    var h = '<select class="form-select prodSelect" onchange="BOSell.pick(this)"><option value="">Select product…</option>';
     opts.products.forEach(function (p) {
       var stock = p.is_serialized ? (p.units || []).length : p.stock;
       h += '<option value="' + esc(p.id) + '"' + (stock <= 0 ? ' disabled' : '') + (selected === p.id ? ' selected' : '') + '>' + esc(p.name) + (p.legacy_id ? ' (' + esc(p.legacy_id) + ')' : '') + ' — stock ' + stock + (p.is_serialized ? ' · IMEI' : '') + '</option>';
@@ -32,7 +32,18 @@ window.BOSell = (function () {
   function showsDiscount() { return !!S.features.phone_vending; }
   function row() {
     rowSeq++;
-    return '<tr class="sale-row" data-row="' + rowSeq + '"><td>' + productSelect('') + '<div class="units"></div></td><td style="width:80px;"><input type="number" class="form-control qty" value="1" min="1" oninput="BOSell.calc(this)"></td><td style="width:130px;"><input type="number" class="form-control price" value="0" min="0" oninput="BOSell.calc(this)"></td><td style="width:110px;' + (showsDiscount() ? '' : 'display:none;') + '"><input type="number" class="form-control disc" value="0" min="0" oninput="BOSell.calc(this)"></td><td style="width:110px;"><span class="row-total">0</span></td><td><button class="btn-sm-danger" onclick="this.closest(\'tr\').remove();BOSell.grand()">✕</button></td></tr>';
+    /* EVERY CELL CARRIES ITS OWN NAME (data-label). On a desk the header row names the columns;
+       on a phone there is no room for six columns, the row is laid out as a card instead (the
+       stylesheet does it, under .sale-tbl) and the header row is gone -- so the name has to
+       travel with the box, or a seller is left typing into two unnamed boxes 29px wide, which
+       is exactly what this screen was on a phone. The widths live in the stylesheet for the
+       same reason: an inline width cannot be undone by a narrow screen. */
+    return '<tr class="sale-row" data-row="' + rowSeq + '"><td class="sr-prod">' + productSelect('') + '<div class="units"></div></td>'
+      + '<td class="sr-qty" data-label="Qty"><input type="number" inputmode="numeric" class="form-control qty" value="1" min="1" oninput="BOSell.calc(this)"></td>'
+      + '<td class="sr-price" data-label="Price"><input type="number" inputmode="decimal" class="form-control price" value="0" min="0" oninput="BOSell.calc(this)"></td>'
+      + '<td class="sr-disc' + (showsDiscount() ? '' : ' sr-off') + '" data-label="Discount"><input type="number" inputmode="decimal" class="form-control disc" value="0" min="0" oninput="BOSell.calc(this)"></td>'
+      + '<td class="sr-total" data-label="Total"><span class="row-total">0</span></td>'
+      + '<td class="sr-x"><button class="btn-sm-danger" title="Remove this line" onclick="this.closest(\'tr\').remove();BOSell.grand()">✕</button></td></tr>';
   }
   function render(el) {
     var h = '<div class="section-card"><div class="section-hdr"><span>🛒</span><div class="section-hdr-title">New Sale</div></div><div class="section-body">';
@@ -53,7 +64,7 @@ window.BOSell = (function () {
       h += '<div class="form-group"><label class="form-label">Shop / Branch</label><select id="saleBranch" class="form-select" onchange="BOSell.branchChanged(this.value)"><option value="">— No shop —</option>' + opts.branches.map(function (b) { return '<option value="' + esc(b.id) + '"' + (branchId === b.id ? ' selected' : '') + '>' + esc(b.name) + '</option>'; }).join('') + '</select></div>';
     }
     h += '</div>';
-    h += '<div class="table-wrap"><table class="sale-tbl"><thead><tr><th>Product</th><th>Qty</th><th>List Price</th><th' + (showsDiscount() ? '' : ' style="display:none"') + '>Discount</th><th>Total</th><th></th></tr></thead><tbody id="saleItemsBody">' + row() + '</tbody></table></div>';
+    h += '<div class="table-wrap"><table class="sale-tbl' + (showsDiscount() ? ' has-disc' : '') + '"><thead><tr><th>Product</th><th>Qty</th><th>List Price</th><th' + (showsDiscount() ? '' : ' class="sr-off"') + '>Discount</th><th>Total</th><th></th></tr></thead><tbody id="saleItemsBody">' + row() + '</tbody></table></div>';
     h += '<div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center;"><button class="btn-secondary" onclick="BOSell.addRow()">+ Add Item</button><button class="btn-primary" id="saleSubmitBtn" onclick="BOSell.submit()">✅ Record Sale</button><span class="muted small" id="saleGrand"></span></div>';
     h += '<div id="saleMsg" style="margin-top:12px;"></div></div></div>';
     el.innerHTML = h;

@@ -68,3 +68,47 @@ Routine calls made while building, so nobody has to re-derive them. Newest at th
     message — indistinguishable from a frozen app. `openModal`/`closeModal` now check first and
     fall back to the app's own `.modal.bo-fb` styling, with the dismiss buttons, the backdrop
     and Escape wired by hand. `test/navs.test.mjs` fails if that guard is removed.
+
+21. **A fresh open lands on the marketplace.** A saved session used to go straight to the
+    dashboard. Now being signed in (`adoptSession_`) and standing in the workspace
+    (`enterApp_`) are separate: a fresh open shows the shopfront with the person's name on its
+    bar and loads no workspace data until they tap Business Manager. Only two things go back
+    to the screen **and tab** they were on: a reload of the same browser tab
+    (`sessionStorage.boWhere`), and the Android app being *restored* rather than started
+    (`?resume=1`, which `MainActivity` adds only when Android hands it saved state — i.e. the
+    app was never swiped off the recent-apps list). Typing a password always enters the
+    workspace. `localStorage.boWhereLast` exists only for the `?resume=1` case and is never
+    read on a fresh open. Idle sign-out now follows the person, not the screen.
+
+22. **A phone number is stored whole.** `0712 345 678` is how a number is said; a WhatsApp link
+    needs `+255712345678`, and a number saved the first way gave a dead button with nothing to
+    say so. `api/_lib/bo/phone.js` completes it once, at the door (registration and the
+    business profile), against the country of the shop's currency, refuses what is not a
+    number, and the marketplace repairs old rows on the way out.
+
+23. **The printable QR codes are drawn by the server, in this repository.** "Save this code as
+    a picture" has to be an ordinary https file or the Android app cannot save it (a WebView's
+    downloads go to the phone's download manager, which fetches addresses). `api/_lib/qr.js`
+    is a small encoder — byte mode, versions 1–6 — written out rather than installed, and held
+    to an independent encoder module for module in `test/qr.test.mjs`. The route serves exactly
+    two pictures, both for the host the request arrived on: it never draws text it was sent,
+    which would let anybody mint a code "from" this system that leads elsewhere.
+
+24. **The app must fit the phone it is on.** A page wider than the screen is shrunk whole by
+    the browser, so one bar that needed 510px drew every screen at three quarters of its size.
+    On a phone the top bar keeps its buttons and drops its words, Log out is also the last row
+    of the ☰ menu, and a sale line is a card (product; quantity and price; total) instead of
+    six columns. `tools/smoke.mjs` measures it at 360 and 320px.
+
+25. **Every way out of the page goes through one block, because the Android app can take only
+    some.** A WebView opens a new window only while a tap is fresh (about five seconds), cannot
+    show a PDF, saves nothing itself, and prints nothing. So a report asked for on a slow line
+    did nothing at all, every report was built twice (the WebView asked, then the download
+    manager asked again), and a refusal replaced the app with a line of text. Now nothing but
+    `BO.openOutside` and `BO.fileDoor` (the shell) calls `window.open`; a file is fetched by
+    the app itself where it has the door (`SamaritanApp.download`, one request, saved in the
+    phone's Downloads under the name the ticket carries), through a hidden frame of its own
+    where it has not, and in a browser a PDF gets a tab opened at the tap. Print goes to the
+    phone's print screen (`SamaritanApp.print`). `test/screens.test.mjs` fails if a screen
+    opens a window, saves an in-page file or prints on its own. The app's own update download
+    is deliberately left exactly as it was.

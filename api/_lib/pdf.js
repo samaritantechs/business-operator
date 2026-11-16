@@ -44,6 +44,108 @@ function wrap(text, font, size, width) {
   return lines.length ? lines : [''];
 }
 
+/* =====================================================================================
+   HOW WIDE EACH COLUMN IS, AND HOW SMALL THE TYPE HAS TO BE.
+   =====================================================================================
+   The table used to measure what each column wanted and then scale EVERY column by the same
+   factor until they fitted the page. A wide report therefore took width away from "Qty" and
+   "Total" exactly as it did from "Product" -- and a column narrower than its own number has
+   only one way left to print it: break it. "SALE-0001" came out as "SALE-000" over "1" and
+   45,000 as "45,00" over "0", which in a sales report is not untidy, it is wrong.
+
+   The rule now, in order:
+     1. Every column gets at least the width of its widest UNBREAKABLE piece: a whole figure in
+        a number column, the longest single word anywhere else (a heading may wrap between its
+        words, so may a name). Nothing below this width is ever asked of a column.
+     2. If those minimums do not fit, the type gets smaller -- a step at a time, down to a
+        floor that can still be read on paper -- before anything is broken.
+     3. Whatever width is left over goes to the columns that have long text, so names and
+        products wrap as little as possible.
+     4. Only if the smallest type still cannot fit does a column give way, and then it is the
+        text columns: a figure keeps its width to the last.
+
+   It is a pure function of the columns, the rows and a way to measure text, so it can be
+   tested without building a PDF (test/reports.test.mjs). */
+const TYPE_SIZES = [8.5, 8, 7.5, 7, 6.5, 6, 5.5];
+const WORD_CAP = 200;                         // a single "word" longer than this (a link) may be broken
+export function planLayout({ columns, rows, avail, widthOf, pad = 4, startSize = 8.5 }) {
+  const sample = (rows || []).slice(0, 400);
+  const texts = columns.map(c => sample.map(r => pdfSafe(fmtCell(r[c.key], c))).filter(Boolean));
+  const measure = size => {
+    const need = [], full = [];
+    columns.forEach((c, i) => {
+      const head = pdfSafe(c.label);
+      let min = 0, wide = widthOf(head, size, true);
+      for (const w of head.split(' ')) min = Math.max(min, widthOf(w, size, true));
+      for (const t of texts[i]) {
+        const tw = widthOf(t, size, false);
+        wide = Math.max(wide, Math.min(tw, 240));
+        if (c.align === 'right') min = Math.max(min, tw);                        // a figure is one piece
+        else for (const w of t.split(' ')) min = Math.max(min, Math.min(widthOf(w, size, false), WORD_CAP));
+      }
+      // +0.5: a column exactly as wide as its figure must not lose the last digit to rounding.
+      need.push(min + 2 * pad + 0.5); full.push(Math.max(wide, min) + 2 * pad + 0.5);
+    });
+    return { need, full, total: need.reduce((a, b) => a + b, 0) };
+  };
+  /** The widths at one type size: every column its minimum, the rest shared out to long text. */
+  const layoutAt = size => {
+    const m = measure(size);
+    if (m.total <= avail) {
+      const want = m.full.map((f, i) => f - m.need[i]);
+      const wanted = want.reduce((a, b) => a + b, 0), spare = avail - m.total;
+      let widths = m.need.map((n, i) => n + (wanted > 0 ? Math.min(want[i], spare * want[i] / wanted) : 0));
+      // Still room once everybody has all they asked for: the table fills the page, in proportion.
+      const used = widths.reduce((a, b) => a + b, 0);
+      if (used < avail) widths = widths.map(w => w + (avail - used) * (w / used));
+      return { size, widths, fits: true };
+    }
+    // Too many columns even at this size. Figures keep their width; text gives way.
+    const fixed = columns.reduce((a, c, i) => a + (c.align === 'right' ? m.need[i] : 0), 0);
+    const loose = m.total - fixed, room = Math.max(avail - fixed, 0);
+    let widths = columns.map((c, i) => (c.align === 'right' ? m.need[i] : (loose > 0 ? m.need[i] * room / loose : 0)));
+    const sum = widths.reduce((a, b) => a + b, 0) || 1;
+    if (sum > avail || room === 0) widths = m.need.map(n => n * avail / m.total);  // nothing left to protect
+    return { size, widths, fits: false };
+  };
+  /** How many lines of type the table takes at a layout: each row is as tall as its longest cell. */
+  const linesOf = lay => {
+    let lines = 0;
+    for (let r = 0; r < sample.length; r++) {
+      let most = 1;
+      columns.forEach((c, i) => {
+        const t = pdfSafe(fmtCell(sample[r][c.key], c));
+        if (t) most = Math.max(most, Math.ceil(widthOf(t, lay.size, false) / Math.max(lay.widths[i] - 2 * pad, 1)));
+      });
+      lines += most;
+    }
+    return lines;
+  };
+
+  const sizes = TYPE_SIZES.filter(z => z <= startSize);
+  let best = null;
+  for (const z of sizes) { best = layoutAt(z); if (best.fits) break; }
+  if (!best) best = layoutAt(startSize);
+  if (!best.fits) return best;
+  /* THE LARGEST TYPE THAT FITS IS NOT ALWAYS THE ONE TO USE. At the size where the minimums only
+     just fit there is no width left over, so a product name wraps one word to a line and a row
+     of figures is five lines tall. A step or two smaller can halve the paper. So the smaller
+     sizes are tried too -- never below 6pt for this, that floor is for fitting, not for saving
+     paper -- and one is taken only if it WRAPS a good deal less. It is lines that are counted,
+     not height: smaller type is always shorter, and that alone is no reason to make a report
+     harder to read. A table that does not wrap is never shrunk. */
+  let bestLines = linesOf(best);
+  for (const z of sizes) {
+    if (bestLines <= sample.length) break;                             // nothing wraps: done
+    if (z >= best.size || z < 6) continue;
+    const lay = layoutAt(z);
+    if (!lay.fits) continue;
+    const n = linesOf(lay);
+    if (n <= bestLines * 0.75) { best = lay; bestLines = n; }
+  }
+  return best;
+}
+
 export function fmtCell(v, col) {
   if (v == null) return '';
   if (typeof v === 'number') {
@@ -59,42 +161,43 @@ export function fmtCell(v, col) {
 export async function buildPdf(opts) {
   const columns = opts.columns || [];
   const rows = opts.rows || [];
-  const landscape = opts.landscape != null ? !!opts.landscape : columns.length > 6;
-  const [PW, PH] = landscape ? [841.89, 595.28] : [595.28, 841.89];
   const M = 36;
   const doc = await PDFDocument.create();
   doc.setTitle(pdfSafe(opts.title || 'Report'));
   doc.setAuthor(APP_NAME + ' - ' + COMPANY);
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
-  const fs = columns.length > 8 ? 7.5 : 8.5;
-  const lh = fs * 1.35;
   const pad = 4;
-
-  // Column widths: measured, clamped, scaled to the page.
+  const widthOf = (t, size, isBold) => (isBold ? bold : font).widthOfTextAtSize(t, size);
+  const startSize = columns.length > 8 ? 7.5 : 8.5;
+  const SIZES = { portrait: [595.28, 841.89], landscape: [841.89, 595.28] };
+  const planFor = wide => planLayout({ columns, rows, avail: SIZES[wide ? 'landscape' : 'portrait'][0] - 2 * M, widthOf, pad, startSize });
+  // More than six columns has always been a sideways page. A narrower report that still cannot
+  // fit upright at full size is turned sideways too, before its type is made any smaller.
+  let landscape = opts.landscape != null ? !!opts.landscape : columns.length > 6;
+  let plan = planFor(landscape);
+  if (!landscape && opts.landscape == null && (!plan.fits || plan.size < startSize)) { landscape = true; plan = planFor(true); }
+  const [PW, PH] = SIZES[landscape ? 'landscape' : 'portrait'];
   const avail = PW - 2 * M;
-  const want = columns.map(c => {
-    let w = bold.widthOfTextAtSize(pdfSafe(c.label), fs) + 2 * pad;
-    for (const r of rows.slice(0, 400)) {
-      const t = fmtCell(r[c.key], c);
-      w = Math.max(w, Math.min(220, font.widthOfTextAtSize(pdfSafe(t), fs) + 2 * pad));
-    }
-    return Math.max(c.width || 0, Math.min(w, 240));
-  });
-  const sum = want.reduce((a, b) => a + b, 0) || 1;
-  const widths = want.map(w => (w / sum) * avail);
+  const fs = plan.size, widths = plan.widths;
+  const lh = fs * 1.35;
 
   const pages = [];
   let page, y;
+  // A heading wraps between its words like any other cell, so "Customer Phone" can sit on two
+  // lines over a narrow column instead of running into the heading beside it.
+  const heads = columns.map((c, i) => wrap(c.label, bold, fs, widths[i] - 2 * pad));
+  const headLines = Math.max(1, ...heads.map(h => h.length));
   const drawHeader = () => {
-    const h = lh + 2 * pad;
+    const h = headLines * lh + 2 * pad;
     page.drawRectangle({ x: M, y: y - h, width: avail, height: h, color: HEAD });
     let x = M;
     columns.forEach((c, i) => {
-      const t = pdfSafe(c.label);
-      const tw = bold.widthOfTextAtSize(t, fs);
-      const tx = c.align === 'right' ? x + widths[i] - pad - tw : x + pad;
-      page.drawText(t, { x: tx, y: y - pad - fs, size: fs, font: bold, color: rgb(1, 1, 1) });
+      heads[i].forEach((t, li) => {
+        const tw = bold.widthOfTextAtSize(t, fs);
+        const tx = c.align === 'right' ? x + widths[i] - pad - tw : x + pad;
+        page.drawText(t, { x: tx, y: y - pad - fs - li * lh, size: fs, font: bold, color: rgb(1, 1, 1) });
+      });
       x += widths[i];
     });
     y -= h;
