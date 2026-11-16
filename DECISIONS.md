@@ -123,9 +123,13 @@ Routine calls made while building, so nobody has to re-derive them. Newest at th
     literal: a wrong "translation" hides products. The other word has to BE a word of the
     product (or its plural): accepted at the start of any word, `pete` (a ring) found the shop
     Peter and `maji` (water) found Majid, every product of each shown as an exact match.
-    `128gb` finds `128 GB` because a space between a letter and a digit is bridged — and only
-    that: "Hot 12 8GB" is not a 128GB phone. Text with no letter or digit of ours in it
-    (Arabic, an emoji) is matched as plain text, never as "nothing typed".
+    `128gb` finds `128 GB`, `a05` finds `A 05` and `s23fe` finds `S 23 FE`: a run of up to
+    three words that meet at a letter and a digit is run together, and a typed word has to
+    START where a word of the product starts. Run together blindly (the first version took
+    every space out) it found "Nokia 20" for `a20` and "Hot 12 8GB" for `128gb`. A synonym
+    also finds `TVs` and `TV43`. Text in another script (Arabic, Chinese, an emoji) is
+    matched as plain text; a typed quote, dash or "…" is punctuation and means "nothing
+    typed", like "!!".
 
 27. **The customer's first message says the price, in their language; and a shop can be reached
     without data.** The WhatsApp button used to send the product's name in English, so every

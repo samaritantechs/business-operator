@@ -271,6 +271,10 @@ test('the page says the name before the PIN, saves once at a time, and never sav
   assert.ok(rcpt.indexOf("body: '<div id=\"rcptSheet\"") < rcpt.indexOf("if (r.payment_method === 'Lipa Number') BO.payNumbers("), 'the sheet is drawn before the pay number is added to it');
   assert.match(rcpt, /\(r\.pay_numbers \|\| \[\]\)\.forEach\(function \(n\) \{ L\.push\('Lipa Namba: ' \+ BO\.payLine\(n\)\); \}\);/, 'and Copy / Share carry it too');
   // The editor: one save at a time; this till reads the new list at once; a failed save drops what is held.
+  assert.match(users, /numbers = \[\], tok = S\.token;/, 'the save remembers who tapped it');
+  assert.match(users, /srv\('setPayNumbers', \{ numbers: numbers \}\)\.then\(function \(r\) \{[^}]*?if \(S\.token !== tok\) return;\s*S\.payGen/s,
+    'an answer for somebody who has signed out is not written where the next person\'s till reads');
+  assert.match(users, /\}\)\.catch\(function \(e\) \{\s*if \(S\.token !== tok\) return;/, 'nor is a failure');
   assert.match(users, /if \(btn && btn\.disabled\) return;\s*\/\/ a second tap while the first save is still on its way/);
   assert.match(users, /if \(btn\) btn\.disabled = true;\s*if \(msg\) msg\.textContent = 'Saving…';/);
   assert.match(users, /S\.payGen = \(S\.payGen \|\| 0\) \+ 1;\s*\/\/ any question asked before this is older than the save\s*S\.payNums = \{ rows: r\.rows \|\| \[\], ready: true, at: Date\.now\(\) \};/);

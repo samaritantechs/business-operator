@@ -134,7 +134,7 @@ window.BOUsers = (function () {
     if (btn) btn.disabled = false;
   }
   function savePay() {
-    var msg = document.getElementById('payNumMsg'), btn = document.getElementById('payNumSave'), numbers = [];
+    var msg = document.getElementById('payNumMsg'), btn = document.getElementById('payNumSave'), numbers = [], tok = S.token;
     if (btn && btn.disabled) return;                    // a second tap while the first save is still on its way
     document.querySelectorAll('#payNumRows .pay-edit').forEach(function (row) {
       numbers.push({ network: row.querySelector('.pay-net').value.trim(), number: row.querySelector('.pay-no').value.trim(), name: row.querySelector('.pay-name').value.trim() });
@@ -142,11 +142,16 @@ window.BOUsers = (function () {
     if (btn) btn.disabled = true;
     if (msg) msg.textContent = 'Saving…';
     srv('setPayNumbers', { numbers: numbers }).then(function (r) {
+      /* The save was made by whoever was signed in when Save was tapped. If somebody else is signed
+         in now (a shared shop phone, a slow line), its answer is not theirs: it must not become
+         the number their till shows, nor fill their editor. */
+      if (S.token !== tok) return;
       S.payGen = (S.payGen || 0) + 1;                   // any question asked before this is older than the save
       S.payNums = { rows: r.rows || [], ready: true, at: Date.now() };   // this till reads the new list at once
       paintPay(S.payNums);                              // ...and puts the Save button back
       if (msg) { msg.textContent = '✅ ' + (r.message || 'Saved'); setTimeout(function () { msg.textContent = ''; }, 6000); }
     }).catch(function (e) {
+      if (S.token !== tok) return;                      // somebody else's screen now (see above)
       /* A save that failed may have failed half way: what the till holds is no longer known to
          be true, so it is dropped and asked for again. What is TYPED here stays, to correct or to
          send again -- except when somebody else's list won (409): that one is saved, the message

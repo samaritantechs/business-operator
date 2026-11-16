@@ -1154,6 +1154,20 @@ await step('the shop\'s Lipa Namba is said at the till with the name to check, a
   if ((await editorNumbers()).split(',')[0] !== '999888') throw new Error('a failed save threw away what was typed: ' + await editorNumbers());
   await page.unroute('**/api/bo');
   await page.fill('#payNumRows .pay-edit:nth-child(1) .pay-no', '555123');          // back to the real number for the steps below
+  /* A SAVE STILL ON ITS WAY WHEN SOMEBODY ELSE SIGNS IN (a shared shop phone, a slow line). Its answer
+     must not become the next person's till, nor fill their editor. The sign-out and the next sign-in
+     are played by changing the session the page holds while the answer is held back. */
+  let release; const heldBack = new Promise(res => { release = res; });
+  await page.route('**/api/bo', async r => { if (/"setPayNumbers"/.test(r.request().postData() || '')) await heldBack; return r.continue(); });
+  const myToken = await page.evaluate(() => S.token);
+  await page.evaluate(() => { document.getElementById('payNumSave').click(); });
+  await page.evaluate(() => { S.token = 'another-business'; S.payNums = null; });
+  release();
+  await page.waitForTimeout(900);
+  const leaked = await page.evaluate(() => ({ held: S.payNums, msg: document.getElementById('payNumMsg').textContent }));
+  await page.evaluate(t => { S.token = t; }, myToken);                               // back to the real session
+  await page.unroute('**/api/bo');
+  if (leaked.held !== null || /Saved/.test(leaked.msg)) throw new Error('a save that finished after somebody else signed in reached them: ' + JSON.stringify(leaked));
   if ((await page.inputValue('#payNumRows .pay-edit:nth-child(1) .pay-no')) !== '555123') throw new Error('the saved number was not shown back as stored');
 
   const till = async shot => {

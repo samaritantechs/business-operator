@@ -189,3 +189,63 @@ test('text with no letter or digit of ours is matched as plain text, and never m
   assert.equal(m('100%'), '3', 'a number with its sign is the number');
   assert.equal(F.search(mixed, '手机').near, false);
 });
+
+/* FOUND BY A SECOND REVIEW, OF THE FIXES. */
+test('a plural of a short word, and a word with a number glued on, still say what they are', () => {
+  const tvs = [
+    { id: 1, name: 'Hisense TVs 43 inch', cat: 'Electronics' },
+    { id: 2, name: 'Smart TV43', cat: 'Electronics' },
+    { id: 3, name: 'Samsung TV 55', cat: 'Electronics' },
+    { id: 4, name: 'Plain chair', cat: 'Furniture' },
+    { id: 5, name: 'Nokia Phone5', cat: 'Phones' },
+  ];
+  const t = q => F.search(tvs, q).list.map(p => p.id).join(',');
+  for (const q of ['runinga', 'television', 'televisheni']) assert.equal(t(q), '1,2,3', q + ': "TVs", "TV43" and "TV 55" are all televisions');
+  assert.equal(t('simu'), '5', '"Phone5" is a phone');
+  assert.equal(t('kiti'), '4');
+});
+
+test('a run-together model starts where a word of the product starts: "a20" is not the end of "Nokia" and a "20"', () => {
+  const models = [
+    { id: 1, name: 'Nokia 20' }, { id: 2, name: 'Tecno Pova 10' }, { id: 3, name: 'Tecno Pova 5' },
+    { id: 4, name: 'Storage 128GB 5000mAh' }, { id: 5, name: 'Redmi Note 12 Pro' }, { id: 6, name: 'Tecno Spark 10' },
+    { id: 7, name: 'Samsung A20' }, { id: 8, name: 'Galaxy A 05' }, { id: 9, name: 'Infinix Hot 12 8GB' },
+    { id: 10, name: 'Tecno Spark 10 128 GB' }, { id: 11, name: 'USB 3.0 cable' }, { id: 12, name: 'Galaxy S23 FE' },
+    { id: 13, name: 'Galaxy S 23 FE' }, { id: 14, name: 'iPhone 15 Pro' }, { id: 15, name: 'Redmi 5 Gold' },
+  ];
+  const m = q => { const r = F.search(models, q); return (r.near ? '~' : '') + r.list.map(p => p.id).join(','); };
+  // The false matches the first version made, each a last letter of one word meeting the number after it.
+  assert.equal(m('a20'), '7', 'not Nokia 20');
+  assert.equal(m('a10'), '', 'not Tecno Pova 10');
+  assert.equal(m('a5'), '', 'not Tecno Pova 5');
+  assert.equal(m('e12'), '', 'not Redmi Note 12');
+  assert.equal(m('k10'), '', 'not Tecno Spark 10');
+  assert.equal(m('gb5'), '', 'not "128GB 5000mAh"');
+  assert.equal(m('128gb'), '4,10', 'not Hot 12 8GB');
+  // And what it is for:
+  assert.equal(m('a05'), '8', 'A 05');
+  assert.equal(m('spark10'), '6,10');
+  assert.equal(m('hot12'), '9', 'a name and its number');
+  assert.equal(m('usb3'), '11');
+  assert.equal(m('s23fe'), '12,13', 'a run of three: S 23 FE');
+  assert.equal(m('iphone15'), '14');
+  assert.equal(m('15pro'), '14', 'a number and its word');
+});
+
+test('a word that is only a name on the page\'s own objects ("constructor") is just a word', () => {
+  assert.doesNotThrow(() => F.search([{ name: 'Toy constructor set' }], 'constructor'));
+  assert.equal(F.search([{ name: 'Toy constructor set' }, { name: 'Chair' }], 'constructor').list.length, 1);
+  for (const w of ['tostring', 'valueof', 'hasownproperty', 'proto', 'prototype']) assert.doesNotThrow(() => F.search([{ name: w }, { name: 'x' }], w), w);
+  assert.deepEqual(F.sayings('constructor'), ['constructor']);
+});
+
+/* A phone keyboard turns a typed quote, dash or "..." into one non-ASCII character. That is punctuation,
+   as "!!" is: nothing typed. It is not a word in another script. */
+test('smart punctuation is nothing typed, and a letter of another script is something', () => {
+  const shelf = [{ id: 1, name: 'A' }, { id: 2, name: 'Kjøkken' }, { id: 3, name: 'Chai 😀' }, { id: 4, name: '手机' }];
+  const whole = q => F.search(shelf, q).list.length === 4;
+  for (const q of ['’', '‘', '“', '”', '–', '—', '…', '¿', '¡', '€', '×', '。', '«»', '!!']) assert.ok(whole(q), JSON.stringify(q) + ' is punctuation: the whole shelf');
+  assert.deepEqual(F.search(shelf, 'ø').list.map(p => p.id), [2], 'a letter that does not fold: plain text');
+  assert.deepEqual(F.search(shelf, '😀').list.map(p => p.id), [3], 'an emoji');
+  assert.deepEqual(F.search(shelf, '手机').list.map(p => p.id), [4]);
+});

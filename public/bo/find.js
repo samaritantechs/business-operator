@@ -13,7 +13,9 @@
    So, in this order:
 
      1. EVERY typed word must be found, anywhere, in any order -- also when the product wrote
-        it with a space the customer did not type ("128gb" finds "128 GB", "a05" finds "A 05").
+        it with a space the customer did not type ("128gb" finds "128 GB", "a05" finds "A 05",
+        "spark10" finds "Spark 10") -- but only from the start of one of its words: "a20" is
+        not the end of "Nokia" and a "20".
      2. A word is found when the product says it, OR says another word for the same thing
         (GROUPS below: English and Kiswahili side by side). The other word must be a WHOLE
         word of the product (or its plural): "pete" is a ring, and not the first letters of a
@@ -106,7 +108,7 @@ window.BOFind = (function () {
     ['baby', 'babies', 'mtoto', 'watoto'],
     ['school', 'shule']
   ];
-  var SAID = {};
+  var SAID = Object.create(null);            // not {}: a typed "constructor" must not find Object's own
   GROUPS.forEach(function (g, i) { g.forEach(function (w) { (SAID[w] = SAID[w] || []).push(i); }); });
 
   /** Lower case, accents folded, everything that is not a letter or a digit turned to a space. */
@@ -149,31 +151,48 @@ window.BOFind = (function () {
   /** How many slips a typed word is forgiven: none for a number or a short word. */
   function slack(w) { return (/\d/.test(w) || w.length < 4) ? 0 : (w.length < 7 ? 1 : 2); }
 
-  /** What a product says about itself, folded once and kept on it: the text, the same text with a
-      space between a letter and a digit taken out ("128 gb" -> "128gb", "a 05" -> "a05"; but
-      "12 8gb" stays two numbers), and its words. */
+  /** What a product says about itself, folded once and kept on it: the text, its words, and the
+      RUNS of up to three neighbouring words that meet at a letter and a digit, run together --
+      "128" "gb" -> "128gb", "a" "05" -> "a05", "spark" "10" -> "spark10", "s" "23" "fe" ->
+      "s23fe". A run, not the whole text with its spaces taken out: "Hot 12 8GB" has no "128gb"
+      in it ("12" meets "8gb" at a digit and a digit), and "Nokia 20" no "a20" (a run starts
+      where a word starts). */
   function hayOf(p) {
     if (p && p._hay) return p._hay;
-    var t = fold([p.name, p.cat, p.vendor, p.location, p.brand, p.model].join(' '));
-    var h = { text: ' ' + t + ' ', joined: t.replace(/([a-z]) (?=\d)|(\d) (?=[a-z])/g, '$1$2'), words: t ? t.split(' ') : [], said: null };
+    var t = fold([p.name, p.cat, p.vendor, p.location, p.brand, p.model].join(' ')), words = t ? t.split(' ') : [], runs = [], i, k, run, a, b;
+    for (i = 0; i < words.length; i++) {
+      run = words[i];
+      for (k = i + 1; k < words.length && k <= i + 2; k++) {
+        a = words[k - 1]; b = words[k];
+        if (!((/[a-z]$/.test(a) && /^\d/.test(b)) || (/\d$/.test(a) && /^[a-z]/.test(b)))) break;
+        run += b; runs.push(run);
+      }
+    }
+    var h = { text: ' ' + t + ' ', pairs: runs.length ? ' ' + runs.join(' ') + ' ' : '', words: words, said: null };
     try { Object.defineProperty(p, '_hay', { value: h, enumerable: false }); } catch (e) {}
     return h;
   }
-  /** The words a product SAYS: each of its words, and the singular of each. Built the first time
-      a typed word has another way of being said -- most never do, and the first keystroke on a
-      long shelf should not pay for it. */
+  /** The words a product SAYS: each of its words, with a number glued on its end taken off
+      ("tv43" says "tv"), and the singular of each ("phones", "tvs", "dresses"). Built the first
+      time a typed word has another way of being said -- most never do, and the first keystroke
+      on a long shelf should not pay for it. */
   function saidBy(h) {
     if (h.said) return h.said;
-    var said = {}, i, w;
+    var said = {}, i, j, w, forms, f, bare;
     for (i = 0; i < h.words.length; i++) {
-      w = h.words[i];
-      said[w] = 1;
-      if (w.length > 3 && w.charAt(w.length - 1) === 's') said[w.slice(0, -1)] = 1;      // phones -> phone
-      if (w.length > 4 && w.slice(-2) === 'es') said[w.slice(0, -2)] = 1;                // dresses -> dress
+      w = h.words[i]; forms = [w];
+      bare = w.replace(/\d+$/, '');
+      if (bare && bare !== w) forms.push(bare);
+      for (j = 0; j < forms.length; j++) {
+        f = forms[j];
+        said[f] = 1;
+        if (f.length > 2 && f.charAt(f.length - 1) === 's') said[f.slice(0, -1)] = 1;     // phones -> phone, tvs -> tv
+        if (f.length > 4 && f.slice(-2) === 'es') said[f.slice(0, -2)] = 1;               // dresses -> dress
+      }
     }
     return (h.said = said);
   }
-  /** A typed word that is a model or a size run together: "128gb", "a05", "s23". Letters AND a
+  /** A typed word that is a model or a size run together: "128gb", "a05", "s23fe". Letters AND a
       digit: a bare number is never made of two shorter ones ("12" and "8gb" are not "128gb"),
       and two words run together ("tshirt") are left to the near-miss pass, which says so. */
   function joinable(w) { return w.length >= 3 && /\d/.test(w) && /[a-z]/.test(w); }
@@ -183,7 +202,7 @@ window.BOFind = (function () {
   function says(hay, ways) {
     var w = ways[0];
     if (hay.text.indexOf(w) !== -1) return true;
-    if (joinable(w) && hay.joined.indexOf(w) !== -1) return true;
+    if (joinable(w) && hay.pairs.indexOf(' ' + w) !== -1) return true;      // it starts where a word of the product starts
     if (ways.length > 1) {
       var said = saidBy(hay);
       for (var i = 1; i < ways.length; i++) if (Object.prototype.hasOwnProperty.call(said, ways[i])) return true;
@@ -208,6 +227,10 @@ window.BOFind = (function () {
     return false;
   }
 
+  /* A letter of another script (Arabic, Chinese, Cyrillic...) or an emoji: not ASCII, and not in the
+     blocks of punctuation, spaces, currency and symbols that a phone keyboard turns a typed quote,
+     dash or "..." into. Those mean "nothing typed", like "!!" does. */
+  var OTHER_SCRIPT = /[^\x00-\x7f\u00a0-\u00bf\u00d7\u00f7\u2000-\u2bff\u2e00-\u2e7f\u3000-\u303f\ufe00-\ufe0f\uff00-\uff0f\uff1a-\uff20\uff3b-\uff40\uff5b-\uff65]/;
   /** The six things a product says, searched as plain text: what the box did before it understood anything. */
   function plainHas(p, raw) {
     var f = [p.name, p.cat, p.vendor, p.location, p.brand, p.model];
@@ -220,12 +243,12 @@ window.BOFind = (function () {
   function search(products, typed) {
     var qs = wordsOf(typed), list = products || [];
     if (!qs.length) {
-      /* Nothing, or punctuation ("!!"): the whole shelf, as for an empty box. But a word in another
-         script, or an emoji, is something typed that this folding cannot read -- it is matched as
-         the plain text it is, so Arabic finds Arabic and a stray "手机" finds nothing rather than
-         everything. */
+      /* Nothing, or punctuation ("!!", a smart quote, "…"): the whole shelf, as for an empty box. But
+         a word in another script, or an emoji, is something typed that this folding cannot read --
+         it is matched as the plain text it is, so Arabic finds Arabic and a stray "手机" finds
+         nothing rather than everything. */
       var raw = String(typed == null ? '' : typed).replace(/^\s+|\s+$/g, '').toLowerCase();
-      if (!/[^\x00-\x7f]/.test(raw)) return { list: list.slice(), near: false, words: [] };
+      if (!OTHER_SCRIPT.test(raw)) return { list: list.slice(), near: false, words: [] };
       return { list: list.filter(function (p) { return plainHas(p, raw); }), near: false, words: [] };
     }
     var ways = qs.map(sayings), exact = [], i;
