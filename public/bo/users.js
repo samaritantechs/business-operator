@@ -140,10 +140,15 @@ window.BOUsers = (function () {
     });
     if (msg) msg.textContent = 'Saving…';
     srv('setPayNumbers', { numbers: numbers }).then(function (r) {
-      S.payNums = { rows: r.rows || [], ready: true };           // the till reads the new list at once
+      S.payNums = { rows: r.rows || [], ready: true, at: Date.now() };   // this till reads the new list at once
       paintPay(S.payNums);
       if (msg) { msg.textContent = '✅ ' + (r.message || 'Saved'); setTimeout(function () { msg.textContent = ''; }, 6000); }
-    }).catch(function (e) { if (msg) msg.textContent = ''; BO.fail(e); });
+    }).catch(function (e) {
+      /* A save that failed may have failed half way (the old list gone, the new one not in), so
+         what this page holds is no longer known to be true: the till asks again. */
+      S.payNums = null;
+      if (msg) msg.textContent = ''; BO.fail(e);
+    });
   }
   function pinHere() {
     var box = document.getElementById('myBusinessPin'), btn = document.getElementById('myPinHere');

@@ -1144,6 +1144,38 @@ await step('the shop\'s Lipa Namba is said at the till with the name to check, a
   t = await till();
   if (!/555123/.test(t.shown.text) || !/MAMA NTILIE GROCERY/.test(t.shown.text)) throw new Error('the seller\'s till: ' + JSON.stringify(t));
   if (await page.evaluate(() => !!document.getElementById('payNumSave'))) throw new Error('a seller was offered the pay-number editor');
+  /* THE TILL HAS BEEN OPEN ALL DAY, AND THE ADMIN CORRECTS THE NUMBER FROM THE OFFICE. Within the
+     minute the till shows what it holds (it does not ask the database on every sale); once the
+     minute has passed it asks again and shows the corrected number. A wrong number that went on
+     showing until somebody signed out is the one thing this must never do. */
+  const office = await browser.newContext({ viewport: { width: 420, height: 900 } });
+  const desk = watch(await office.newPage());
+  await signInOn(desk, 'mama');
+  await desk.evaluate(() => BO.srv('setPayNumbers', { numbers: [{ network: 'M-Pesa', number: '777999', name: 'MAMA NTILIE GROCERY' }] }));
+  await office.close();
+  const choose = async () => {
+    await page.selectOption('#payMethod', 'Cash');
+    await page.selectOption('#payMethod', 'Lipa Number');
+    await page.waitForSelector('#payNumWrap .pay-no, #payNumWrap .pay-none', { timeout: 8000 });
+    return page.evaluate(() => document.getElementById('payNumWrap').innerText.replace(/\s+/g, ' '));
+  };
+  const asks = [];
+  page.on('request', q => { if (/\/api\/bo/.test(q.url()) && /"payNumbers"/.test(q.postData() || '')) asks.push(1); });
+  const within = await choose();
+  if (!/555123/.test(within) || asks.length) throw new Error('within the minute the till asked again (' + asks.length + ') or lost its number: ' + within);
+  await page.evaluate(() => { S.payNums.at -= 61000; });           // ...a minute later
+  const after = await choose();
+  if (!/777999/.test(after) || /555123/.test(after) || asks.length !== 1) throw new Error('a minute later the till still says: ' + after + ' (asked ' + asks.length + ')');
+  // The line drops: the till shows what it knew, and does not say the shop has no number.
+  await page.route('**/api/bo', r => (/"payNumbers"/.test(r.request().postData() || '') ? r.abort() : r.continue()));
+  await page.evaluate(() => { S.payNums.at -= 61000; });
+  const offline = await choose();
+  if (!/777999/.test(offline)) throw new Error('with the line down the till lost the number it knew: ' + offline);
+  // ...and a till that never had it says it could not load it -- not that none is saved.
+  await page.evaluate(() => { S.payNums = null; });
+  const never = await choose();
+  if (!/Could not load the Lipa Namba/.test(never) || /No Lipa Namba is saved/.test(never)) throw new Error('a till that could not ask says: ' + never);
+  await page.unroute('**/api/bo');
   // Another business sees none of it.
   await signIn('frank');
   await page.evaluate(() => { BO.reload('sale'); switchTab('sale'); });

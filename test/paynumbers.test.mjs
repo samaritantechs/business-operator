@@ -98,11 +98,19 @@ test('a pay number never reaches the public marketplace', async () => {
   assert.doesNotMatch(readFileSync(new URL('../api/_lib/bo/market.js', import.meta.url), 'utf8'), /pay_numbers/, 'market.js must not read the pay_numbers table');
 });
 
-test('the page keeps the answer for the session, and says the name before the PIN', async () => {
+test('the page keeps the answer for a minute and no longer, and says the name before the PIN', async () => {
   const { readFileSync } = await import('node:fs');
   const read = f => readFileSync(new URL('../public/bo/' + f, import.meta.url), 'utf8');
   const shell = read('shell.js'), sell = read('sell.js'), rcpt = read('receipt.js'), users = read('users.js');
-  assert.match(shell, /BO\.payNumbers = function \(cb, fresh\) \{\s*if \(S\.payNums && !fresh\) \{ cb\(S\.payNums\); return; \}/, 'one read a session, not one per sale');
+  /* Not one read per sale -- and not one per session either: a till stays open all day, and a
+     number the admin has just corrected has to reach it. A minute, and then it asks again. */
+  assert.match(shell, /var PAY_FRESH_MS = 60000;/);
+  assert.match(shell, /BO\.payNumbers = function \(cb, fresh\) \{\s*var held = S\.payNums;\s*if \(held && !fresh && Date\.now\(\) - held\.at < PAY_FRESH_MS\) \{ cb\(held\); return; \}/);
+  assert.match(shell, /S\.payNums = \{ rows: r\.rows \|\| \[\], ready: r\.ready !== false, at: Date\.now\(\) \}; cb\(S\.payNums\); \}\)/);
+  assert.match(shell, /\.catch\(function \(\) \{ cb\(held && !fresh \? held : \{ rows: \[\], ready: true, failed: true \}\); \}\);/,
+    'a line that drops gives the last answer again; with none held, it says it could not ask');
+  assert.match(sell, /if \(pn\.failed\) \{ box\.innerHTML = '<div class="pay-num pay-none">[^']*Could not load the Lipa Namba/, 'a shop that HAS a number is not told it has none because the line dropped');
+  assert.ok(sell.indexOf('if (pn.failed)') < sell.indexOf("? (pn.ready ? '📱 No Lipa Namba is saved yet."), 'asked before "none is saved" is said');
   assert.match(shell, /S\.loaded = \{\}; S\.entered = false; S\.payNums = null;/, 'a new sign-in forgets the last person\'s numbers');
   assert.match(shell, /S\.hints = \[\]; S\.payNums = null; store\('boToken', null\);/, 'and so does signing out');
   assert.match(sell, /showPayNumbers\(m === 'Lipa Number'\);/, 'shown only when that is how the customer is paying');
@@ -113,5 +121,6 @@ test('the page keeps the answer for the session, and says the name before the PI
      once -- and it used to come before the receipt had been drawn, with nothing to add it to. */
   assert.ok(rcpt.indexOf("body: '<div id=\"rcptSheet\"") < rcpt.indexOf("if (r.payment_method === 'Lipa Number') BO.payNumbers("), 'the sheet is drawn before the pay number is added to it');
   assert.match(rcpt, /\(r\.pay_numbers \|\| \[\]\)\.forEach\(function \(n\) \{ L\.push\('Lipa Namba: ' \+ BO\.payLine\(n\)\); \}\);/, 'and Copy / Share carry it too');
-  assert.match(users, /S\.payNums = \{ rows: r\.rows \|\| \[\], ready: true \};/, 'the till reads a newly saved list at once');
+  assert.match(users, /S\.payNums = \{ rows: r\.rows \|\| \[\], ready: true, at: Date\.now\(\) \};/, 'this till reads a newly saved list at once');
+  assert.match(users, /\}\)\.catch\(function \(e\) \{[\s\S]{0,260}S\.payNums = null;\s*if \(msg\) msg\.textContent = ''; BO\.fail\(e\);/, 'a save that failed may have failed half way: what the page holds is dropped');
 });

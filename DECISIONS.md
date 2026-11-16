@@ -145,4 +145,5 @@ Routine calls made while building, so nobody has to re-derive them. Newest at th
     checking that name before the PIN is the one habit that prevents a wrong payment — and a
     number may not be saved without it. A receipt of a sale paid that way prints the shop's
     numbers **as they stand now**: the sale never recorded which number was used. They are
-    never sent to the public marketplace.
+    never sent to the public marketplace. A till keeps the answer for one minute and no
+    longer: it stays open all day, and a number the admin has just corrected has to reach it.

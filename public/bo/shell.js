@@ -789,15 +789,20 @@ function openInBrowser(ev) {
    BO.fileDoor(inTab)        a file that is asked for now and ready in a moment. Call it AT THE
                              TAP, before the request; call .go(address, fileName) when the
                              address arrives, or .close() if it never does. */
-/* THE SHOP'S PAY NUMBERS (Lipa Namba), asked for once and kept for the session: the till needs
-   them the moment "Lipa Number" is chosen and a receipt needs them again, and neither should
-   cost a second request. `fresh` asks again -- used after an admin saves a new list. The answer
-   is { rows: [{ network, number, name }], ready } and never an error: a till that cannot read
-   them shows none, it does not stop selling. */
+/* THE SHOP'S PAY NUMBERS (Lipa Namba), for the till and the receipt. The answer is kept for a
+   minute and no longer. A till stays open all day, and a number an admin has just corrected
+   must reach it: going on showing a wrong number is the one thing this must never do. So it
+   costs at most one small read a minute, and only while somebody is choosing Lipa Number.
+   `fresh` asks now whatever is held -- the profile screen, where the list is edited. The answer
+   is { rows: [{ network, number, name }], ready } and never an error: when the line fails the
+   last answer is given again (a till that cannot check shows what it knew, it does not stop
+   selling), and with nothing held, { failed: true } so the screen can say it could not ask. */
+var PAY_FRESH_MS = 60000;
 BO.payNumbers = function (cb, fresh) {
-  if (S.payNums && !fresh) { cb(S.payNums); return; }
-  srv('payNumbers', {}).then(function (r) { S.payNums = { rows: r.rows || [], ready: r.ready !== false }; cb(S.payNums); })
-    .catch(function () { cb({ rows: [], ready: true, failed: true }); });
+  var held = S.payNums;
+  if (held && !fresh && Date.now() - held.at < PAY_FRESH_MS) { cb(held); return; }
+  srv('payNumbers', {}).then(function (r) { S.payNums = { rows: r.rows || [], ready: r.ready !== false, at: Date.now() }; cb(S.payNums); })
+    .catch(function () { cb(held && !fresh ? held : { rows: [], ready: true, failed: true }); });
 };
 /** One pay number as a line of words: "M-Pesa 123456 – FROMVILLE PHONES". */
 BO.payLine = function (n) { return n.network + ' ' + n.number + ' – ' + n.name; };

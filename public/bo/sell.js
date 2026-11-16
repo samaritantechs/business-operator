@@ -102,8 +102,9 @@ window.BOSell = (function () {
   /* WHERE THE MONEY GOES. Mobile money sent to a wrong number does not come back, so when the
      customer is about to pay by Lipa Number the till says the number, the network and -- the
      part that actually prevents the mistake -- the name their own phone will show before they
-     enter the PIN. Asked for once a session (BO.payNumbers); a shop that has saved none is told
-     where to save one, and a seller is told to ask. */
+     enter the PIN. Asked for at most once a minute (BO.payNumbers), so a corrected number reaches a
+     till that has been open all day; a shop that has saved none is told where to save one, and
+     a seller is told to ask. */
   function showPayNumbers(on) {
     var box = document.getElementById('payNumWrap'); if (!box) return;
     if (!on) { box.style.display = 'none'; return; }
@@ -111,6 +112,9 @@ window.BOSell = (function () {
     BO.payNumbers(function (pn) {
       if (document.getElementById('payMethod').value !== 'Lipa Number') return;      // they moved on while it loaded
       var rows = pn.rows || [];
+      /* It could not be asked: say that, not "none is saved" -- a shop that HAS a number must
+         not be told it has none because the line dropped. */
+      if (pn.failed) { box.innerHTML = '<div class="pay-num pay-none">📱 Lipa Namba haikupatikana – angalia mtandao kisha chagua Lipa Number tena. / Could not load the Lipa Namba – check the connection, then choose Lipa Number again.</div>'; return; }
       if (!rows.length) {
         box.innerHTML = '<div class="pay-num pay-none">' + (isAdmin()
           ? (pn.ready ? '📱 No Lipa Namba is saved yet. Add yours under <strong>Users → Business Profile</strong> and it will be shown here for your sellers to read out.'

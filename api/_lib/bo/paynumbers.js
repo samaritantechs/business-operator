@@ -26,8 +26,11 @@ import { requireAdmin } from '../auth.js';
    had not yet run that file. A table that is not there yet is simply an empty list here, and a
    save that says which file to run.
 
-   COST. One read when the till first needs them in a session (the page keeps the answer), one
-   when the profile screen opens. A save is one delete and one insert. */
+   COST. One read when a till chooses Lipa Number, and not again for a minute (the page keeps
+   the answer that long and no longer: a corrected number has to reach a till that has been
+   open all day); one when the profile screen opens. A save is one delete and one insert -- in
+   that order, so a save that fails half way leaves NO number rather than an old one beside a
+   new one: a till that shows none is safe, a till that shows a retired number is not. */
 export const MAX_PAY_NUMBERS = 3;
 const MIGRATION = 'db/RUN-ME-008';
 const pick = r => ({ network: r.network, number: r.number, name: r.name });
