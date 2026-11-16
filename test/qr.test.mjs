@@ -222,6 +222,8 @@ test('the address in the picture is this deployment\'s own, as the browser reach
   for (const bad of ['', 'evil.example/path', 'a b.example', 'user@evil.example', 'evil.example#x', 'exämple.tz', '-bad.example', 'x'.repeat(120) + '.tz', 'evil.example:99999999'])
     assert.equal(qrAddress('site', h(bad)), null, 'accepted a host it should not: ' + JSON.stringify(bad));
   assert.equal(qrAddress('nope', h('a.tz')), null);
+  for (const born of ['constructor', 'toString', '__proto__']) assert.equal(qrAddress(born, h('a.tz')), null, born + ' is not a picture');
+  assert.equal(qrAddress(['site'], h('a.tz')), null, 'and neither is anything that is not a plain word');
   assert.deepEqual(Object.keys(QR_PICTURES), ['site', 'app'], 'exactly two pictures');
 });
 
@@ -236,7 +238,9 @@ test('the route gives a file to save -- and never a code for an address somebody
   assert.equal(readCode(codeInPng(ok.body, 16, 4)).text, SITE);
   assert.equal(readCode(codeInPng(qrPicture('app', { host: 'business-operator-ivory.vercel.app' }).body, 16, 4)).text, APK);
 
-  for (const sent of ['https://evil.example/', 'SITE', '', 'site/', '../site', 'app,site']) {
+  /* The last five are names every object is born with. A plain lookup answered to them, and
+     the route drew a third picture -- of "https://<host>undefined" -- found in review. */
+  for (const sent of ['https://evil.example/', 'SITE', '', 'site/', '../site', 'app,site', 'constructor', 'toString', '__proto__', 'hasOwnProperty', 'valueOf']) {
     const r = qrPicture(sent, { host: 'business-operator-ivory.vercel.app' });
     assert.equal(r.status, 404, 'drew something for ' + JSON.stringify(sent));
     assert.match(r.headers['Content-Type'], /^text\/plain/);

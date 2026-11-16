@@ -834,9 +834,14 @@ BO.fileDoor = function (inTab) {
         return;
       }
       if (inTab) {
-        var shown = false;
-        try { if (win && !win.closed) { win.location.href = url; shown = true; } } catch (e) {}
-        if (!shown) window.location.href = url;    // new tabs are blocked here: the file opens in this one, Back returns
+        if (win) {
+          /* A tab was opened for it. If the person has closed that tab while the server was
+             working, they are not sent the file anywhere else -- least of all into THIS tab,
+             over a sale they are in the middle of. They are told, and can ask again. */
+          if (win.closed) { showToast('Ukurasa wa ripoti ulifungwa. / The report tab was closed – tap PDF again to open it.', 'ℹ️'); return; }
+          try { win.location.href = url; return; } catch (e) {}
+        }
+        window.location.href = url;                // no tab could be opened at all: it opens in this one, Back returns
         return;
       }
       saveFrame_(url);

@@ -276,6 +276,9 @@ test('a report goes through the door that was opened at the tap, under the name 
   // In a browser the tab for a PDF is opened while the tap is fresh, and cut loose from this page.
   assert.match(door, /if \(!app && inTab\) \{\s*try \{\s*win = window\.open\('', '_blank'\);\s*if \(win\) \{\s*win\.opener = null;/);
   assert.match(door, /win\.document\.close\(\);/, 'the waiting page is finished, not left spinning');
+  /* Found in review: a person who closed the "Preparing..." tab was sent the report in the APP'S
+     own tab instead, over whatever they were doing. In-place is only for no tab at all. */
+  assert.match(door, /if \(win\) \{[\s\S]*?if \(win\.closed\) \{ showToast\([^)]*tap PDF again[^)]*\); return; \}\s*try \{ win\.location\.href = url; return; \} catch \(e\) \{\}\s*\}\s*window\.location\.href = url;/);
   // A frame that loads instead of downloading is the server refusing: it is read out, not lost.
   const frame = fnSource('saveFrame_');
   assert.match(frame, /f\.onload = function \(\) \{[\s\S]*JSON\.parse\(said\)[\s\S]*BO\.fail\(new Error\(/);
@@ -304,6 +307,10 @@ test('Print works in the app that has the door, and an older app is told to upda
   assert.match(print, /if \(typeof app\.print !== 'function'\) \{ showToast\('Update the app to print from it\. For now use Copy or Share\.'/);
   assert.match(print, /document\.body\.classList\.add\('printing-receipt'\);[\s\S]*app\.print\('Receipt ' \+/);
   assert.match(print, /document\.addEventListener\('visibilitychange', back\);/, 'the receipt-only styling stays on while the phone\'s print screen is open');
+  /* Found in review: one print's three-minute backstop was left armed and went off in the middle
+     of the next print, so the whole app page was printed instead of the receipt. */
+  assert.match(print, /var off = function \(\) \{ clearTimeout\(guard\);/, 'the backstop is put out when its own print ends');
+  assert.match(print, /guard = setTimeout\(function \(\) \{ if \(!document\.hidden\) off\(\); \}, 180000\);/, 'and never fires while the print screen is still open');
   const inApp = print.slice(0, print.indexOf('window.print()'));
   assert.match(inApp, /if \(app\) \{[\s\S]*return;\s*\}/, 'window.print() is never reached inside the app, where it does nothing');
   for (const [file, src] of Object.entries(code)) if (file !== 'receipt.js') assert.doesNotMatch(src, /window\.print\(/, file + ' prints without asking whether it is in the app');

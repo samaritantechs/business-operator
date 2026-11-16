@@ -22,11 +22,18 @@ export const QR_PICTURES = {
   app: { path: '/download', file: 'samaritan-industrial-app-qr.png' },
 };
 
+/** Which of the two was asked for, or null. Its OWN names only: a plain lookup also answers to
+    every name an object is born with ("constructor", "toString", "__proto__"), and the route
+    then drew a third picture, of an address that is nobody's. */
+function pictureOf(which) {
+  return (typeof which === 'string' && Object.prototype.hasOwnProperty.call(QR_PICTURES, which)) ? QR_PICTURES[which] : null;
+}
+
 /** The address a picture carries: this deployment's own, as the browser reached it. Null when
     the host header is not a plain host name -- it is about to be drawn into a picture people
     print, so anything else is refused rather than cleaned up. */
 export function qrAddress(which, headers) {
-  const pic = QR_PICTURES[which];
+  const pic = pictureOf(which);
   if (!pic) return null;
   const h = headers || {};
   const host = String(h['x-forwarded-host'] || h.host || '').split(',')[0].trim().toLowerCase();
@@ -40,7 +47,7 @@ export function qrAddress(which, headers) {
 /** { status, headers, body } -- the picture, or a refusal in words. */
 export function qrPicture(which, headers) {
   const plain = (status, text) => ({ status, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' }, body: text });
-  const pic = QR_PICTURES[which];
+  const pic = pictureOf(which);
   if (!pic) return plain(404, 'No such code. Ask for ?qr=site or ?qr=app.');
   const address = qrAddress(which, headers);
   const png = address ? qrPng(address, { scale: 16, margin: 4 }) : null;

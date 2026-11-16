@@ -134,10 +134,15 @@ window.BORcpt = (function () {
       /* The phone lays the page out for paper WHILE its print screen is open, and again each
          time the paper size is changed there -- so the receipt-only styling has to stay on
          until this page is looked at again, not for a moment. */
-      var off = function () { document.body.classList.remove('printing-receipt'); document.removeEventListener('visibilitychange', back); };
+      var guard = null;
+      var off = function () { clearTimeout(guard); document.body.classList.remove('printing-receipt'); document.removeEventListener('visibilitychange', back); };
       var back = function () { if (!document.hidden) setTimeout(off, 600); };
       document.addEventListener('visibilitychange', back);
-      setTimeout(off, 180000);
+      /* The backstop, for a phone whose print screen never hides this page. It belongs to THIS
+         print: it is put out when the print ends (or it would go off in the middle of the next
+         one), and it does nothing while the page is hidden -- which is the print screen still
+         open, however long pairing a printer takes. */
+      guard = setTimeout(function () { if (!document.hidden) off(); }, 180000);
       try { app.print('Receipt ' + ((last && last.receipt_no) || '')); }
       catch (e) { off(); showToast('The phone would not open its print screen. Use Copy or Share.', '⚠️'); }
       return;
