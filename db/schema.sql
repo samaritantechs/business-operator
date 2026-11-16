@@ -614,7 +614,13 @@ create table if not exists pay_numbers (
   sort integer not null default 0,
   created_at timestamptz not null default now()
 );
-create index if not exists pay_numbers_vendor_idx on pay_numbers (vendor_id, sort);
+-- UNIQUE, on purpose: a save is "delete the old list, insert the new one", and two of them at
+-- the same moment (an admin who taps Save twice on a slow line, two admins, or the database
+-- being asked to repeat an insert whose answer was lost) used to leave BOTH lists in the table,
+-- the retired number beside the real one under the same name. With one line allowed per place
+-- in the list, the second insert is refused whole and the till can only ever show one list.
+-- It also serves the till's read: this business's lines, in order.
+create unique index if not exists pay_numbers_vendor_sort_uq on pay_numbers (vendor_id, sort);
 
 -- =====================================================================================
 -- DATABASE-SIDE AGGREGATES -- "ask the database, don't drag rows" (the Postgres budget).

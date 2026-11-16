@@ -118,8 +118,14 @@ Routine calls made while building, so nobody has to re-derive them. Newest at th
     typed word must be found, in any order; a word also finds its translation from a short
     fixed list (`simu` → phones, `saa` → watches…), and only when nothing matches exactly are
     near spellings offered — one letter out for a short word, two for a long one, never for
-    digits — with a line saying that these are the closest, not the thing asked for. The list
-    of words is deliberately small and literal: a wrong "translation" hides products.
+    digits and never in a short word the customer did not type — with a line saying that these
+    are the closest, not the thing asked for. The list of words is deliberately small and
+    literal: a wrong "translation" hides products. The other word has to BE a word of the
+    product (or its plural): accepted at the start of any word, `pete` (a ring) found the shop
+    Peter and `maji` (water) found Majid, every product of each shown as an exact match.
+    `128gb` finds `128 GB` because a space between a letter and a digit is bridged — and only
+    that: "Hot 12 8GB" is not a 128GB phone. Text with no letter or digit of ours in it
+    (Arabic, an emoji) is matched as plain text, never as "nothing typed".
 
 27. **The customer's first message says the price, in their language; and a shop can be reached
     without data.** The WhatsApp button used to send the product's name in English, so every
@@ -147,3 +153,12 @@ Routine calls made while building, so nobody has to re-derive them. Newest at th
     numbers **as they stand now**: the sale never recorded which number was used. They are
     never sent to the public marketplace. A till keeps the answer for one minute and no
     longer: it stays open all day, and a number the admin has just corrected has to reach it.
+    Three more rules follow from the same fact — money sent to a wrong number does not come
+    back. An answer belongs to the person who asked (a shared shop phone: the last business's
+    number is never shown to the next person to sign in). When the line drops, an answer a few
+    minutes old is shown again and an older one never is: the till says it could not load.
+    And the table allows ONE line per (business, place in the list): a save is "delete the old
+    list, insert the new one", and two of them at once — a double tap on a slow line, two
+    admins, or an insert repeated because its answer was lost — used to leave both lists in the
+    table, the retired number beside the real one under the same name. Now the second insert is
+    refused whole, and the person whose save lost is told so and shown what is saved.

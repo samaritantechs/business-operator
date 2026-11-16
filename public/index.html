@@ -82,6 +82,9 @@
 #mkMarketSection{scroll-margin-top:118px;}
 .mk-simbar{display:flex;align-items:center;gap:8px;background:var(--accent-lt);border:1px solid var(--border);color:var(--text);border-radius:12px;padding:8px 8px 8px 12px;margin-bottom:12px;font-size:.84rem;}
 .mk-simbar .mk-simtxt{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+/* The line that owns up to showing only the CLOSEST is a whole sentence in two languages, and the
+   words that matter ("the closest") are at its end: it wraps, at any width, instead of being cut. */
+.mk-simbar .mk-simtxt.mk-wrap{overflow:visible;text-overflow:clip;white-space:normal;overflow-wrap:anywhere;line-height:1.35;}
 .mk-simbar .mk-simx{margin-left:auto;flex-shrink:0;border:1px solid var(--border);background:var(--surface);color:var(--text2);border-radius:99px;padding:4px 11px;font-size:.76rem;font-weight:700;cursor:pointer;font-family:var(--font);}
 @media(max-width:768px){
   .mk-top{display:contents;}
@@ -134,6 +137,9 @@
 /* The photo lies over the bag: until it has loaded, and if it never does, the bag is what shows.
    The badges and the two buttons come after it in the card, so they stay on top of it. */
 .mk-pic{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;display:block;}
+/* Once the photograph is there the bag underneath has done its job: a cut-out with transparent
+   edges must show the card's own colour through it, not a shopping bag. */
+.mk-pic.ok{background:var(--surface2);}
 .mk-img .mk-stock{position:absolute;bottom:10px;right:8px;background:rgba(15,23,42,.78);color:#fff;font-size:.66rem;font-weight:600;padding:2px 8px;border-radius:99px;}
 .mk-img .mk-stock.out{background:rgba(180,35,24,.9);}
 .mk-fire{position:absolute;top:8px;left:8px;background:linear-gradient(135deg,#F97316,#EF4444);color:#fff;font-size:.66rem;font-weight:700;padding:2px 8px;border-radius:99px;box-shadow:0 2px 8px rgba(239,68,68,.4);}
@@ -309,7 +315,7 @@ html.bo-desktop .tb-vendor-badge{display:inline-block;}
     </div>
     <div class="mk-cats" id="mkCats"></div>
     <div id="mkSimBar" class="mk-simbar hidden"><span>🔎</span><span class="mk-simtxt" id="mkSimText"></span><button type="button" class="mk-simx" onclick="clearSimilar()">✕ Show all</button></div>
-    <div id="mkNearBar" class="mk-simbar hidden"><span>✍️</span><span class="mk-simtxt" id="mkNearText"></span></div>
+    <div id="mkNearBar" class="mk-simbar hidden"><span>✍️</span><span class="mk-simtxt mk-wrap" id="mkNearText"></span></div>
     <div id="mkProductGrid" class="mk-grid"><div class="mk-empty">Loading products…</div></div>
     <div id="mkLoadMoreWrap" style="text-align:center;margin-top:6px;"></div>
   </section>

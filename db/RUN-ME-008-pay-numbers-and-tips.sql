@@ -9,12 +9,13 @@
 --   pay_numbers   up to three numbers per business -- network, number, and the NAME the
 --                 customer's phone shows before they enter their PIN. Shown to the shop's own
 --                 sellers at the till when "Lipa Number" is chosen, and on the receipt.
---                 Never read by the public marketplace.
+--                 Never read by the public marketplace. One line per place in a business's
+--                 list (a unique index), so two saves at the same moment cannot both land.
 --
 -- WITHOUT IT nothing breaks: the till shows no number (as it always did), and Users ->
 -- Business Profile says that this file has to be run before a number can be saved.
 --
--- It is quick: one empty table and one small index. Nothing existing is rewritten.
+-- It is quick: one empty table and one small (unique) index. Nothing existing is rewritten.
 
 create table if not exists pay_numbers (
   id uuid primary key default gen_random_uuid(),
@@ -25,7 +26,13 @@ create table if not exists pay_numbers (
   sort integer not null default 0,
   created_at timestamptz not null default now()
 );
-create index if not exists pay_numbers_vendor_idx on pay_numbers (vendor_id, sort);
+-- UNIQUE, on purpose: a save is "delete the old list, insert the new one", and two of them at
+-- the same moment (an admin who taps Save twice on a slow line, two admins, or the database
+-- being asked to repeat an insert whose answer was lost) used to leave BOTH lists in the table,
+-- the retired number beside the real one under the same name. With one line allowed per place
+-- in the list, the second insert is refused whole and the till can only ever show one list.
+-- It also serves the till's read: this business's lines, in order.
+create unique index if not exists pay_numbers_vendor_sort_uq on pay_numbers (vendor_id, sort);
 
 -- Tell the API layer the table is there, without waiting for it to notice.
 notify pgrst, 'reload schema';

@@ -12,14 +12,21 @@
 
    So, in this order:
 
-     1. EVERY typed word must be found, anywhere, in any order.
+     1. EVERY typed word must be found, anywhere, in any order -- also when the product wrote
+        it with a space the customer did not type ("128gb" finds "128 GB", "a05" finds "A 05").
      2. A word is found when the product says it, OR says another word for the same thing
-        (GROUPS below: English and Kiswahili side by side).
+        (GROUPS below: English and Kiswahili side by side). The other word must be a WHOLE
+        word of the product (or its plural): "pete" is a ring, and not the first letters of a
+        shop called Peter.
      3. Only when NOTHING is found that way is a near miss let in -- one wrong letter in a
         short word, two in a long one -- and the screen says that is what it is showing.
         Never when something matched exactly: a near miss beside a real match is noise.
         Never for a number or a short word, typed or on the shelf: "A05" is not "A06", and
-        "sasa" is not "saa".
+        "sasa" is not "saa". Nor in a short word the customer did not type: they typed "ring",
+        not "pete".
+
+   Text with no letter or digit of ours in it ("手机", an emoji) cannot be understood this way,
+   and is not allowed to mean "everything": it is matched as plain text, as it always was.
 
    Nothing here talks to the server or to the page. It takes products and text and gives back
    a list, so test/find.test.mjs can hold it to every line above. ES5, like the rest. */
@@ -142,25 +149,54 @@ window.BOFind = (function () {
   /** How many slips a typed word is forgiven: none for a number or a short word. */
   function slack(w) { return (/\d/.test(w) || w.length < 4) ? 0 : (w.length < 7 ? 1 : 2); }
 
-  /** What a product says about itself, folded once and kept on it. */
+  /** What a product says about itself, folded once and kept on it: the text, the same text with a
+      space between a letter and a digit taken out ("128 gb" -> "128gb", "a 05" -> "a05"; but
+      "12 8gb" stays two numbers), and its words. */
   function hayOf(p) {
     if (p && p._hay) return p._hay;
     var t = fold([p.name, p.cat, p.vendor, p.location, p.brand, p.model].join(' '));
-    var h = { text: ' ' + t + ' ', words: t ? t.split(' ') : [] };
+    var h = { text: ' ' + t + ' ', joined: t.replace(/([a-z]) (?=\d)|(\d) (?=[a-z])/g, '$1$2'), words: t ? t.split(' ') : [], said: null };
     try { Object.defineProperty(p, '_hay', { value: h, enumerable: false }); } catch (e) {}
     return h;
   }
+  /** The words a product SAYS: each of its words, and the singular of each. Built the first time
+      a typed word has another way of being said -- most never do, and the first keystroke on a
+      long shelf should not pay for it. */
+  function saidBy(h) {
+    if (h.said) return h.said;
+    var said = {}, i, w;
+    for (i = 0; i < h.words.length; i++) {
+      w = h.words[i];
+      said[w] = 1;
+      if (w.length > 3 && w.charAt(w.length - 1) === 's') said[w.slice(0, -1)] = 1;      // phones -> phone
+      if (w.length > 4 && w.slice(-2) === 'es') said[w.slice(0, -2)] = 1;                // dresses -> dress
+    }
+    return (h.said = said);
+  }
+  /** A typed word that is a model or a size run together: "128gb", "a05", "s23". Letters AND a
+      digit: a bare number is never made of two shorter ones ("12" and "8gb" are not "128gb"),
+      and two words run together ("tshirt") are left to the near-miss pass, which says so. */
+  function joinable(w) { return w.length >= 3 && /\d/.test(w) && /[a-z]/.test(w); }
   /* The typed word itself is found anywhere inside a word ("sung" finds Samsung), exactly as
-     before. ANOTHER word for it must start a word: "saa" for "watch" must not find "Masaa". */
+     before. ANOTHER word for it must BE a word of the product, or its plural: "saa" for "watch"
+     must not find "Masaa", nor "pete" for "ring" the shop "Peter". */
   function says(hay, ways) {
-    if (hay.text.indexOf(ways[0]) !== -1) return true;
-    for (var i = 1; i < ways.length; i++) if (hay.text.indexOf(' ' + ways[i]) !== -1) return true;
+    var w = ways[0];
+    if (hay.text.indexOf(w) !== -1) return true;
+    if (joinable(w) && hay.joined.indexOf(w) !== -1) return true;
+    if (ways.length > 1) {
+      var said = saidBy(hay);
+      for (var i = 1; i < ways.length; i++) if (Object.prototype.hasOwnProperty.call(said, ways[i])) return true;
+    }
     return false;
   }
   function nearlySays(hay, ways) {
     for (var i = 0; i < ways.length; i++) {
       var w = ways[i], k = slack(w);
-      if (!k) continue;
+      /* A slip is forgiven in what was TYPED, and in a long word for it. Not in a short word the
+         customer never typed: "pete" (a ring) is one letter from the shop "Peter", "maji" (water)
+         from "Majid", and neither shop is the thing asked for. */
+      if (!k || (i > 0 && w.length < 6)) continue;
       for (var j = 0; j < hay.words.length; j++) {
         var hw = hay.words[j];
         if (hw.length < 4) continue;               // a three-letter word one letter off is another word
@@ -172,11 +208,26 @@ window.BOFind = (function () {
     return false;
   }
 
+  /** The six things a product says, searched as plain text: what the box did before it understood anything. */
+  function plainHas(p, raw) {
+    var f = [p.name, p.cat, p.vendor, p.location, p.brand, p.model];
+    for (var i = 0; i < f.length; i++) if (String(f[i] == null ? '' : f[i]).toLowerCase().indexOf(raw) !== -1) return true;
+    return false;
+  }
+
   /** products, typed text -> { list, near, words }. `near` is true when nothing matched exactly
       and the list is the closest instead; the page must say so. The order of `products` is kept. */
   function search(products, typed) {
     var qs = wordsOf(typed), list = products || [];
-    if (!qs.length) return { list: list.slice(), near: false, words: [] };
+    if (!qs.length) {
+      /* Nothing, or punctuation ("!!"): the whole shelf, as for an empty box. But a word in another
+         script, or an emoji, is something typed that this folding cannot read -- it is matched as
+         the plain text it is, so Arabic finds Arabic and a stray "手机" finds nothing rather than
+         everything. */
+      var raw = String(typed == null ? '' : typed).replace(/^\s+|\s+$/g, '').toLowerCase();
+      if (!/[^\x00-\x7f]/.test(raw)) return { list: list.slice(), near: false, words: [] };
+      return { list: list.filter(function (p) { return plainHas(p, raw); }), near: false, words: [] };
+    }
     var ways = qs.map(sayings), exact = [], i;
     for (i = 0; i < list.length; i++) {
       var hay = hayOf(list[i]), all = true;

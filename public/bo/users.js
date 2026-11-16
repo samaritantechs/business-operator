@@ -134,20 +134,29 @@ window.BOUsers = (function () {
     if (btn) btn.disabled = false;
   }
   function savePay() {
-    var msg = document.getElementById('payNumMsg'), numbers = [];
+    var msg = document.getElementById('payNumMsg'), btn = document.getElementById('payNumSave'), numbers = [];
+    if (btn && btn.disabled) return;                    // a second tap while the first save is still on its way
     document.querySelectorAll('#payNumRows .pay-edit').forEach(function (row) {
       numbers.push({ network: row.querySelector('.pay-net').value.trim(), number: row.querySelector('.pay-no').value.trim(), name: row.querySelector('.pay-name').value.trim() });
     });
+    if (btn) btn.disabled = true;
     if (msg) msg.textContent = 'Saving…';
     srv('setPayNumbers', { numbers: numbers }).then(function (r) {
+      S.payGen = (S.payGen || 0) + 1;                   // any question asked before this is older than the save
       S.payNums = { rows: r.rows || [], ready: true, at: Date.now() };   // this till reads the new list at once
-      paintPay(S.payNums);
+      paintPay(S.payNums);                              // ...and puts the Save button back
       if (msg) { msg.textContent = '✅ ' + (r.message || 'Saved'); setTimeout(function () { msg.textContent = ''; }, 6000); }
     }).catch(function (e) {
-      /* A save that failed may have failed half way (the old list gone, the new one not in), so
-         what this page holds is no longer known to be true: the till asks again. */
-      S.payNums = null;
-      if (msg) msg.textContent = ''; BO.fail(e);
+      /* A save that failed may have failed half way: what the till holds is no longer known to
+         be true, so it is dropped and asked for again. What is TYPED here stays, to correct or to
+         send again -- except when somebody else's list won (409): that one is saved, the message
+         says so, and the editor is brought to it (paintPay puts the Save button back; if that
+         read fails too the button stays off, because there is then nothing to save from). */
+      S.payGen = (S.payGen || 0) + 1; S.payNums = null;
+      if (msg) msg.textContent = '';
+      BO.fail(e);
+      if (e && e.status === 409) loadPay();
+      else if (btn) btn.disabled = false;
     });
   }
   function pinHere() {

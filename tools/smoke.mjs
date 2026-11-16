@@ -1063,6 +1063,12 @@ await step('the search understands both languages and a slip; the first message 
   if (!two.names.length || !two.names.every(n => /Samsung/i.test(n) && /Galaxy/i.test(n))) throw new Error('"galaxy samsung": ' + JSON.stringify(two));
   const slip = await type('samsng');                     // a slip of the thumb, and it says so
   if (!slip.names.length || !slip.near || !/samsng/.test(slip.note) || !slip.names.every(n => /Samsung/i.test(n))) throw new Error('"samsng": ' + JSON.stringify(slip));
+  // The sentence that owns up to "only the closest" is read in full on a phone: it wraps, it is not cut off.
+  const nearLine = await shop.evaluate(() => { const t = document.getElementById('mkNearText'), cs = getComputedStyle(t); return { ws: cs.whiteSpace, cut: t.scrollWidth > t.clientWidth + 1 || t.scrollHeight > t.clientHeight + 1, h: Math.round(t.getBoundingClientRect().height), page: document.documentElement.scrollWidth, text: t.textContent }; });
+  if (nearLine.ws !== 'normal' || nearLine.cut || nearLine.h < 30 || nearLine.page > 360 || !/the closest\.$/.test(nearLine.text)) throw new Error('the closest line on a phone: ' + JSON.stringify(nearLine));
+  await shop.evaluate(() => document.getElementById('mkNearBar').scrollIntoView({ block: 'center' }));
+  await shop.waitForTimeout(500);                  // the page scrolls smoothly
+  await shop.screenshot({ path: OUT + '10d-closest-line.png' });
   const none = await type('zzzqqq');
   if (none.names.length || none.near) throw new Error('"zzzqqq" found: ' + JSON.stringify(none));
   const back = await type('');
@@ -1072,6 +1078,7 @@ await step('the search understands both languages and a slip; the first message 
   const pic = await shop.evaluate(() => { const i = Array.from(document.querySelectorAll('#mkProductGrid img.mk-pic')).find(x => /_t\.jpg/.test(x.getAttribute('src'))); return i ? { src: i.getAttribute('src'), lazy: i.getAttribute('loading'), full: i.getAttribute('data-full') } : null; });
   if (!pic || pic.lazy !== 'lazy' || !/\/V1\/P1-1_t\.jpg\?v=\d+$/.test(pic.src) || !/\/V1\/P1-1\.png\?v=\d+&t=1$/.test(pic.full)) throw new Error('the card photo: ' + JSON.stringify(pic));
   await shop.waitForFunction(() => { const i = document.querySelector('#mkProductGrid img.mk-pic'); return i && i.complete && i.naturalWidth > 0; }, null, { timeout: 8000 });
+  if (!(await shop.evaluate(() => /(^| )ok( |$)/.test(document.querySelector('#mkProductGrid img.mk-pic').className)))) throw new Error('a loaded photo did not take the card colour behind it (a transparent cut-out would show the bag)');
   if (!asked.some(u => /P1-1_t\.jpg/.test(u)) || asked.some(u => /P1-1\.png/.test(u))) throw new Error('the grid fetched the photograph instead of the small copy: ' + JSON.stringify(asked.filter(u => /P1-1/.test(u))));
 
   // Open that product: the first message is in Kiswahili and carries the price; Call and SMS are there.
@@ -1112,8 +1119,41 @@ await step('the shop\'s Lipa Namba is said at the till with the name to check, a
   await page.waitForFunction(() => /name the customer/.test(document.getElementById('hintText').textContent), null, { timeout: 8000 });
   await page.fill('#payNumRows .pay-edit:nth-child(1) .pay-name', 'MAMA NTILIE GROCERY');
   await page.evaluate(() => toastHide_());
-  await page.click('#payNumSave');
+  // A thumb on a slow line taps Save three times. One save goes out, and the button comes back when it is done.
+  let saves = 0; const countSaves = q => { if (/\/api\/bo/.test(q.url()) && /"setPayNumbers"/.test(q.postData() || '')) saves++; };
+  page.on('request', countSaves);
+  await page.evaluate(() => { const b = document.getElementById('payNumSave'); b.click(); b.click(); b.click(); });
   await page.waitForFunction(() => /Saved/.test(document.getElementById('payNumMsg').textContent), null, { timeout: 8000 });
+  page.off('request', countSaves);
+  if (saves !== 1) throw new Error('three taps on Save sent ' + saves + ' saves');
+  if (await page.evaluate(() => document.getElementById('payNumSave').disabled)) throw new Error('the Save button did not come back after the save');
+  /* WHEN THE SAVE DOES NOT GO THROUGH. (The dev database has no unique index, so the answers are played.)
+     Somebody else's list won (409): the message says so and the editor is brought to what is saved.
+     Anything else: what was typed stays, and Save comes back to send it again. */
+  const editorNumbers = () => page.evaluate(() => Array.from(document.querySelectorAll('#payNumRows .pay-edit .pay-no')).map(i => i.value).join(','));
+  const toastText = () => page.evaluate(() => document.getElementById('hintText').textContent);
+  await page.fill('#payNumRows .pay-edit:nth-child(1) .pay-no', '999888');
+  let mode = '409';
+  await page.route('**/api/bo', r => {
+    const body = r.request().postData() || '';
+    if (/"setPayNumbers"/.test(body)) return mode === '409'
+      ? r.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'Somebody else saved the pay numbers at the same moment. The list on your screen has been refreshed.' }) })
+      : r.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'The database is briefly unreachable.' }) });
+    return r.continue();
+  });
+  await page.evaluate(() => toastHide_());
+  await page.click('#payNumSave');
+  await page.waitForFunction(() => /Somebody else saved/.test(document.getElementById('hintText').textContent), null, { timeout: 8000 });
+  await page.waitForFunction(() => { const b = document.getElementById('payNumSave'); return b && !b.disabled && document.querySelector('#payNumRows .pay-edit .pay-no').value === '555123'; }, null, { timeout: 8000 });
+  mode = '500';
+  await page.fill('#payNumRows .pay-edit:nth-child(1) .pay-no', '999888');
+  await page.evaluate(() => toastHide_());
+  await page.click('#payNumSave');
+  await page.waitForFunction(() => /briefly unreachable/.test(document.getElementById('hintText').textContent), null, { timeout: 8000 });
+  await page.waitForFunction(() => { const b = document.getElementById('payNumSave'); return b && !b.disabled; }, null, { timeout: 8000 });
+  if ((await editorNumbers()).split(',')[0] !== '999888') throw new Error('a failed save threw away what was typed: ' + await editorNumbers());
+  await page.unroute('**/api/bo');
+  await page.fill('#payNumRows .pay-edit:nth-child(1) .pay-no', '555123');          // back to the real number for the steps below
   if ((await page.inputValue('#payNumRows .pay-edit:nth-child(1) .pay-no')) !== '555123') throw new Error('the saved number was not shown back as stored');
 
   const till = async shot => {

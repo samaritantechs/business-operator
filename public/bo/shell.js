@@ -789,20 +789,42 @@ function openInBrowser(ev) {
    BO.fileDoor(inTab)        a file that is asked for now and ready in a moment. Call it AT THE
                              TAP, before the request; call .go(address, fileName) when the
                              address arrives, or .close() if it never does. */
-/* THE SHOP'S PAY NUMBERS (Lipa Namba), for the till and the receipt. The answer is kept for a
-   minute and no longer. A till stays open all day, and a number an admin has just corrected
-   must reach it: going on showing a wrong number is the one thing this must never do. So it
-   costs at most one small read a minute, and only while somebody is choosing Lipa Number.
-   `fresh` asks now whatever is held -- the profile screen, where the list is edited. The answer
-   is { rows: [{ network, number, name }], ready } and never an error: when the line fails the
-   last answer is given again (a till that cannot check shows what it knew, it does not stop
-   selling), and with nothing held, { failed: true } so the screen can say it could not ask. */
-var PAY_FRESH_MS = 60000;
+/* THE SHOP'S PAY NUMBERS (Lipa Namba), for the till and the receipt. Money sent to a wrong
+   number does not come back, so what this hands out is held to three rules:
+
+   FRESH.   The answer is kept for a minute and no longer. A till stays open all day, and a
+            number an admin has just corrected must reach it. At most one small read a minute,
+            and only while somebody is choosing Lipa Number. `fresh` asks now whatever is held
+            (the profile screen, where the list is edited).
+   YOURS.   An answer belongs to the person who asked. If somebody else has signed in on this
+            phone since (a shared shop phone), the answer is dropped, not stored: the next
+            till must never read the last business's number. And an answer to a question asked
+            BEFORE a save finished is older than the save: the question is asked again.
+   HONEST.  When the line drops, what was held is given again only if it is a few minutes old;
+            older than that, or nothing held, the answer is { failed: true } and the screen says
+            it could not load -- never "none is saved" to a shop that has one, and never an
+            all-day-old number as if it were current.
+
+   The answer is { rows: [{ network, number, name }], ready } (never an error), given to `cb`
+   once. If `cb` itself fails it is not called a second time. */
+var PAY_FRESH_MS = 60000, PAY_GRACE_MS = 300000;
 BO.payNumbers = function (cb, fresh) {
-  var held = S.payNums;
+  var held = S.payNums, gen = S.payGen || 0, tok = S.token;
   if (held && !fresh && Date.now() - held.at < PAY_FRESH_MS) { cb(held); return; }
-  srv('payNumbers', {}).then(function (r) { S.payNums = { rows: r.rows || [], ready: r.ready !== false, at: Date.now() }; cb(S.payNums); })
-    .catch(function () { cb(held && !fresh ? held : { rows: [], ready: true, failed: true }); });
+  srv('payNumbers', {}).then(function (r) {
+    if (S.token !== tok) return null;                                  // another person is signed in now
+    if ((S.payGen || 0) !== gen) return false;                         // a save finished meanwhile: ask again
+    S.payNums = { rows: r.rows || [], ready: r.ready !== false, at: Date.now() };
+    return S.payNums;
+  }, function () {
+    if (S.token !== tok) return null;
+    var now = S.payNums;
+    return (now && !fresh && Date.now() - now.at < PAY_GRACE_MS) ? now : { rows: [], ready: true, failed: true };
+  }).then(function (got) {
+    if (got === null) return;                                          // the screen that asked is gone
+    if (got === false) { BO.payNumbers(cb, true); return; }
+    cb(got);
+  });
 };
 /** One pay number as a line of words: "M-Pesa 123456 – FROMVILLE PHONES". */
 BO.payLine = function (n) { return n.network + ' ' + n.number + ' – ' + n.name; };
@@ -1067,7 +1089,10 @@ function loadMarketplace() {
     checkAppUpdate(_market.release);          // and a nag, only for a phone running an older APK
     if (S.screen === 'landing') { startHintTimer(d.hints || [], d.timings); _mkTipped = true; }
   })
-    .catch(function () { var g = document.getElementById('mkProductGrid'); if (g) g.innerHTML = '<div class="mk-empty">Could not load marketplace. Tap ↻ to retry.</div>'; });
+    .catch(function () {
+      var g = document.getElementById('mkProductGrid'); if (g) g.innerHTML = '<div class="mk-empty">Could not load marketplace. Tap ↻ to retry.</div>';
+      _mkNear = ''; paintMkNear_();                    // "these are the closest" must not stay over an error box
+    });
 }
 function renderMarket() {
   var prods = _market.products || [], vends = _market.vendors || [], cats = {};
@@ -1287,7 +1312,7 @@ function renderMarketPage() {
        has one. If the small one will not load the photograph is tried; if that will not either,
        the picture is taken away and the bag underneath shows -- never a broken-image icon. */
     var imgHtml = '<div class="mk-img"><span class="mk-ph">🛍️</span>'
-      + (img ? '<img class="mk-pic" loading="lazy" decoding="async" alt="" src="' + esc(mkThumb_(img)) + '" data-full="' + esc(img) + '" onerror="mkPicFailed_(this)">' : '');
+      + (img ? '<img class="mk-pic" loading="lazy" decoding="async" alt="" src="' + esc(mkThumb_(img)) + '" data-full="' + esc(img) + '" onload="this.className+=\' ok\'" onerror="mkPicFailed_(this)">' : '');
     imgHtml += (p.stock > 0 ? '<span class="mk-stock">' + (isRent ? 'Available' : 'In stock') + '</span>' : '<span class="mk-stock out">' + (isRent ? 'Booked' : 'Out') + '</span>') + (p.hot ? '<span class="mk-fire">🔥 Hot</span>' : '')
       + '<button type="button" class="mk-ibtn mk-save' + (fav ? ' on' : '') + '" data-fav="' + esc(p.id) + '" aria-pressed="' + (fav ? 'true' : 'false') + '" aria-label="Save to Favorites" title="' + (fav ? 'Saved — tap to remove' : 'Save to Favorites') + '" onclick="toggleFav(event,' + gi + ')">' + MK_SAVE_SVG + '</button>'
       + '<button type="button" class="mk-ibtn mk-lens" aria-label="Find similar products" title="Find similar products" onclick="findSimilar(event,' + gi + ')">' + MK_LENS_SVG + '</button>'
@@ -1306,12 +1331,20 @@ function loadMoreMarket() { _mkShown += _mkPageSize; renderMarketPage(); }
    chosen English: the language of the EN/SW button when it has been pressed, otherwise
    Kiswahili for a shop that prices in shillings and English for any other. One sentence, used
    by the WhatsApp button and the SMS button alike. */
-function mkSpeaksSwahili_(p) { var chosen = load('boLangPick'); return chosen ? chosen === 'sw' : (p.currency || 'TZS') === 'TZS'; }
+function mkSpeaksSwahili_(p) {
+  /* A language button that was PRESSED is boLangPick. Before that was recorded, a press was kept
+     only as the page's language (boLang) -- and the page starts in English, so a stored "sw" can
+     only have come from a press and counts; a stored "en" may be the default and does not. */
+  var chosen = load('boLangPick') || (load('boLang') === 'sw' ? 'sw' : '');
+  return chosen ? chosen === 'sw' : (p.currency || 'TZS') === 'TZS';
+}
 function mkAskText_(p) {
-  var price = fmtFull(p.price) + ' ' + (p.currency || 'TZS') + (((p.listingType || 'Sale') === 'Rent' && p.priceUnit) ? ' ' + p.priceUnit : '');
+  /* A product with no price (0, or none given: a shop may list "ask me") does not say "at 0 TZS":
+     that tells the shop the customer expects it for nothing. The sentence simply leaves the price out. */
+  var price = Number(p.price) > 0 ? fmtFull(p.price) + ' ' + (p.currency || 'TZS') + (((p.listingType || 'Sale') === 'Rent' && p.priceUnit) ? ' ' + p.priceUnit : '') : '';
   return mkSpeaksSwahili_(p)
-    ? 'Habari ' + p.vendor + ', nimeona "' + p.name + '" kwa ' + price + ' kwenye soko la Samaritan Industrial. Je, bado ipo?'
-    : 'Hello ' + p.vendor + ', I saw "' + p.name + '" at ' + price + ' on the Samaritan Industrial marketplace. Is it still available?';
+    ? 'Habari ' + p.vendor + ', nimeona "' + p.name + '"' + (price ? ' kwa ' + price : '') + ' kwenye soko la Samaritan Industrial. Je, bado ipo?'
+    : 'Hello ' + p.vendor + ', I saw "' + p.name + '"' + (price ? ' at ' + price : '') + ' on the Samaritan Industrial marketplace. Is it still available?';
 }
 function openProductDetail(idx) {
   var p = _market.products[idx]; if (!p) return;

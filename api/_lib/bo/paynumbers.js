@@ -1,4 +1,4 @@
-import { rows, insertMany, remove, badRequest, missingTable, notMigrated, text, isManagerLevel, requireVendorUser } from './_shared.js';
+import { rows, insertMany, remove, badRequest, missingTable, notMigrated, text, isManagerLevel, requireVendorUser, AppError } from './_shared.js';
 import { requireAdmin } from '../auth.js';
 
 /* =====================================================================================
@@ -30,9 +30,17 @@ import { requireAdmin } from '../auth.js';
    the answer that long and no longer: a corrected number has to reach a till that has been
    open all day); one when the profile screen opens. A save is one delete and one insert -- in
    that order, so a save that fails half way leaves NO number rather than an old one beside a
-   new one: a till that shows none is safe, a till that shows a retired number is not. */
+   new one: a till that shows none is safe, a till that shows a retired number is not.
+
+   ONE LIST AT A TIME. The two statements are not one transaction, so two saves at the same
+   moment could each delete and then both insert, leaving both lists in the table. The unique
+   index of db/RUN-ME-008 (one line per place in a business's list) makes the second insert
+   fail whole instead. The same refusal is what answers an insert that ran twice because its
+   first answer was lost (runQuery asks again): the table is then asked what it holds, and a
+   list that is exactly ours is a save that worked. */
 export const MAX_PAY_NUMBERS = 3;
 const MIGRATION = 'db/RUN-ME-008';
+const UNIQUE_VIOLATION = '23505';              // Postgres: a unique index refused the row (PostgREST passes the code on)
 const pick = r => ({ network: r.network, number: r.number, name: r.name });
 
 /** What was typed -> rows to store. A line left wholly empty is no line; a line half filled is
@@ -85,7 +93,14 @@ export const FN = {
       await insertMany(db, 'pay_numbers', list.map((r, i) => ({ vendor_id: vendorId, network: r.network, number: r.number, name: r.name, sort: i })));
     } catch (e) {
       if (missingTable(e)) throw badRequest(notMigrated('the pay numbers', MIGRATION));
-      throw e;
+      if (String(e && e.code || '') !== UNIQUE_VIOLATION) throw e;
+      /* The index refused the insert: another list is in the table, or ours is (see above). Say
+         which -- never "saved" over somebody else's list, never "somebody else" over our own. */
+      const held = (await FN.payNumbers(db, user)).rows;
+      const ours = held.length === list.length && held.every((r, i) => r.network === list[i].network && r.number === list[i].number && r.name === list[i].name);
+      if (!ours) throw new AppError(
+        'Mtu mwingine amehifadhi Lipa Namba wakati huohuo. Orodha kwenye skrini imesasishwa – iangalie, kisha hifadhi tena kama bado inahitaji kubadilishwa. / '
+        + 'Somebody else saved the pay numbers at the same moment. The list on your screen has been refreshed to what is saved – check it, and save again if it still needs changing.', 409);
     }
     return {
       rows: list,

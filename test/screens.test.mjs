@@ -353,8 +353,8 @@ test('"Use my current location" tries the satellites, then what the phone alread
 
 /* ---- the shopfront: what the customer says first, and what a card costs to draw ------- */
 test('the first message carries the price, in Kiswahili unless the customer chose English', () => {
-  const ask = (p, picked) => new Function('load', 'fmtFull', fnSource('mkSpeaksSwahili_') + '\n' + fnSource('mkAskText_') + '\nreturn mkAskText_;')(
-    k => (k === 'boLangPick' ? (picked || '') : 'en'),            // boLang itself is always set; only a PRESSED button counts
+  const ask = (p, picked, stored) => new Function('load', 'fmtFull', fnSource('mkSpeaksSwahili_') + '\n' + fnSource('mkAskText_') + '\nreturn mkAskText_;')(
+    k => (k === 'boLangPick' ? (picked || '') : (stored || 'en')),   // boLang itself is always set; only a PRESSED button counts
     n => Number(n).toLocaleString('en-US'))(p);
   const watch = { vendor: 'Baraka Shop', name: 'Quartz Wrist Watch', price: 45000, currency: 'TZS' };
   assert.equal(ask(watch), 'Habari Baraka Shop, nimeona "Quartz Wrist Watch" kwa 45,000 TZS kwenye soko la Samaritan Industrial. Je, bado ipo?');
@@ -362,6 +362,17 @@ test('the first message carries the price, in Kiswahili unless the customer chos
   assert.match(ask({ ...watch, currency: 'KES' }), /^Hello /, 'a shop that does not price in shillings is written to in English');
   assert.match(ask({ ...watch, currency: 'KES' }, 'sw'), /^Habari /, 'unless the customer chose Kiswahili');
   assert.match(ask({ vendor: 'Lodge', name: 'Room', price: 50000, currency: 'TZS', listingType: 'Rent', priceUnit: 'per night' }, 'en'), /at 50,000 TZS per night on/);
+  /* FOUND BY A REVIEW. A customer who pressed SW before the press was recorded apart has only
+     boLang = "sw" -- and the page starts in English, so that can only be a press. A stored "en"
+     may be the default and says nothing; a press made since beats either. */
+  assert.match(ask({ ...watch, currency: 'KES' }, '', 'sw'), /^Habari /, 'a Kiswahili press from before is still a press');
+  assert.match(ask({ ...watch, currency: 'KES' }, '', 'en'), /^Hello /, 'a stored "en" is not');
+  assert.match(ask(watch, 'en', 'sw'), /^Hello /, 'and a later press of EN beats the old one');
+  /* A product with no price does not tell the shop the customer expects it for nothing. */
+  for (const price of [0, null, undefined, '', 'abc', -5]) {
+    assert.equal(ask({ ...watch, price }), 'Habari Baraka Shop, nimeona "Quartz Wrist Watch" kwenye soko la Samaritan Industrial. Je, bado ipo?', 'price ' + price);
+    assert.equal(ask({ ...watch, price }, 'en'), 'Hello Baraka Shop, I saw "Quartz Wrist Watch" on the Samaritan Industrial marketplace. Is it still available?');
+  }
   // A language button that was PRESSED is remembered apart from the default the page paints at every open.
   assert.match(fnSource('setLang'), /if \(picked\) store\('boLangPick', l\);/);
   assert.match(fnSource('toggleLang'), /setLang\(S\.lang === 'sw' \? 'en' : 'sw', true\);/);
@@ -391,7 +402,11 @@ test('a customer with airtime and no bundle can still reach the shop: Call and S
 
 test('a card\'s photo is fetched when it is looked at, and small where the shop\'s photo has a small copy', () => {
   const page = fnSource('renderMarketPage');
-  assert.match(page, /<img class="mk-pic" loading="lazy" decoding="async" alt="" src="' \+ esc\(mkThumb_\(img\)\) \+ '" data-full="' \+ esc\(img\) \+ '" onerror="mkPicFailed_\(this\)">/);
+  assert.match(page, /<img class="mk-pic" loading="lazy" decoding="async" alt="" src="' \+ esc\(mkThumb_\(img\)\) \+ '" data-full="' \+ esc\(img\) \+ '" onload="this\.className\+=\\' ok\\'" onerror="mkPicFailed_\(this\)">/);
+  /* FOUND BY A REVIEW. The bag sits UNDER the photograph, so a photograph with transparent edges
+     (a small cut-out PNG is stored as it is) showed a shopping bag through them. Once it has
+     loaded, the photograph paints the card's own colour behind itself. */
+  assert.match(html, /\.mk-pic\.ok\{background:var\(--surface2\);\}/);
   assert.doesNotMatch(page, /background-image:url/, 'a background is fetched for every card at once, at full size');
   assert.match(page, /<span class="mk-ph">🛍️<\/span>/, 'the bag is underneath, for a photo that never arrives');
   const failed = fnSource('mkPicFailed_');
@@ -407,6 +422,13 @@ test('the search box understands, and owns up when it is only showing the closes
   assert.match(filter, /else list = list\.filter\(/, 'a page whose search script did not load still searches the plain way');
   assert.match(fnSource('paintMkNear_'), /var on = !!_mkNear && \(_mkFiltered \|\| \[\]\)\.length > 0;/);
   assert.match(html, /<div id="mkNearBar" class="mk-simbar hidden">/);
+  /* FOUND BY A REVIEW. The line is a sentence in two languages and shared the one-line, cut-off
+     style of the short "Similar to" bar, so on a phone only its first half showed and the words
+     that matter -- "the closest" -- were never seen. */
+  assert.match(html, /<span class="mk-simtxt mk-wrap" id="mkNearText">/);
+  assert.match(html, /\.mk-simbar \.mk-simtxt\.mk-wrap\{overflow:visible;text-overflow:clip;white-space:normal;/);
+  // ...and it does not stay over the error box when a refresh of the marketplace fails.
+  assert.match(shell, /Could not load marketplace\. Tap ↻ to retry\.<\/div>';\s*_mkNear = ''; paintMkNear_\(\);/);
   assert.match(html, /<script src="\/bo\/shell\.js"><\/script>\s*<script src="\/bo\/find\.js"><\/script>/);
 });
 

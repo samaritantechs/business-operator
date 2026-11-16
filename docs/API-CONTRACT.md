@@ -167,8 +167,8 @@ Exports `buildBoot(db, user, nowMs)` used by account.login / me.
 ### paynumbers — `paynumbers.js` (Lipa Namba: the numbers a shop is paid on)
 | fn | args | returns |
 |---|---|---|
-| `payNumbers` | `{}` | `{ rows: [{ network, number, name }], ready }` — anybody in a business (a manager account has none: 400). At most three, in the order saved. `name` is what the customer's phone shows before the PIN. `ready` is false on a database that has not run `db/RUN-ME-008` (the list is then empty, not an error). 1 read; the page keeps the answer for one minute and no longer (`BO.payNumbers`), so a corrected number reaches a till that has been open all day |
-| `setPayNumbers` | `{ numbers: [{ network, number, name }] }` | `{ rows, message }` (admin, own business). The list REPLACES what was saved; `[]` clears it; a line left wholly empty is no line. `number` is stored as digits only (spaces and dashes dropped; 4 to 15 digits), `network` ≤ 30 letters, `name` ≤ 60 and required — a fault is named with its line (`Line 2: …`). At most 3. 1 delete + 1 insert, in that order: a save that fails half way leaves no number, never an old one beside a new one. Without `db/RUN-ME-008`: 400 naming that file |
+| `payNumbers` | `{}` | `{ rows: [{ network, number, name }], ready }` — anybody in a business (a manager account has none: 400). At most three, in the order saved. `name` is what the customer's phone shows before the PIN. `ready` is false on a database that has not run `db/RUN-ME-008` (the list is then empty, not an error). 1 read; the page keeps the answer for one minute and no longer (`BO.payNumbers`), so a corrected number reaches a till that has been open all day. An answer belongs to the person who asked (dropped if somebody else has signed in since) and is older than any save that finished meanwhile (asked again); when the line drops, an answer under five minutes old is given again, an older one never — `{ failed: true }` instead |
+| `setPayNumbers` | `{ numbers: [{ network, number, name }] }` | `{ rows, message }` (admin, own business). The list REPLACES what was saved; `[]` clears it; a line left wholly empty is no line. `number` is stored as digits only (spaces and dashes dropped; 4 to 15 digits), `network` ≤ 30 letters, `name` ≤ 60 and required — a fault is named with its line (`Line 2: …`). At most 3. 1 delete + 1 insert, in that order: a save that fails half way leaves no number, never an old one beside a new one. `pay_numbers` has a unique index on `(vendor_id, sort)`, so two saves at the same moment cannot both land: the second insert is refused whole and the answer is **409** `Somebody else saved the pay numbers at the same moment…` — unless the table then holds exactly the list that was being saved (an insert that landed, whose answer was lost and which was asked again), which is a save that worked. Without `db/RUN-ME-008`: 400 naming that file |
 
 Never part of the public marketplace: `market.js` does not read `pay_numbers`
 (`test/paynumbers.test.mjs` fails if it ever does).
@@ -230,8 +230,11 @@ has a small copy beside it (see `uploadProductImage`): the grid shows that one (
 only when the card is scrolled to, and the product's own view shows the photograph.
 
 Searching is done by the page, over the list it already holds (`public/bo/find.js`, `BOFind`):
-every typed word must be found (in either language — `simu` finds phones), and only when nothing
-matches exactly are near spellings offered, and said to be so. No request is made per keystroke.
+every typed word must be found (in either language — `simu` finds phones; the other word must be a
+whole word of the product or its plural, never the first letters of a shop's name), `128gb` finds
+`128 GB`, and only when nothing matches exactly are near spellings offered, and said to be so.
+Text in a script the folding cannot read (Arabic, an emoji) is matched as plain text. No request is
+made per keystroke.
 
 ## 5. The page side
 

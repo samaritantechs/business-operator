@@ -110,7 +110,8 @@ window.BOSell = (function () {
     if (!on) { box.style.display = 'none'; return; }
     box.style.display = ''; box.innerHTML = '<div class="pay-num muted small">Loading the Lipa Namba…</div>';
     BO.payNumbers(function (pn) {
-      if (document.getElementById('payMethod').value !== 'Lipa Number') return;      // they moved on while it loaded
+      var chosen = document.getElementById('payMethod');
+      if (!chosen || chosen.value !== 'Lipa Number') return;      // they moved on (or left the till) while it loaded
       var rows = pn.rows || [];
       /* It could not be asked: say that, not "none is saved" -- a shop that HAS a number must
          not be told it has none because the line dropped. */
