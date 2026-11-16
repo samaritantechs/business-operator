@@ -286,6 +286,8 @@ const TIP_FILES = [
     words: ['opens on the marketplace', 'bottom of the ☰ menu', 'the way you say it', 'also counts products that have run out',
       'leaves out the columns', 'also lets its owner sign in', 'Have a shop here', 'Save this code as a picture',
       'saved in the Downloads', 'opens the print screen'] },
+  { file: 'RUN-ME-008-pay-numbers-and-tips.sql', atLeast: 7,
+    words: ['Search in English or Kiswahili', 'No data bundle', 'save your Lipa Namba', 'open faster on the marketplace', 'paying by Lipa Number'] },
 ];
 for (const { file, atLeast, words } of TIP_FILES) {
   test('every tip db/' + file.slice(0, 10) + ' adds is word for word a built-in tip of the same role', async () => {

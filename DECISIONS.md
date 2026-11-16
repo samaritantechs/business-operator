@@ -112,3 +112,37 @@ Routine calls made while building, so nobody has to re-derive them. Newest at th
     phone's print screen (`SamaritanApp.print`). `test/screens.test.mjs` fails if a screen
     opens a window, saves an in-page file or prints on its own. The app's own update download
     is deliberately left exactly as it was.
+
+26. **The marketplace search runs on the page, forgives a slip and reads both languages.** The
+    list is already on the phone, so a search costs no request (`public/bo/find.js`). Every
+    typed word must be found, in any order; a word also finds its translation from a short
+    fixed list (`simu` → phones, `saa` → watches…), and only when nothing matches exactly are
+    near spellings offered — one letter out for a short word, two for a long one, never for
+    digits — with a line saying that these are the closest, not the thing asked for. The list
+    of words is deliberately small and literal: a wrong "translation" hides products.
+
+27. **The customer's first message says the price, in their language; and a shop can be reached
+    without data.** The WhatsApp button used to send the product's name in English, so every
+    conversation began with "which one?". It now carries the price the customer saw, in
+    Kiswahili unless they pressed the language button (a shop that prices in another currency
+    gets English). The same sentence goes in an SMS, and the same number can be called: a
+    customer with airtime and no bundle cannot open WhatsApp at all. Four buttons do not fit
+    one line of a phone as words side by side, a button that is only a picture leaves people
+    guessing, and two lines covered the price — so each button is its picture above its word
+    (`.pd-go`), measured at 320 and 360px.
+
+28. **Every new photo is saved twice: the photograph, and a 400px copy for the grid.** The grid
+    drew twenty stamps from twenty 1000px photographs. The phone that takes the picture also
+    sends the small one; it sits beside the photograph as `…_t.jpg` and the address on the
+    row ends `&t=1`, so no column was added and a photo saved before this is simply shown
+    whole, as before, until it is saved again. Cards load their picture only when scrolled to
+    (`loading="lazy"`), and a small copy that fails falls back to the photograph.
+
+29. **Lipa Namba is a table of its own (`pay_numbers`), not three columns on `vendors`.** A
+    table's optional columns are learnt absent together, so one more on `vendors` would have
+    switched the shop's map pin off on every database that had not yet run the new file. The
+    till shows the number, the network and the NAME the customer's phone will show, because
+    checking that name before the PIN is the one habit that prevents a wrong payment — and a
+    number may not be saved without it. A receipt of a sale paid that way prints the shop's
+    numbers **as they stand now**: the sale never recorded which number was used. They are
+    never sent to the public marketplace.

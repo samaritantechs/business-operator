@@ -1,4 +1,6 @@
-node_modules/
+# No trailing slash, on purpose: "node_modules/" ignores the folder but NOT a link of that name,
+# and a link that is committed replaces the real folder on the next checkout.
+node_modules
 .env
 .env.local
 .vercel/

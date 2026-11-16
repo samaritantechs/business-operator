@@ -21,6 +21,18 @@ window.BORcpt = (function () {
           + '<button class="btn-primary" onclick="BORcpt.print()">🖨️ Print</button>',
         size: 'lg',
       });
+      /* A sale paid by Lipa Number says which number that is. The receipt itself is built from
+         the sale, which never recorded one, so these are the shop's numbers as they stand --
+         added to the sheet and to the text that Copy and Share send. It has to come AFTER the
+         sheet is drawn: the numbers are usually already in hand (the till asked for them), the
+         answer is then immediate, and there must be a sheet to add them to. */
+      if (r.payment_method === 'Lipa Number') BO.payNumbers(function (pn) {
+        if (last !== r || !(pn.rows || []).length) return;
+        r.pay_numbers = pn.rows;
+        var sheetEl = document.getElementById('rcptSheet');
+        if (sheetEl && !sheetEl.querySelector('.rcpt-pay')) sheetEl.insertAdjacentHTML('beforeend', '<div class="rcpt-pay"><div class="rcpt-dim">Lipa Namba ya duka / Paid to</div>'
+          + pn.rows.map(function (n) { return '<div>' + esc(BO.payLine(n)) + '</div>'; }).join('') + '</div>');
+      });
     }).catch(function (e) {
       BO.dialog({ title: '🧾 Receipt', body: BO.errorBox(e), footer: '<button class="btn-secondary" onclick="BO.closeDialog()">Close</button>' });
     });
@@ -96,6 +108,7 @@ window.BORcpt = (function () {
     if (r.discount) { L.push('Subtotal: ' + money(r.subtotal, r.currency)); L.push('Discount: -' + money(r.discount, r.currency)); }
     L.push('TOTAL: ' + money(r.total, r.currency));
     L.push('Payment: ' + r.payment_method + (r.partner_name ? ' - ' + r.partner_name : ''));
+    (r.pay_numbers || []).forEach(function (n) { L.push('Lipa Namba: ' + BO.payLine(n)); });
     L.push('', 'Thank you for your business.');
     return L.join('\n');
   }

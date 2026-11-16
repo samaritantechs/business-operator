@@ -53,6 +53,9 @@ window.BOSell = (function () {
        basket, walking to the Lendings screen and typing every line again -- so people either
        did not bother, or recorded it as a sale and squared it up later, which is how stock and
        takings both end up wrong. The cart is the same cart; only where it is sent changes. */
+    /* THE NUMBER THE CUSTOMER PAYS TO, on the seller's screen the moment "Lipa Number" is chosen
+       (payChanged fills it). It used to be read off a sticker or from memory. */
+    h += '<div class="form-group" id="payNumWrap" style="display:none;grid-column:span 2;"></div>';
     h += '<div class="form-group" id="borrowerWrap" style="display:none;grid-column:span 2;"><label class="form-label">Borrower <span class="muted small">(the goods stay yours until they come back)</span></label><div class="fg2"><input class="form-control" id="lendName" placeholder="Name *" autocomplete="off"><input class="form-control" id="lendPhone" placeholder="Phone" inputmode="tel" autocomplete="off"></div><input class="form-control" id="lendEmail" placeholder="Email (optional — lets you send a reminder)" inputmode="email" autocomplete="off" style="margin-top:8px;"></div>';
     h += '<div class="form-group" id="partnerWrap" style="display:none;"><label class="form-label">Financing Partner</label><select id="salePartner" class="form-select"><option value="">Select partner…</option>' + opts.partners.map(function (p) { return '<option value="' + esc(p.id) + '">' + esc(p.name) + '</option>'; }).join('') + '</select></div>';
     /* WHO BOUGHT IT. Optional, and it stays optional: most sales over a shop counter are a
@@ -96,8 +99,33 @@ window.BOSell = (function () {
     var g = document.getElementById('saleGrand'); if (g) g.textContent = t ? 'Grand total: ' + fmtFull(t) + ' ' + cur() : '';
   }
   function addRow() { var tb = document.getElementById('saleItemsBody'), tr = document.createElement('tr'); tr.className = 'sale-row'; tr.innerHTML = row().replace(/^<tr[^>]*>/, '').replace(/<\/tr>$/, ''); tb.appendChild(tr); }
+  /* WHERE THE MONEY GOES. Mobile money sent to a wrong number does not come back, so when the
+     customer is about to pay by Lipa Number the till says the number, the network and -- the
+     part that actually prevents the mistake -- the name their own phone will show before they
+     enter the PIN. Asked for once a session (BO.payNumbers); a shop that has saved none is told
+     where to save one, and a seller is told to ask. */
+  function showPayNumbers(on) {
+    var box = document.getElementById('payNumWrap'); if (!box) return;
+    if (!on) { box.style.display = 'none'; return; }
+    box.style.display = ''; box.innerHTML = '<div class="pay-num muted small">Loading the Lipa Namba…</div>';
+    BO.payNumbers(function (pn) {
+      if (document.getElementById('payMethod').value !== 'Lipa Number') return;      // they moved on while it loaded
+      var rows = pn.rows || [];
+      if (!rows.length) {
+        box.innerHTML = '<div class="pay-num pay-none">' + (isAdmin()
+          ? (pn.ready ? '📱 No Lipa Namba is saved yet. Add yours under <strong>Users → Business Profile</strong> and it will be shown here for your sellers to read out.'
+            : '📱 Lipa Namba cannot be shown yet: this database needs <strong>db/RUN-ME-008</strong> first.')
+          : '📱 No Lipa Namba is saved for this shop — ask your admin which number the customer should pay to.') + '</div>';
+        return;
+      }
+      box.innerHTML = '<div class="pay-num"><div class="pay-hd">📱 Lipa Namba — the customer pays to:</div>'
+        + rows.map(function (n) { return '<div class="pay-row"><span class="pay-net">' + esc(n.network) + '</span><span class="pay-no mono">' + esc(n.number) + '</span><span class="pay-name">' + esc(n.name) + '</span></div>'; }).join('')
+        + '<div class="pay-warn">⚠️ Mteja ahakikishe JINA kabla ya kuweka PIN. / The customer must see this NAME on their phone before entering the PIN.</div></div>';
+    });
+  }
   function payChanged() {
     var m = document.getElementById('payMethod').value, lend = m === 'Lending';
+    showPayNumbers(m === 'Lipa Number');
     document.getElementById('partnerWrap').style.display = m === 'Credit' ? '' : 'none';
     document.getElementById('borrowerWrap').style.display = lend ? '' : 'none';
     /* A lending is not a sale and the button should not claim to be recording one -- the

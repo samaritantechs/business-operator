@@ -350,3 +350,63 @@ test('"Use my current location" tries the satellites, then what the phone alread
   assert.match(java, /if \(!isOurOrigin\(origin\)\) \{ cb\.invoke\(origin, false, false\); return; \}/);
   assert.match(java, /s\.setGeolocationEnabled\(true\);/);
 });
+
+/* ---- the shopfront: what the customer says first, and what a card costs to draw ------- */
+test('the first message carries the price, in Kiswahili unless the customer chose English', () => {
+  const ask = (p, picked) => new Function('load', 'fmtFull', fnSource('mkSpeaksSwahili_') + '\n' + fnSource('mkAskText_') + '\nreturn mkAskText_;')(
+    k => (k === 'boLangPick' ? (picked || '') : 'en'),            // boLang itself is always set; only a PRESSED button counts
+    n => Number(n).toLocaleString('en-US'))(p);
+  const watch = { vendor: 'Baraka Shop', name: 'Quartz Wrist Watch', price: 45000, currency: 'TZS' };
+  assert.equal(ask(watch), 'Habari Baraka Shop, nimeona "Quartz Wrist Watch" kwa 45,000 TZS kwenye soko la Samaritan Industrial. Je, bado ipo?');
+  assert.equal(ask(watch, 'en'), 'Hello Baraka Shop, I saw "Quartz Wrist Watch" at 45,000 TZS on the Samaritan Industrial marketplace. Is it still available?');
+  assert.match(ask({ ...watch, currency: 'KES' }), /^Hello /, 'a shop that does not price in shillings is written to in English');
+  assert.match(ask({ ...watch, currency: 'KES' }, 'sw'), /^Habari /, 'unless the customer chose Kiswahili');
+  assert.match(ask({ vendor: 'Lodge', name: 'Room', price: 50000, currency: 'TZS', listingType: 'Rent', priceUnit: 'per night' }, 'en'), /at 50,000 TZS per night on/);
+  // A language button that was PRESSED is remembered apart from the default the page paints at every open.
+  assert.match(fnSource('setLang'), /if \(picked\) store\('boLangPick', l\);/);
+  assert.match(fnSource('toggleLang'), /setLang\(S\.lang === 'sw' \? 'en' : 'sw', true\);/);
+  assert.match(html, /onclick="setLang\('en',true\)"[\s\S]*onclick="setLang\('sw',true\)"/);
+  assert.match(shell, /\n  setLang\(S\.lang\); applyTheme\(S\.theme\); applyView\(S\.view\);/, 'the open itself is not a choice');
+});
+
+test('a customer with airtime and no bundle can still reach the shop: Call and SMS beside WhatsApp', () => {
+  const detail = fnSource('openProductDetail');
+  assert.match(detail, /reach\('btn-secondary', 'pdCall', 'tel:\+' \+ phone, [^)]*, '📞', 'Call'\)/);
+  assert.match(detail, /reach\('btn-secondary', 'pdSms', 'sms:\+' \+ phone \+ '\?&body=' \+ encodeURIComponent\(ask\), [^)]*, '✉️', 'SMS'\)/, 'the one spelling Android and iPhone both read, saying the same thing as WhatsApp');
+  assert.match(detail, /reach\('btn-primary', 'pdWhatsApp', 'https:\/\/wa\.me\/' \+ phone \+ '\?text=' \+ encodeURIComponent\(ask\), [^)]*, '📲', 'WhatsApp', true\)/);
+  assert.match(detail, /contact \+= '<div class="pd-go' \+ \(wa \? '' : ' pd-go-solo'\) \+ '">' \+ wa \+ go \+ ring \+ '<\/div>';/);
+  /* EVERY BUTTON SAYS WHAT IT IS, AND ALL FOUR FIT ONE LINE OF A PHONE. Call and SMS were first a
+     picture each, a thumb wide -- which squeezed the words out of WhatsApp and Location at 360px;
+     then two to a line -- which covered the price. So each button is its picture ABOVE its word. */
+  assert.match(detail, /<span class="pd-ico">' \+ ico \+ '<\/span><span class="pd-lbl">' \+ word \+ '<\/span><\/a>'/);
+  assert.match(html, /\.pd-go > a\{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;/);
+  assert.match(html, /\.pd-go \.pd-lbl\{font-size:\.68rem;font-size:clamp\(\.62rem,3\.1vw,\.74rem\);font-weight:700;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis;\}/,
+    'the word shrinks on the narrowest phone instead of being cut, with a plain size first for an old browser');
+  assert.match(html, /\.pd-go\{display:flex;gap:6px;[^}]*position:sticky;/, 'one line, and it stays in view');
+  assert.doesNotMatch(html + detail, /pd-ic\b/, 'no picture-only contact button');
+  assert.match(detail, /'<div id="pdPrice" /, 'the price has a name, so the browser check can ask whether the buttons cover it');
+  // tel: and sms: are not this system's addresses, so the app hands them to the phone like any other.
+  assert.doesNotMatch(/IN_APP_HOSTS = \{([\s\S]*?)\};/.exec(java)[1], /tel|sms/);
+});
+
+test('a card\'s photo is fetched when it is looked at, and small where the shop\'s photo has a small copy', () => {
+  const page = fnSource('renderMarketPage');
+  assert.match(page, /<img class="mk-pic" loading="lazy" decoding="async" alt="" src="' \+ esc\(mkThumb_\(img\)\) \+ '" data-full="' \+ esc\(img\) \+ '" onerror="mkPicFailed_\(this\)">/);
+  assert.doesNotMatch(page, /background-image:url/, 'a background is fetched for every card at once, at full size');
+  assert.match(page, /<span class="mk-ph">🛍️<\/span>/, 'the bag is underneath, for a photo that never arrives');
+  const failed = fnSource('mkPicFailed_');
+  assert.match(failed, /img\.setAttribute\('data-tried', '1'\); img\.src = full; return;/, 'the small copy failing falls back to the photograph, once');
+  assert.match(failed, /img\.parentNode\.removeChild\(img\)/, 'and then to the bag -- never a broken-image icon');
+  assert.match(html, /\.mk-pic\{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;/);
+  assert.match(read('public/bo/products.js'), /BO\.smallPicture\(bag\[n\], 400, resolve\)[\s\S]{0,200}if \(small\) a\.thumb_url = small;/, 'the phone sends the small copy with the photo');
+});
+
+test('the search box understands, and owns up when it is only showing the closest', () => {
+  const filter = fnSource('filterMarket');
+  assert.match(filter, /if \(window\.BOFind\) \{ var found = BOFind\.search\(list, typed\); list = found\.list; if \(found\.near\) _mkNear = typed; \}/);
+  assert.match(filter, /else list = list\.filter\(/, 'a page whose search script did not load still searches the plain way');
+  assert.match(fnSource('paintMkNear_'), /var on = !!_mkNear && \(_mkFiltered \|\| \[\]\)\.length > 0;/);
+  assert.match(html, /<div id="mkNearBar" class="mk-simbar hidden">/);
+  assert.match(html, /<script src="\/bo\/shell\.js"><\/script>\s*<script src="\/bo\/find\.js"><\/script>/);
+});
+

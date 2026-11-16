@@ -173,6 +173,42 @@ test('addStock: received at a branch; a serialized product is refused; qty must 
   assert.equal(db._dump('branch_stock').length, 2);
 });
 
+/* THE SMALL COPY. The marketplace draws twenty cards at a time and was fetching the full
+   photograph for each. The phone now sends a 400px copy with the photo; it is stored beside it
+   and the URL on the row says so. The page works out the small copy's address from that URL
+   (mkThumb_, public/bo/shell.js) -- two places that must agree, so the page's own function is
+   run here against what the server actually stored. */
+test('uploadProductImage: a small copy is stored beside the photo, and the page finds it', async () => {
+  const { readFileSync } = await import('node:fs');
+  const shell = readFileSync(new URL('../public/bo/shell.js', import.meta.url), 'utf8');
+  const a = shell.indexOf('\nfunction mkThumb_(');
+  const mkThumb_ = new Function(shell.slice(a + 1, shell.indexOf('\n}\n', a) + 2) + '\nreturn mkThumb_;')();
+  const JPG = n => 'data:image/jpeg;base64,' + Buffer.alloc(n, 7).toString('base64');
+  const adm = () => userOf(richBook(), 'ADM1');
+  const db = bookDb();
+
+  const r = await FN.uploadProductImage(db, adm(), { product_id: 'P3', slot: 1, data_url: PNG, thumb_url: JPG(900) }, NOW);
+  assert.match(r.url, /\/V1\/P3-1\.png\?v=\d+&t=1$/, 'the row\'s address says a small copy exists');
+  assert.equal(product(db, 'P3').image1_url, r.url);
+  const files = db._storageDump('product-images');
+  assert.ok(files['V1/P3-1.png'] && files['V1/P3-1_t.jpg'], Object.keys(files).join());
+  assert.equal(files['V1/P3-1_t.jpg'].contentType, 'image/jpeg');
+  assert.equal(mkThumb_(r.url), r.url.replace('P3-1.png', 'P3-1_t.jpg').replace('&t=1', ''), 'the page asks for exactly the file that was stored');
+  assert.match(mkThumb_(r.url), /\/V1\/P3-1_t\.jpg\?v=\d+$/);
+
+  // It is extra, never a condition: no small copy, one that is too big, or one that is not a JPEG all still save the photo.
+  for (const [what, thumb] of [['none sent', undefined], ['too heavy', JPG(151 * 1024)], ['not a JPEG', PNG], ['not a picture', 'hello']]) {
+    const d = bookDb();
+    const x = await FN.uploadProductImage(d, adm(), { product_id: 'P3', slot: 2, data_url: PNG, ...(thumb === undefined ? {} : { thumb_url: thumb }) }, NOW);
+    assert.match(x.url, /\/V1\/P3-2\.png\?v=\d+$/, what + ': the photo is saved, with no mark');
+    assert.deepEqual(Object.keys(d._storageDump('product-images')), ['V1/P3-2.png'], what + ': and nothing else was stored');
+    assert.equal(mkThumb_(x.url), x.url, what + ': so the page shows the photograph itself');
+  }
+  // A photo from before small copies existed, and one that is not ours at all, are left exactly as they are.
+  for (const old of ['https://x.supabase.co/storage/v1/object/public/product-images/V1/P1-1.jpg?v=1700000000', 'https://drive.google.com/thumbnail?id=cov&sz=w400', '', null])
+    assert.equal(mkThumb_(old), old);
+});
+
 test('uploadProductImage: into the product-images bucket at vendor/product-slot, URL on the row', async () => {
   const db = bookDb();
   const r = await FN.uploadProductImage(db, userOf(richBook(), 'ADM1'), { product_id: 'P3', slot: 2, data_url: PNG }, NOW);

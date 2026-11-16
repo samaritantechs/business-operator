@@ -425,8 +425,10 @@ test('the popup can be thrown away, a tap still goes through it, and there is on
 test('the Location button can only ever open Google Maps', () => {
   // The page builds exactly two kinds of address: the pin the server vetted, and a map search.
   assert.match(shell, /var pin = v\.map \|\| '', area = \(!pin && v\.address\) \? 'https:\/\/www\.google\.com\/maps\/search\/\?api=1&query=' \+ encodeURIComponent\(/);
-  assert.match(shell, /id="pdLocation" href="' \+ esc\(pin\) \+ '" target="_blank" rel="noopener"/);
-  assert.match(shell, /id="pdLocation" href="' \+ esc\(area\) \+ '" target="_blank" rel="noopener"/);
+  assert.match(shell, /var go = pin \? reach\('btn-secondary', 'pdLocation', esc\(pin\), [^;]*, true\)\s*: area \? reach\('btn-secondary', 'pdLocation', esc\(area\), [^;]*, true\) : '';/);
+  assert.equal((shell.match(/'pdLocation'/g) || []).length, 2, 'the Location button is built in exactly these two ways');
+  // ...and the one builder of a contact button puts that address in href and opens it outside the page.
+  assert.match(shell, /'" href="' \+ href \+ '"' \+ \(outside \? ' target="_blank" rel="noopener"' : ''\)/);
   // And the app hands a host it does not own to the phone, which is what opens the Maps app.
   const java = readFileSync(join(ROOT, 'android/app/src/main/java/com/samaritantechs/industrial/MainActivity.java'), 'utf8');
   assert.ok(!/"(www\.)?google\.com"|"maps\.app\.goo\.gl"/.test(java.slice(java.indexOf('IN_APP_HOSTS'), java.indexOf('IN_APP_HOSTS') + 600)), 'Google Maps must NOT be an in-app host: it has to leave for the Maps app');

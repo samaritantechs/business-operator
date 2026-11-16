@@ -215,10 +215,35 @@ export const FN = {
     const p = await mustProduct(db, args.product_id, vendor.id);
     let img;
     try { img = decodeDataUrl(args.data_url); } catch (e) { throw badRequest(e.message); }
-    const url = await uploadImage(db, BUCKETS.product, vendor.id + '/' + p.id + '-' + slot + '.' + img.ext, img, nowMs);
+    const base = vendor.id + '/' + p.id + '-' + slot;
+    let url = await uploadImage(db, BUCKETS.product, base + '.' + img.ext, img, nowMs);
+    /* THE SMALL ONE, BESIDE IT. The marketplace shows twenty of these at a time, each the size
+       of a thumb, and it was fetching the full 1000px photograph for every one -- three
+       megabytes of somebody's data bundle to draw a page of stamps. The phone that took the
+       picture also sends it at 400px; it is stored at the same path with "_t.jpg", and the URL
+       on the row says so ("&t=1") so that a card knows it may ask for the small one. No new
+       column, and a photo saved before this simply has no mark and is shown whole, as before.
+
+       It is extra, never a condition: a small picture that is missing, oversized, not a JPEG
+       or fails to upload costs the shop nothing -- the photograph itself is already saved. */
+    if (args.thumb_url) {
+      try {
+        const small = decodeDataUrl(args.thumb_url);
+        if (small.ext === 'jpg' && small.bytes.length <= MAX_THUMB_BYTES) {
+          await uploadImage(db, BUCKETS.product, base + THUMB_SUFFIX, small, nowMs);
+          url += '&t=1';
+        }
+      } catch (e) { /* the card will load the photograph itself */ }
+    }
     await update(db, 'products', { ['image' + slot + '_url']: url, updated_at: iso(nowMs) }, q => q.eq('id', p.id));
     return { url };
   },
 };
+
+/* What the small picture is called beside the big one, and the most it may weigh. The page turns
+   ".../V1/P3-1.jpg?v=123&t=1" into ".../V1/P3-1_t.jpg?v=123" (mkThumb_ in public/bo/shell.js);
+   test/products.test.mjs runs the two against each other. */
+export const THUMB_SUFFIX = '_t.jpg';
+export const MAX_THUMB_BYTES = 150 * 1024;
 
 export const WRITES = ['addProduct', 'updateProduct', 'toggleProduct', 'addStock', 'uploadProductImage'];

@@ -64,6 +64,8 @@ export const DEFAULT_HINTS = {
      '\u23fb Kutoka (Log out) kupo pia chini ya menyu ya \u2630.'],
     ['\ud83d\udda8\ufe0f Print on a receipt opens the print screen of the phone \u2013 choose a printer, or Save as PDF. Update the app if it says it cannot.',
      '\ud83d\udda8\ufe0f Print kwenye risiti hufungua skrini ya kuchapisha ya simu \u2013 chagua printa, au Save as PDF. Sasisha programu ikisema haiwezi.'],
+    ['\ud83d\udcf1 Customer paying by Lipa Number? Choose it at the till and read out the number shown \u2013 they must see the same name on their phone before the PIN.',
+     '\ud83d\udcf1 Mteja analipa kwa Lipa Number? Ichague kwenye mauzo usome namba inayoonekana \u2013 aone jina hilohilo kwenye simu yake kabla ya PIN.'],
   ],
   admin: [
     ['\ud83d\udcf2 If the app asks you to update, tap Update now \u2013 it takes a moment and nothing you entered is lost.',
@@ -116,6 +118,10 @@ export const DEFAULT_HINTS = {
      '\ud83d\udce5 Kwenye programu, ripoti unayopakua huhifadhiwa kwenye Downloads za simu, kwa jina lake.'],
     ['\ud83d\udda8\ufe0f Print on a receipt opens the print screen of the phone \u2013 choose a printer, or Save as PDF. Update the app if it says it cannot.',
      '\ud83d\udda8\ufe0f Print kwenye risiti hufungua skrini ya kuchapisha ya simu \u2013 chagua printa, au Save as PDF. Sasisha programu ikisema haiwezi.'],
+    ['\ud83d\udcf1 Users \u2192 Business Profile: save your Lipa Namba and the name customers see \u2013 your sellers get it at the till when they choose Lipa Number.',
+     '\ud83d\udcf1 Users \u2192 Business Profile: hifadhi Lipa Namba yako na jina analoliona mteja \u2013 wauzaji wataiona wanapochagua Lipa Number.'],
+    ['\ud83d\uddbc\ufe0f Product photos now open faster on the marketplace \u2013 save an old photo again once to give it a small copy too.',
+     '\ud83d\uddbc\ufe0f Picha za bidhaa sasa hufunguka haraka sokoni \u2013 hifadhi tena picha ya zamani mara moja ipate nakala ndogo pia.'],
   ],
   'assistant-admin': [
     ['\ud83d\udc65 You can manage sellers under your admin.',
@@ -150,6 +156,10 @@ export const DEFAULT_HINTS = {
      '\ud83d\udce5 Kwenye programu, ripoti unayopakua huhifadhiwa kwenye Downloads za simu, kwa jina lake.'],
     ['\ud83d\udda8\ufe0f Print on a receipt opens the print screen of the phone \u2013 choose a printer, or Save as PDF. Update the app if it says it cannot.',
      '\ud83d\udda8\ufe0f Print kwenye risiti hufungua skrini ya kuchapisha ya simu \u2013 chagua printa, au Save as PDF. Sasisha programu ikisema haiwezi.'],
+    ['\ud83d\udcf1 Users \u2192 Business Profile: save your Lipa Namba and the name customers see \u2013 your sellers get it at the till when they choose Lipa Number.',
+     '\ud83d\udcf1 Users \u2192 Business Profile: hifadhi Lipa Namba yako na jina analoliona mteja \u2013 wauzaji wataiona wanapochagua Lipa Number.'],
+    ['\ud83d\uddbc\ufe0f Product photos now open faster on the marketplace \u2013 save an old photo again once to give it a small copy too.',
+     '\ud83d\uddbc\ufe0f Picha za bidhaa sasa hufunguka haraka sokoni \u2013 hifadhi tena picha ya zamani mara moja ipate nakala ndogo pia.'],
   ],
   /* A MANAGER HAD NO LIST, so hintsForRole fell through to the seller's and the person who
      owns the platform was told "Your User ID is your login \u2013 use it every time you sell."
@@ -224,6 +234,10 @@ export const DEFAULT_HINTS = {
      '\ud83c\udfe2 Una duka hapa? Bonyeza Business Manager juu kufungua eneo lako la kazi.'],
     ['\ud83d\uddbc\ufe0f Get the app \u2192 Save this code as a picture puts the QR code in your Downloads, ready to print for your counter.',
      '\ud83d\uddbc\ufe0f Get the app \u2192 Save this code as a picture huweka QR code kwenye Downloads zako, tayari kuchapishwa kwa ajili ya kaunta yako.'],
+    ['\ud83d\udd0e Search in English or Kiswahili \u2013 simu finds phones, saa finds watches \u2013 and a small spelling slip still finds it.',
+     '\ud83d\udd0e Tafuta kwa Kiswahili au Kiingereza \u2013 simu hupata phones, saa hupata watches \u2013 hata ukikosea herufi kidogo.'],
+    ['\ud83d\udcde No data bundle? Open a product and tap Call to ring the shop, or SMS to send a message that is already written.',
+     '\ud83d\udcde Huna bando? Fungua bidhaa kisha bonyeza Call kupiga simu dukani, au SMS kutuma ujumbe ulioandikwa tayari.'],
   ],
 };
 

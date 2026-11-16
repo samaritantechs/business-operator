@@ -18,10 +18,18 @@ window.BOUsers = (function () {
            shopkeeper standing at a counter, not somebody who knows what a coordinate is. The
            server (api/_lib/bo/place.js) works out which it was. */
         + '<div class="form-group" style="margin-top:12px;"><label class="form-label">Shop location on the map <span class="muted" style="font-weight:400;">— gives customers a 📍 Location button to you</span></label><div style="display:flex;gap:8px;flex-wrap:wrap;"><input type="text" class="form-control" id="myBusinessPin" style="flex:1 1 220px;" placeholder="Loading…" autocomplete="off" disabled><button type="button" class="btn-secondary" id="myPinHere" onclick="BOUsers.pinHere()">📍 Use my current location</button><a class="btn-secondary hidden" id="myPinTest" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;">🗺️ Check it on the map</a></div><div class="small muted" id="myPinNote" style="margin-top:6px;">Stand in your shop and tap “Use my current location”, or paste a Google Maps link (in Google Maps: Share → Copy link). Leave it empty to show no Location button.</div></div><div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;"><button class="btn-primary" onclick="BOUsers.saveProfile()">Save Profile</button><button class="btn-secondary" onclick="BOUsers.openLogo()">🖼️ Upload Logo</button>' + (v.logo_url ? '<img src="' + esc(v.logo_url) + '" style="max-height:32px;max-width:90px;object-fit:contain;border-radius:6px;" onerror="this.style.display=\'none\'">' : '') + '<span id="bizProfileMsg" class="small muted"></span></div><div class="small muted" style="margin-top:8px;">This appears on your marketplace storefront so customers can reach you.</div></div></div>';
+      /* LIPA NAMBA. The numbers this shop is paid on, written down once so the till can say them
+         (api/_lib/bo/paynumbers.js says why the NAME is the important box). Three lines, because
+         that is what a counter uses; a line left empty is simply not a number. */
+      h += '<div class="section-card" style="margin-bottom:18px;"><div class="section-hdr"><span>📱</span><div class="section-hdr-title">Lipa Namba — how customers pay you</div></div><div class="section-body">'
+        + '<div class="muted small" style="margin-bottom:10px;">Shown to your sellers at the till when they choose <strong>Lipa Number</strong>, and on the receipt. Never shown on the public marketplace. The <strong>name</strong> is the one the customer\'s phone shows before they enter their PIN — checking it is what stops a payment going to the wrong person.</div>'
+        + '<datalist id="payNets"><option value="M-Pesa"><option value="Airtel Money"><option value="Mixx by Yas (Tigo Pesa)"><option value="HaloPesa"><option value="T-Pesa"><option value="Selcom"><option value="CRDB"><option value="NMB"></datalist>'
+        + '<div id="payNumRows"><div class="muted small">Loading…</div></div>'
+        + '<div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;"><button class="btn-primary" id="payNumSave" onclick="BOUsers.savePay()" disabled>Save Lipa Namba</button><span id="payNumMsg" class="small" style="color:var(--accent2);"></span></div></div></div>';
     }
     h += '<div class="search-wrap"><span class="search-ico">🔍</span><input type="text" class="form-control" id="userSearch" placeholder="Search name, role, user ID, vendor…" onkeyup="BOUsers.search()"></div><div id="usersTable" class="empty">Loading…</div>';
     el.innerHTML = h;
-    if (isAdmin()) loadPin();
+    if (isAdmin()) { loadPin(); loadPay(); }
     if (isManager()) srv('vendorList', {}).then(function (r) { vendors = r.rows || []; var s = document.getElementById('newUserVendor'); if (s) s.innerHTML += vendors.map(function (v) { return '<option value="' + esc(v.id) + '">' + esc(v.name) + '</option>'; }).join(''); }).catch(function () {});
     list();
   }
@@ -108,6 +116,35 @@ window.BOUsers = (function () {
      they save. Nothing is sent until "Save Profile". A phone that will not say where it is
      (permission refused, no GPS indoors, an older copy of the app) is told how to do it by
      hand instead of being left with a button that does nothing. */
+  /* ---- Lipa Namba ---- */
+  var PAY_LINES = 3;
+  function loadPay() { BO.payNumbers(paintPay, true); }      // asked afresh: another admin may have changed them
+  function paintPay(pn) {
+    var box = document.getElementById('payNumRows'), btn = document.getElementById('payNumSave'); if (!box) return;
+    if (pn.failed) { box.innerHTML = '<div class="muted small">Could not load the saved numbers. Tap ↻ and try again.</div>'; return; }
+    if (!pn.ready) { box.innerHTML = '<div class="alert-info">Pay numbers cannot be saved yet: this database needs <strong>db/RUN-ME-008</strong> first. Ask the manager to run it in Supabase.</div>'; return; }
+    var rows = pn.rows || [], h = '';
+    for (var i = 0; i < PAY_LINES; i++) {
+      var n = rows[i] || {};
+      h += '<div class="pay-edit"><input type="text" class="form-control pay-net" list="payNets" placeholder="Network or bank" maxlength="30" value="' + esc(n.network || '') + '" aria-label="Network or bank, line ' + (i + 1) + '">'
+        + '<input type="text" inputmode="numeric" class="form-control pay-no mono" placeholder="Number" maxlength="20" value="' + esc(n.number || '') + '" aria-label="Number, line ' + (i + 1) + '">'
+        + '<input type="text" class="form-control pay-name" placeholder="Name the customer sees" maxlength="60" value="' + esc(n.name || '') + '" aria-label="Name the customer sees, line ' + (i + 1) + '"></div>';
+    }
+    box.innerHTML = h;
+    if (btn) btn.disabled = false;
+  }
+  function savePay() {
+    var msg = document.getElementById('payNumMsg'), numbers = [];
+    document.querySelectorAll('#payNumRows .pay-edit').forEach(function (row) {
+      numbers.push({ network: row.querySelector('.pay-net').value.trim(), number: row.querySelector('.pay-no').value.trim(), name: row.querySelector('.pay-name').value.trim() });
+    });
+    if (msg) msg.textContent = 'Saving…';
+    srv('setPayNumbers', { numbers: numbers }).then(function (r) {
+      S.payNums = { rows: r.rows || [], ready: true };           // the till reads the new list at once
+      paintPay(S.payNums);
+      if (msg) { msg.textContent = '✅ ' + (r.message || 'Saved'); setTimeout(function () { msg.textContent = ''; }, 6000); }
+    }).catch(function (e) { if (msg) msg.textContent = ''; BO.fail(e); });
+  }
   function pinHere() {
     var box = document.getElementById('myBusinessPin'), btn = document.getElementById('myPinHere');
     var cannot = function (why) { BO.notify(why + '\n\nYou can still set it by hand: open Google Maps, press and hold on your shop, tap Share, copy the link, and paste it in the box.'); };
@@ -170,5 +207,5 @@ window.BOUsers = (function () {
   }
 
   BO.tabs.users = { load: load, sync: list };
-  return { load: load, search: search, add: add, toggle: toggle, del: del, edit: edit, save: save, previewPhoto: previewPhoto, saveProfile: saveProfile, pinHere: pinHere, openLogo: openLogo, uploadLogo: uploadLogo };
+  return { load: load, search: search, add: add, toggle: toggle, del: del, edit: edit, save: save, previewPhoto: previewPhoto, saveProfile: saveProfile, pinHere: pinHere, savePay: savePay, openLogo: openLogo, uploadLogo: uploadLogo };
 })();
