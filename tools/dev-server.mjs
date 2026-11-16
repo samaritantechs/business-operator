@@ -25,6 +25,7 @@ const { boApi } = await import('../api/_lib/bo-core.js');
 const { accountApi } = await import('../api/_lib/bo/account.js');
 const { marketApi, clearMarketCache, clearMarketStats } = await import('../api/_lib/bo/market.js');
 const { reportFile } = await import('../api/_lib/bo/reports.js');
+const { qrPicture } = await import('../api/_lib/qrpic.js');
 
 /* BO_DEV_EMPTY=1 starts with NOTHING in it -- no businesses, no people -- which is the state
    a real new deployment is in and the only way to see the first-run setup screen. */
@@ -94,6 +95,13 @@ async function api(req, res, url) {
       const file = await reportFile(db, user, payload.report || {});
       res.writeHead(200, { 'Content-Type': file.contentType, 'Content-Disposition': (file.inline ? 'inline' : 'attachment') + '; filename="' + file.filename + '"' });
       return res.end(Buffer.from(file.bytes));
+    }
+    /* The two printable codes. Only this half of /api/download exists locally: the other half
+       redirects to a published APK, and an in-memory book has none. */
+    if (url.pathname === '/api/download' && url.searchParams.get('qr') !== null) {
+      const out = qrPicture(url.searchParams.get('qr'), req.headers);
+      res.writeHead(out.status, out.headers);
+      return res.end(out.body);
     }
     return json(res, 404, { ok: false, error: 'No such route' });
   } catch (e) {

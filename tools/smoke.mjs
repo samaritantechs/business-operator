@@ -34,6 +34,13 @@ const page = await context.newPage();
 page.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push('console: ' + m.text().slice(0, 200)); });
 page.on('pageerror', e => errors.push('pageerror: ' + String(e.message).slice(0, 200)));
 page.on('requestfailed', r => failed.push(r.url().replace(BASE, '') + ' ' + (r.failure() || {}).errorText));
+/* Every other page a step opens is held to the same rule as the first: an uncaught error in it
+   fails the run. */
+const watch = p => {
+  p.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push('console: ' + m.text().slice(0, 200)); });
+  p.on('pageerror', e => errors.push('pageerror: ' + String(e.message).slice(0, 200)));
+  return p;
+};
 
 const step = async (name, fn) => {
   try { await fn(); console.log('  ok   ' + name); }
@@ -620,7 +627,7 @@ const groceryView = async () => {
       serialBox: !!document.getElementById('newProdSerial'),
       serialShown: !!document.getElementById('newProdSerial') && document.getElementById('newProdSerial').closest('.form-group').style.display !== 'none',
       discInput: !!disc,                                     // must ALWAYS be there: calc() reads it
-      discShown: !!disc && disc.closest('td').style.display !== 'none',
+      discShown: !!disc && getComputedStyle(disc.closest('td')).display !== 'none',   // however it is hidden
       imeiReport: /IMEI \/ Units List/.test(document.getElementById('reportsContent').innerText),
       // The rotating tips themselves, as the shell holds them -- boot.hints, after the filter.
       phoneHint: (_hintList || []).some(h => /IMEI|Phone Vending/i.test(h.en + ' ' + h.sw)),
@@ -656,6 +663,204 @@ await step('switching Phone Vending on gives that same grocery all of them', asy
                  discInput: true, discShown: true, imeiReport: true, phoneHint: true };
   for (const k of Object.keys(want)) if (v[k] !== want[k]) throw new Error('switched on: ' + k + ' is ' + v[k] + ', expected ' + want[k]);
   console.log('       one flag, six screens, both ways');
+});
+
+/* WHERE A FRESH OPEN LANDS. "Landing default page should be marketplace unless app was not yet
+   closed from recent apps or by browser sessions." A second tab of the same browser is the
+   honest stand-in for a fresh open: it has the saved session (localStorage is shared) and no
+   page session of its own. A reload of a tab is "the same browser session". And ?resume=1 is
+   what the Android app adds when it is being restored rather than started. */
+await step('a fresh open lands on the marketplace signed in; a reload goes back to where the person was', async () => {
+  await signIn('frank');
+  const state = p => p.evaluate(() => ({ user: S.user && S.user.name, screen: S.screen, tab: S.tab, appHidden: document.getElementById('mainApp').classList.contains('hidden'),
+    name: document.getElementById('mkAcctName').textContent, doorsIn: !document.getElementById('mkAuthOut').classList.contains('hidden'),
+    active: (document.querySelector('.sidebar .nav-item.active') || {}).id || '' }));
+  const fresh = watch(await context.newPage());
+  const work = [];                                   // every signed-in request the fresh open makes
+  fresh.on('request', r => { if (/\/api\/bo$/.test(r.url())) work.push(JSON.parse(r.postData() || '{}').fn); });
+  await fresh.goto(BASE + '/', { waitUntil: 'domcontentloaded' });
+  await fresh.waitForSelector('#landingPage:not(.hidden) #mkProductGrid .mk-card', { timeout: 15000 });
+  let st = await state(fresh);
+  if (st.user !== 'Frank Amos' || st.screen !== 'landing' || !st.appHidden || st.name !== 'Frank' || st.doorsIn) throw new Error('a fresh open with a saved session: ' + JSON.stringify(st));
+  if (work.length) throw new Error('the marketplace landing loaded workspace data nobody asked for: ' + work.join(','));
+  await fresh.screenshot({ path: OUT + '07-fresh-open-marketplace.png' });
+
+  // One tap, and only now is the workspace loaded -- on the first tab this role has.
+  await fresh.click('#mkSeg_app');
+  await fresh.waitForSelector('#mainApp:not(.hidden)', { timeout: 8000 });
+  await fresh.waitForFunction(() => document.getElementById('dashboardContent').children.length > 0, null, { timeout: 10000 });
+  st = await state(fresh);
+  if (st.screen !== 'app' || st.tab !== 'dashboard' || st.active !== 'nav-dashboard') throw new Error('Business Manager after a fresh open: ' + JSON.stringify(st));
+  if (!work.length) throw new Error('entering the workspace loaded nothing');
+
+  // The same browser session: reloading while at work comes back to the same tab...
+  await fresh.evaluate(() => switchTab('stock'));
+  await fresh.reload({ waitUntil: 'domcontentloaded' });
+  await fresh.waitForSelector('#mainApp:not(.hidden)', { timeout: 10000 });
+  await fresh.waitForFunction(() => document.getElementById('stockContent').children.length > 0, null, { timeout: 10000 });
+  st = await state(fresh);
+  if (st.tab !== 'stock' || st.active !== 'nav-stock') throw new Error('a reload at work did not come back to the tab: ' + JSON.stringify(st));
+  // ...and reloading while on the shopfront comes back to the shopfront, still signed in.
+  await fresh.evaluate(() => openMarketplace());
+  await fresh.reload({ waitUntil: 'domcontentloaded' });
+  await fresh.waitForSelector('#landingPage:not(.hidden) #mkProductGrid .mk-card', { timeout: 10000 });
+  st = await state(fresh);
+  if (st.screen !== 'landing' || st.user !== 'Frank Amos') throw new Error('a reload on the shopfront: ' + JSON.stringify(st));
+
+  // The app being RESTORED (?resume=1) goes back to what the phone last saw: the shopfront here...
+  const restored = watch(await context.newPage());
+  await restored.goto(BASE + '/?resume=1', { waitUntil: 'domcontentloaded' });
+  await restored.waitForSelector('#landingPage:not(.hidden), #mainApp:not(.hidden)', { timeout: 10000 });
+  st = await state(restored);
+  if (st.screen !== 'landing') throw new Error('restored while on the shopfront, but came back to: ' + JSON.stringify(st));
+  // ...and the tab they were on, when they were at work.
+  await fresh.click('#mkSeg_app');
+  await fresh.waitForSelector('#mainApp:not(.hidden)', { timeout: 8000 });
+  await fresh.evaluate(() => switchTab('reports'));
+  await restored.close();
+  const restored2 = watch(await context.newPage());
+  await restored2.goto(BASE + '/?resume=1', { waitUntil: 'domcontentloaded' });
+  await restored2.waitForSelector('#mainApp:not(.hidden)', { timeout: 10000 });
+  st = await state(restored2);
+  if (st.tab !== 'reports' || st.active !== 'nav-reports') throw new Error('restored while at work, but came back to: ' + JSON.stringify(st));
+
+  // A remembered tab this person's role does not have is not opened: they get their first one.
+  await restored2.evaluate(() => sessionStorage.setItem('boWhere', 'app:manager'));
+  await restored2.reload({ waitUntil: 'domcontentloaded' });
+  await restored2.waitForSelector('#mainApp:not(.hidden)', { timeout: 10000 });
+  st = await state(restored2);
+  if (st.tab !== 'dashboard') throw new Error('an admin was walked into a tab that is not theirs: ' + JSON.stringify(st));
+  await restored2.close(); await fresh.close();
+  console.log('       fresh open: marketplace, 0 workspace reads · reload: same tab · restored app: same tab');
+});
+
+/* THE TWO BUTTONS THAT DID NOTHING INSIDE THE APP. There is no APK in this browser, so the app
+   is faked the way the update notice below fakes it -- an object called SamaritanApp -- and
+   everything after that is the real page. */
+await step('inside the app, "Open in the phone\'s browser" hands the address over, and the code saves as a file', async () => {
+  const { readFileSync } = await import('node:fs');
+  const inApp = await browser.newContext({ viewport: { width: 390, height: 800 } });
+  await inApp.addInitScript(() => { window.__opened = []; window.SamaritanApp = { getVersionCode: () => 99999, getVersionName: () => '9.9.9', openExternal: u => { window.__opened.push(u); } }; });
+  const p = watch(await inApp.newPage());
+  await p.goto(BASE + '/', { waitUntil: 'domcontentloaded' });
+  await p.waitForSelector('#mkAppSection:not(.hidden)', { timeout: 15000 });
+  const label = (await p.textContent('#mkSiteBtn')).trim();
+  if (label !== "Open in the phone's browser") throw new Error('inside the app the button still says: ' + label);
+  await p.evaluate(() => { stopHints(); toastHide_(); document.getElementById('mkSiteBtn').scrollIntoView({ block: 'center' }); });
+  await p.click('#mkSiteBtn');
+  const opened = await p.evaluate(() => window.__opened);
+  if (opened.length !== 1 || opened[0] !== BASE + '/') throw new Error('the app was asked to open: ' + JSON.stringify(opened));
+  if (p.url() !== BASE + '/') throw new Error('the page itself went somewhere: ' + p.url());
+
+  const [file] = await Promise.all([p.waitForEvent('download', { timeout: 10000 }), p.click('#mkSiteQrBtn')]);
+  if (file.suggestedFilename() !== 'samaritan-industrial-site-qr.png') throw new Error('saved as ' + file.suggestedFilename());
+  const png = readFileSync(await file.path());
+  if (png.length < 500 || png.readUInt32BE(0) !== 0x89504E47) throw new Error('what was saved is not a PNG picture (' + png.length + ' bytes)');
+  const said = await p.evaluate(() => document.getElementById('hintText').textContent);
+  if (!/Downloads/.test(said)) throw new Error('nothing told them where the picture went: ' + said);
+  const [file2] = await Promise.all([p.waitForEvent('download', { timeout: 10000 }), p.click('#mkApkQrBtn')]);
+  if (file2.suggestedFilename() !== 'samaritan-industrial-app-qr.png') throw new Error('the app code saved as ' + file2.suggestedFilename());
+  await inApp.close();
+
+  /* An app installed before the door existed is sent to Chrome's own address form. This
+     Chromium has nothing registered for that form and refuses it -- and its refusal names the
+     address it was handed, which is exactly the evidence wanted: the page did ask for it, and
+     the address went in as it is. (That one console line is this step's proof, so this page's
+     console is read here instead of being counted as a fault.) */
+  const older = await browser.newContext({ viewport: { width: 390, height: 800 } });
+  await older.addInitScript(() => { window.SamaritanApp = { getVersionCode: () => 99999, getVersionName: () => '9.9.9' }; });
+  const q = await older.newPage();
+  const said2 = [];
+  q.on('console', m => said2.push(m.text()));
+  q.on('pageerror', e => errors.push('pageerror: ' + String(e.message).slice(0, 200)));
+  await q.goto(BASE + '/', { waitUntil: 'domcontentloaded' });
+  await q.waitForSelector('#mkAppSection:not(.hidden)', { timeout: 15000 });
+  await q.evaluate(() => { stopHints(); toastHide_(); });
+  const answered = await q.evaluate(() => openInBrowser({ preventDefault() {} }));
+  await q.waitForTimeout(400);
+  const toast = await q.evaluate(() => document.getElementById('hintText').textContent);
+  if (answered !== false || q.url() !== BASE + '/') throw new Error('an older app: the button answered ' + answered + ' and the page is at ' + q.url());
+  if (!said2.some(t => t.includes('googlechrome://navigate?url=' + BASE + '/'))) throw new Error('an older app was not sent to Chrome with the address as it is; the page said: ' + JSON.stringify(said2.slice(-3)));
+  if (!/localhost:8787/.test(toast)) throw new Error('and the address was not said, in case the phone has no Chrome: ' + toast);
+  await older.close();
+
+  // A real browser is left alone: the link is an ordinary link.
+  const plain = await page.evaluate(() => ({ app: !!androidApp_(), goes: openInBrowser(null), label: document.getElementById('mkSiteBtn').textContent.trim() }));
+  if (plain.app || plain.goes !== true || plain.label !== 'Open in this browser') throw new Error('a browser is being treated as the app: ' + JSON.stringify(plain));
+  console.log('       handed to the phone: ' + opened[0] + ' · saved: ' + file.suggestedFilename() + ' (' + png.length + ' bytes)');
+});
+
+/* THE PHONE. The top bar needed 510px and a phone has 360, so the whole app was drawn at three
+   quarters of its size and Log out sat off the edge; the Sell row's quantity box was 29px wide.
+   Measured here, at the two widths that matter, rather than looked at. */
+await step('on a phone the top bar fits, the menu has Log out, and a sale line can be read', async () => {
+  const phone = await browser.newContext({ viewport: { width: 360, height: 760 }, isMobile: true, hasTouch: true });
+  const p = watch(await phone.newPage());
+  await p.goto(BASE + '/?login=1', { waitUntil: 'load' });
+  await p.waitForSelector('#loginId', { state: 'visible', timeout: 15000 });
+  await p.fill('#loginId', 'mama'); await p.fill('#loginPwd', 'pass1234');
+  await p.evaluate(() => doLogin());
+  await p.waitForSelector('#mainApp:not(.hidden)', { timeout: 15000 });
+  const bar = () => p.evaluate(() => {
+    const r = Array.from(document.querySelectorAll('.topbar .tb-right > *')).map(e => e.getBoundingClientRect()).filter(q => q.width);
+    const l = Array.from(document.querySelectorAll('.topbar .tb-left > *')).map(e => e.getBoundingClientRect()).filter(q => q.width);
+    const out = document.querySelector('.topbar [onclick="logout()"]').getBoundingClientRect();
+    return { vw: window.innerWidth, page: document.documentElement.scrollWidth, buttons: document.querySelectorAll('.topbar .tb-right .icon-btn').length,
+      right: Math.round(Math.max.apply(null, r.map(q => q.right))), leftEnd: Math.round(Math.max.apply(null, l.map(q => q.right))), rightStart: Math.round(Math.min.apply(null, r.map(q => q.left))),
+      logout: [Math.round(out.left), Math.round(out.right), Math.round(out.width)] };
+  });
+  for (const w of [360, 320]) {
+    await p.setViewportSize({ width: w, height: 760 });
+    await p.waitForTimeout(150);
+    const b = await bar();
+    if (b.page > w || b.right > w || b.leftEnd > b.rightStart || b.logout[1] > w || b.logout[2] < 30 || b.buttons !== 6) throw new Error('the top bar at ' + w + 'px: ' + JSON.stringify(b));
+  }
+  await p.setViewportSize({ width: 360, height: 760 });
+
+  await p.evaluate(() => { stopHints(); toastHide_(); switchTab('sale'); });
+  await p.waitForSelector('#saleItemsBody .sale-row', { timeout: 10000 });
+  await p.evaluate(() => { const s = document.querySelector('#saleItemsBody .prodSelect'); const o = Array.from(s.options).find(x => x.value && !x.disabled); s.value = o.value; BOSell.pick(s); const q = document.querySelector('#saleItemsBody .qty'); q.value = 3; BOSell.calc(q); });
+  const row = await p.evaluate(() => {
+    const r = document.querySelector('#saleItemsBody .sale-row'), w = sel => Math.round(r.querySelector(sel).getBoundingClientRect().width);
+    const tbl = document.querySelector('.sale-tbl');
+    return { qty: w('.qty'), price: w('.price'), product: w('.prodSelect'), head: getComputedStyle(tbl.querySelector('thead')).display,
+      named: getComputedStyle(r.querySelector('.sr-qty'), '::before').content, wide: tbl.scrollWidth > tbl.parentNode.clientWidth + 1,
+      total: r.querySelector('.row-total').textContent, price1: Number(r.querySelector('.price').value), page: document.documentElement.scrollWidth };
+  });
+  // This grocery has Phone Vending on by now (the step above), so the line carries a discount
+  // box as well: three boxes of 90px. Without it the price box has the room of two.
+  if (row.qty < 70 || row.price < 85 || row.product < 240 || row.head !== 'none' || row.named !== '"Qty"' || row.wide || row.page > 360)
+    throw new Error('the sale line on a phone: ' + JSON.stringify(row));
+  if (Number(row.total.replace(/,/g, '')) !== 3 * row.price1) throw new Error('the line total is wrong: ' + JSON.stringify(row));
+  await p.screenshot({ path: OUT + '06-phone-sell.png' });
+
+  // The way out, in the menu: a full-width row instead of a 32px button at the edge.
+  await p.click('.mobile-menu-btn');
+  await p.waitForSelector('#sidebar.open #nav-logout', { state: 'visible', timeout: 5000 });
+  await p.click('#nav-logout');
+  await p.waitForSelector('#landingPage:not(.hidden)', { timeout: 8000 });
+  const after = await p.evaluate(() => ({ user: S.user, token: localStorage.getItem('boToken'), menuOpen: document.getElementById('sidebar').classList.contains('open') }));
+  if (after.user || after.token || after.menuOpen) throw new Error('Log out in the menu left: ' + JSON.stringify(after));
+  await phone.close();
+  console.log('       360px and 320px: every button on screen · quantity box ' + row.qty + 'px, price box ' + row.price + 'px (they were 29 and 40)');
+});
+
+/* A shopkeeper types the number the way it is said. A WhatsApp link needs the country code. */
+await step('a shop number typed as 07… comes back whole, and something that is no number is refused', async () => {
+  await signIn('mama');
+  await page.evaluate(() => { stopHints(); toastHide_(); switchTab('users'); });
+  await page.waitForSelector('#myBusinessPhone', { timeout: 10000 });
+  await page.fill('#myBusinessPhone', '0712 345 678');
+  await page.evaluate(() => BOUsers.saveProfile());
+  await page.waitForFunction(() => document.getElementById('myBusinessPhone').value === '+255712345678', null, { timeout: 8000 });
+  const msg = await page.evaluate(() => document.getElementById('bizProfileMsg').textContent);
+  if (!/kept as \+255712345678/.test(msg)) throw new Error('nothing said the number was completed: ' + msg);
+  await page.fill('#myBusinessPhone', 'call me');
+  await page.evaluate(() => BOUsers.saveProfile());
+  await page.waitForFunction(() => /country code/.test(document.getElementById('hintText').textContent), null, { timeout: 8000 });
+  const kept = await page.evaluate(() => BO.srv('businessProfile', {}).then(r => r.vendor.phone));
+  if (kept !== '+255712345678') throw new Error('a refused number still changed what was stored: ' + kept);
+  console.log('       0712 345 678 -> ' + kept);
 });
 
 /* THE UPDATE NOTICE, driven the way a phone drives it. There is no APK in this browser, so

@@ -132,7 +132,8 @@ window.BORcpt = (function () {
     setTimeout(done, 8000);            // some browsers never fire afterprint
     window.print();
   }
-  function androidApp() { try { return !!(window.SamaritanApp && window.SamaritanApp.versionCode); } catch (e) { return false; } }
+  /* One way of knowing, the shell's: it also asks the app directly when the app has not yet said. */
+  function androidApp() { return !!androidApp_(); }
 
   return { open: open, copy: copy, share: share, print: print, asText: asText };
 })();

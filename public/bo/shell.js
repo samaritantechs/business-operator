@@ -421,6 +421,7 @@ function showLanding() {
   /* The same screen serves somebody signed in and somebody who is not, so who it greets is
      decided here, every time it is shown, rather than in whichever function happened to open it. */
   paintMkAccount_();
+  rememberWhere_();
   if (!_market.products.length) loadMarketplace(); else startMarketplaceHints();
 }
 /* WHO IS LOOKING AT THE SHOPFRONT. Signed in: the name, and the way out. Signed out: the two
@@ -452,12 +453,10 @@ function openFavorites() {
   closeMobileSidebar();
   showLanding(); mkGo('favs');
 }
-function backToApp() {
-  if (!S.user) { showLogin(false); return; }
-  S.screen = 'app'; stopHints();
-  show_('landingPage', false); show_('loginPage', false); show_('mainApp', true);
-  window.scrollTo(0, 0);
-}
+/* Into the workspace from the shopfront. For somebody a fresh open put on the marketplace this
+   is the first time the workspace is shown at all, so it is enterApp_ -- which opens their
+   first tab then, and changes nothing about the tab they left on every later visit. */
+function backToApp() { enterApp_(); }
 function showLogin(openReg) {
   S.screen = 'login'; stopHints();
   show_('landingPage', false); show_('mainApp', false); show_('loginPage', true);
@@ -471,13 +470,35 @@ function showLogin(openReg) {
 function mkScrollTo(id) { var el = document.getElementById(id); if (el) el.scrollIntoView({ behavior: 'smooth' }); }
 
 /* ------------------------------------------------------------------ the app */
-function applyLogin(boot) {
+/* =====================================================================================
+   SIGNED IN IS ONE THING; STANDING IN THE WORKSPACE IS ANOTHER.
+   =====================================================================================
+   They used to be the same function, so anybody with a saved session was dropped on their
+   dashboard the moment the page loaded. The order was: a fresh open lands on the MARKETPLACE,
+   and only an app that was never closed -- or the same browser session -- goes back to where
+   the person was. So the two are separate now:
+
+     adoptSession_(boot)   who this is: the state, the name on the bar, which doors their role
+                           gets, the lock if the business is restricted, the timers. It shows
+                           nothing and loads no tab.
+     enterApp_(tab)        walk into the workspace: the first time, open a tab (the one they
+                           were on, if a reload brought them back, else the first their role
+                           has) and say what a sign-in says -- the loader, the announcement,
+                           the update check.
+
+   applyLogin is both, and it is what a person who has just typed a password gets: they asked
+   for the workspace. A fresh open with a saved session is adoptSession_ and the shopfront.
+
+   WHAT IT COSTS, AND SAVES. A fresh open no longer loads the dashboard at all until the person
+   asks for the workspace (one tap on "Business Manager"), so it spends the marketplace's one
+   cached read instead of the dashboard's several. */
+function adoptSession_(boot) {
   S.user = boot.user; S.vendor = boot.vendor; S.perms = boot.perms || {}; S.timings = boot.timings || {};
   S.branches = boot.branches || []; S.partners = boot.partners || []; S.features = boot.features || {}; S.announcement = boot.announcement || null;
+  S.hints = boot.hints || [];
   if (boot.whatsapp) WA_NUMBER = boot.whatsapp;
-  S.screen = 'app'; S.loaded = {};
+  S.loaded = {}; S.entered = false;
   store('boBoot', JSON.stringify({ user: boot.user, vendor: boot.vendor, perms: boot.perms }));
-  show_('landingPage', false); show_('loginPage', false); show_('mainApp', true);
   document.getElementById('displayVendor').textContent = S.vendor ? S.vendor.name : 'System Manager';
   document.getElementById('displayName').textContent = S.user.name; document.getElementById('displayRole').textContent = S.user.role;
   var initials = (S.user.name || 'U').split(' ').map(function (w) { return w[0]; }).join('').substring(0, 2).toUpperCase();
@@ -494,17 +515,76 @@ function applyLogin(boot) {
   if (!S.features.phone_vending) { var np = document.getElementById('nav-phone'); if (np) np.style.display = 'none'; }
   if (isSeller() && S.perms.showDashboard === false) document.getElementById('nav-dashboard').style.display = 'none';
   if (isSeller() && !S.perms.canDownloadReport) { document.getElementById('nav-reports').style.display = 'none'; document.querySelector('[data-roles="admin assistant-admin seller"]').style.display = 'none'; }
-  var first = null; document.querySelectorAll('.sidebar .nav-item').forEach(function (b) { if (!first && b.style.display !== 'none') first = b; });
-  switchTab(first ? first.id.replace('nav-', '') : 'dashboard', first);
   applyRestrictionUI(boot.restriction);
   document.getElementById('footerYear').textContent = new Date().getFullYear();
-  var lt = Number(S.timings.loadingTime) || 0; if (lt > 0) showLoader(lt * 1000);
-  startHintTimer(boot.hints || []); startAutoSync(S.timings.autoSyncSeconds); startIdleTimer(S.timings.sessionTimeoutMinutes);
-  /* Somebody who signs straight in never loads the shopfront, so the update check has to
-     happen here too -- but ONLY inside the app. A browser has no version to be behind, so a
-     browser never makes this request and never sees a nag. */
-  if (androidApp_()) srv('appRelease', {}).then(function (r) { checkAppUpdate(r.release); }).catch(function () {});
-  showAnnouncement();
+  startAutoSync(S.timings.autoSyncSeconds); startIdleTimer(S.timings.sessionTimeoutMinutes);
+}
+/** The nav button of a tab this person may open, or null: it must be on show for their role and
+    have a panel behind it (Marketplace, Favorites and Log out are doors, not tabs). */
+function navOpen_(name) {
+  var b = name ? document.getElementById('nav-' + name) : null;
+  return (b && b.style.display !== 'none' && document.getElementById('tab-' + name)) ? b : null;
+}
+function firstNav_() {
+  var first = null;
+  document.querySelectorAll('.sidebar .nav-item').forEach(function (b) { if (!first && navOpen_(b.id.replace('nav-', ''))) first = b; });
+  return first;
+}
+function enterApp_(tab) {
+  if (!S.user) { showLogin(false); return; }
+  S.screen = 'app'; stopHints();
+  show_('landingPage', false); show_('loginPage', false); show_('mainApp', true);
+  window.scrollTo(0, 0);
+  var fresh = !S.entered; S.entered = true;
+  if (fresh) {
+    /* The tab they were on, when a reload or a restored app brought them back and their role
+       still has it; otherwise the first one their role has. */
+    var btn = navOpen_(tab) || firstNav_();
+    switchTab(btn ? btn.id.replace('nav-', '') : 'dashboard', btn);
+    var lt = Number(S.timings.loadingTime) || 0; if (lt > 0) showLoader(lt * 1000);
+    /* Somebody who signs straight in never loads the shopfront, so the update check has to
+       happen here too -- but ONLY inside the app (a browser has no version to be behind, so a
+       browser never makes this request and never sees a nag), and only when the shopfront has
+       not already asked: its payload carries the same release and checkAppUpdate ran on it. */
+    if (androidApp_() && !_mkLoaded) srv('appRelease', {}).then(function (r) { checkAppUpdate(r.release); }).catch(function () {});
+    showAnnouncement();
+  }
+  /* The workspace's own tips. They were started once at sign-in and silenced for good by the
+     first visit to the shopfront; now they come back with the workspace. */
+  startHintTimer(S.hints || []);
+  rememberWhere_();
+}
+function applyLogin(boot) { adoptSession_(boot); enterApp_(); }
+
+/* ------------------------------------------------------------------ where a person was
+   "Landing default page should be marketplace unless app was not yet closed from recent apps
+   or by browser sessions."
+
+   Two records, because the two cases lose different things:
+
+     sessionStorage.boWhere   lives exactly as long as a browser tab does and survives a reload
+                              of it. THIS is "the same browser session": present -> go back to
+                              where they were; absent -> a fresh open -> the marketplace.
+     localStorage.boWhereLast the same value, kept for the one case the first cannot survive:
+                              Android clearing the app out of memory while it is still in the
+                              recent-apps list. Coming back builds a new WebView (no session
+                              storage), and the app says so by loading the page with ?resume=1
+                              (MainActivity: a saved instance state exists). It is read ONLY
+                              then, so it can never turn a fresh open into a resume.
+
+   The value is 'market' or 'app:<tab>'. An address that asks for the sign-in page (?login=1)
+   from somebody already signed in is an explicit ask for the workspace and wins. */
+function rememberWhere_() {
+  var w = S.screen === 'app' ? 'app:' + (S.tab || '') : 'market';
+  try { sessionStorage.setItem('boWhere', w); } catch (e) {}
+  if (S.user) store('boWhereLast', w);
+}
+function whereAtBoot_() {
+  var q = window.location.search, was = '';
+  try { was = sessionStorage.getItem('boWhere') || ''; } catch (e) {}
+  if (!was && /[?&]resume=1(&|$)/.test(q)) was = load('boWhereLast') || 'app:';
+  if (/[?&]login=1(&|$)/.test(q)) was = 'app:';
+  return { app: was.indexOf('app') === 0, tab: was.indexOf('app:') === 0 ? was.slice(4) : '' };
 }
 function switchTab(name, btn) {
   closeMobileSidebar();
@@ -517,6 +597,7 @@ function switchTab(name, btn) {
   var ms = document.getElementById('mainScroll'); if (ms) ms.scrollTop = 0;
   var tab = BO.tabs[name];
   if (tab && !S.loaded[name]) { S.loaded[name] = true; try { tab.load(); } catch (e) { console.error(e); } }
+  if (S.screen === 'app') rememberWhere_();
 }
 BO.reload = function (name) { S.loaded[name] = false; if (S.tab === name) switchTab(name); };
 /** Rebuilds the open tab and forgets the others, so their next visit is fresh. */
@@ -531,7 +612,7 @@ function logout(silent) {
   stopHints(); if (_autoSyncTimer) { clearInterval(_autoSyncTimer); _autoSyncTimer = null; } stopIdleTimer();
   try { document.querySelectorAll('.modal.show').forEach(function (m) { var inst = bootstrap.Modal.getInstance(m); if (inst) inst.hide(); }); } catch (e) {}
   try { document.querySelectorAll('.modal-backdrop').forEach(function (b) { b.remove(); }); document.body.classList.remove('modal-open'); document.body.style.removeProperty('overflow'); document.body.style.removeProperty('padding-right'); } catch (e) {}
-  S.token = ''; S.user = null; S.vendor = null; S.perms = {}; S.loaded = {}; store('boToken', null); store('boBoot', null);
+  S.token = ''; S.user = null; S.vendor = null; S.perms = {}; S.loaded = {}; S.entered = false; S.hints = []; store('boToken', null); store('boBoot', null); store('boWhereLast', null);
   document.body.classList.remove('bo-restricted');
   ['dashboardContent', 'saleContent', 'lendingsContent', 'productsContent', 'stockContent', 'usersContent', 'cashContent', 'reportsContent', 'managerContent', 'mgrReportsContent', 'settingsContent', 'accountContent'].forEach(function (id) { var el = document.getElementById(id); if (el) el.innerHTML = ''; });
   var li = document.getElementById('loginId'); if (li) li.value = ''; var lp = document.getElementById('loginPwd'); if (lp) lp.value = ''; var lm = document.getElementById('loginMsg'); if (lm) lm.innerHTML = '';
@@ -588,8 +669,16 @@ function submitSetup() {
    The app announces itself through window.SamaritanApp, the way HOPE Calls does. A browser has
    no such object, so a browser is never nagged to install anything. */
 function androidApp_() {
-  try { return (window.SamaritanApp && window.SamaritanApp.versionCode) ? window.SamaritanApp : null; }
-  catch (e) { return null; }
+  try {
+    var a = window.SamaritanApp;
+    if (!a) return null;
+    /* The app publishes versionCode from its onResume, and on a cold start that can run before
+       this page exists -- the number then lands on a blank page and is gone, and the page
+       believes it is in a browser until the app is next brought forward. The app's own methods
+       are on every page it loads, so the page asks for itself rather than wait to be told. */
+    if (!a.versionCode && typeof a.getVersionCode === 'function') { a.versionCode = a.getVersionCode(); a.versionName = a.getVersionName(); }
+    return a.versionCode ? a : null;
+  } catch (e) { return null; }
 }
 function qrInto(id, text) {
   var box = document.getElementById(id); if (!box) return;
@@ -603,14 +692,40 @@ function qrInto(id, text) {
     box.innerHTML = '<div class="small" style="color:#111;word-break:break-all;padding:8px;">' + esc(text) + '</div>';
   }
 }
-function downloadQr(id, filename) {
-  var c = document.querySelector('#' + id + ' canvas');
-  if (!c) { showToast('The code is not drawn yet.', '⚠️'); return; }
-  try {
-    var a = document.createElement('a');
-    a.href = c.toDataURL('image/png'); a.download = filename;
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  } catch (e) { showToast('Could not save the picture on this device.', '⚠️'); }
+/* "SAVE THIS CODE AS A PICTURE" IS A LINK NOW, to a PNG the server draws (/api/download?qr=...).
+   It used to build the picture inside the page and click an invisible link to it. A browser
+   saves that; the Android app does not -- its downloads go to the phone's download manager,
+   which fetches addresses and had nothing to fetch -- so inside the app the button did
+   nothing at all. An ordinary https file works in both, including the app already installed
+   on every phone. All that is left to do here is say where the file went: the app shows no
+   download bar of its own. */
+function savingQr() {
+  if (androidApp_()) showToast('Inahifadhiwa… / Saving — look in your phone\'s Downloads.', '⬇️');
+}
+/* "OPEN IN THIS BROWSER", FROM INSIDE THE APP, MEANS THE PHONE'S BROWSER. In a browser the link
+   simply opens the shopfront and nothing here interferes. Inside the app that same link only
+   reloaded the app, because this system's own address is exactly what the app is built to keep
+   to itself -- so the request has to be handed to the phone explicitly:
+
+     the app that has the door     SamaritanApp.openExternal(address)   (MainActivity.Bridge)
+     an app installed before that  Chrome's own address form, which the app passes to the phone
+                                   like any other foreign link; the address is also copied, in
+                                   case the phone has no Chrome to answer.
+
+   NEVER an intent:// link to our own host: the app would try to open it itself and show an
+   error page. */
+function openInBrowser(ev) {
+  var app = androidApp_();
+  if (!app) return true;
+  if (ev && ev.preventDefault) ev.preventDefault();
+  var url = window.location.origin + '/';
+  try { if (typeof window.SamaritanApp.openExternal === 'function') { window.SamaritanApp.openExternal(url); return false; } } catch (e) {}
+  try { if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).catch(function () {}); } catch (e) {}
+  showToast('Inafungua kivinjari… / Opening your browser. If nothing opens, type ' + url.replace(/^https?:\/\//, '').replace(/\/$/, '') + ' in it.', '🌐');
+  /* The address goes in AS IT IS, not percent-encoded: Chrome takes everything after "url=" as
+     the address itself, and an encoded one arrives as nonsense. */
+  window.location.href = 'googlechrome://navigate?url=' + url;
+  return false;
 }
 /** Draws the two codes and the download button from whatever the market payload reported. */
 function showAppSection(release) {
@@ -620,6 +735,8 @@ function showAppSection(release) {
   if (sec) sec.classList.remove('hidden');
   if (link) link.classList.remove('hidden');
   var su = document.getElementById('qrSiteUrl'); if (su) su.textContent = site;
+  /* Inside the app there is no "this browser": the button hands the address to the phone's. */
+  var sb = document.getElementById('mkSiteBtn'); if (sb && androidApp_()) sb.textContent = 'Open in the phone\'s browser';
   var au = document.getElementById('qrApkUrl'); if (au) au.textContent = apk;
   qrInto('qrSite', site);
   qrInto('qrApk', apk);
@@ -1026,7 +1143,7 @@ function openProductDetail(idx) {
 }
 
 /* ------------------------------------------------------------------ hints (bilingual tips) */
-var hintTimer = null, hintLifetime = 5, hintInterval = 300, _hintList = [];
+var hintTimer = null, hintFirst = null, hintLifetime = 5, hintInterval = 300, _hintList = [];
 function startHintTimer(hints, timings) {
   stopHints();
   var t = timings || S.timings || {};
@@ -1039,9 +1156,12 @@ function startHintTimer(hints, timings) {
     toastShow_(msg, '💡', hintLifetime * 1000);
   };
   hintTimer = setInterval(show, hintInterval * 1000);
-  setTimeout(show, 2500);
+  /* The first tip is on a short fuse so the list is seen at all -- and the fuse is put out with
+     the list, or a tip meant for the workspace goes off over the shopfront two seconds after
+     somebody has walked out of it. */
+  hintFirst = setTimeout(function () { hintFirst = null; show(); }, 2500);
 }
-function stopHints() { if (hintTimer) { clearInterval(hintTimer); hintTimer = null; } }
+function stopHints() { if (hintTimer) { clearInterval(hintTimer); hintTimer = null; } if (hintFirst) { clearTimeout(hintFirst); hintFirst = null; } }
 function startMarketplaceHints() { if (!hintTimer && _market.hints) startHintTimer(_market.hints, _market.timings); }
 
 /* ------------------------------------------------------------------ auto-sync, idle, restriction */
@@ -1052,10 +1172,14 @@ function silentSync() {
   if (!isManager()) srv('restrictionInfo', {}).then(applyRestrictionUI).catch(function () {});
   var tab = BO.tabs[S.tab]; if (tab && tab.sync) { try { tab.sync(); } catch (e) {} }
 }
+/* IDLE SIGN-OUT FOLLOWS THE PERSON, NOT THE SCREEN. It used to act only while the workspace was
+   showing. A fresh open now lands on the marketplace with the session still live, so a phone
+   left there would never have been signed out at all -- the timer goes by whether anybody is
+   signed in, wherever they are looking. */
 function startIdleTimer(mins) { _idleMs = (parseInt(mins, 10) || 0) * 60000; resetIdle(); }
-function resetIdle() { if (!_idleMs) { if (_idleTimer) { clearTimeout(_idleTimer); _idleTimer = null; } return; } clearTimeout(_idleTimer); _idleTimer = setTimeout(function () { if (S.screen === 'app') { showToast('Signed out due to inactivity.', '🔒'); logout(); } }, _idleMs); }
+function resetIdle() { if (!_idleMs) { if (_idleTimer) { clearTimeout(_idleTimer); _idleTimer = null; } return; } clearTimeout(_idleTimer); _idleTimer = setTimeout(function () { if (S.user) { showToast('Signed out due to inactivity.', '🔒'); logout(); } }, _idleMs); }
 function stopIdleTimer() { if (_idleTimer) { clearTimeout(_idleTimer); _idleTimer = null; } _idleMs = 0; }
-['click', 'keydown', 'mousemove', 'touchstart', 'scroll'].forEach(function (ev) { document.addEventListener(ev, function () { if (S.screen === 'app' && _idleMs) resetIdle(); }, { passive: true }); });
+['click', 'keydown', 'mousemove', 'touchstart', 'scroll'].forEach(function (ev) { document.addEventListener(ev, function () { if (S.user && _idleMs) resetIdle(); }, { passive: true }); });
 function applyRestrictionUI(info) {
   var on = !!(info && info.restricted);
   document.body.classList.toggle('bo-restricted', on);
@@ -1167,8 +1291,17 @@ BO.boot = function () {
     done(); return;
   }
   if (S.token) {
-    // A saved session signs straight back in; a dead one falls through to the marketplace.
-    auth('me', { token: S.token }).then(function (b) { applyLogin(b); done(); })
+    /* A saved session is still signed in -- but a FRESH OPEN lands on the marketplace, with
+       their name on its bar and "Business Manager" one tap away. Only a reload of the same
+       browser tab, or an app Android is restoring rather than starting, goes back to the
+       screen and tab the person was on (whereAtBoot_). A dead session falls through to the
+       marketplace signed out, as it always did. */
+    var was = whereAtBoot_();
+    auth('me', { token: S.token }).then(function (b) {
+      adoptSession_(b);
+      if (was.app) enterApp_(was.tab); else showLanding();
+      done();
+    })
       .catch(function (e) { if (/sign in|expired|session|account|Please/i.test(e.message) || e.status === 401) { S.token = ''; store('boToken', null); } showLanding(); done(); });
   } else {
     /* No session. Before showing anything, ask whether this system has a manager at all -- a

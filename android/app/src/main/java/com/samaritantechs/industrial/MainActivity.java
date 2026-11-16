@@ -25,6 +25,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 import java.io.File;
+import java.util.Locale;
 
 /**
  * A window onto the live site, and deliberately nothing more.
@@ -201,6 +202,14 @@ public class MainActivity extends AppCompatActivity {
         /* Reports download as real files, and so does the APK itself when somebody updates from
          * inside the app -- so the phone's own download manager handles them. */
         web.setDownloadListener((url, agent, disposition, mime, size) -> {
+            /* The download manager fetches ADDRESSES. A picture or file that exists only inside
+             * the page (data:, blob:) has none, and asking for it threw -- into a fallback that
+             * threw again, with nothing to catch it. Such a file is refused in words; the site
+             * serves its own downloads as ordinary https files for exactly this reason. */
+            if (url == null || !(url.startsWith("https://") || url.startsWith("http://"))) {
+                Toast.makeText(this, "This file cannot be saved from inside the app.", Toast.LENGTH_SHORT).show();
+                return;
+            }
             try {
                 DownloadManager.Request req = new DownloadManager.Request(Uri.parse(url));
                 req.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
@@ -208,7 +217,8 @@ public class MainActivity extends AppCompatActivity {
                 ((DownloadManager) getSystemService(DOWNLOAD_SERVICE)).enqueue(req);
                 Toast.makeText(this, "Downloading…", Toast.LENGTH_SHORT).show();
             } catch (Exception e) {
-                startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
+                try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); }
+                catch (Exception e2) { Toast.makeText(this, "Nothing on this phone can download that.", Toast.LENGTH_SHORT).show(); }
             }
         });
 
@@ -219,7 +229,13 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        web.loadUrl(APP_URL);
+        /* STARTED, OR BROUGHT BACK? The site opens on the marketplace when the app is started,
+         * and goes back to the screen the person was on when it is only being restored. Android
+         * says which: saved state exists only when IT put the app away -- cleared from memory
+         * while still in the recent-apps list -- and never after the person swiped it off that
+         * list or backed out of it. The page cannot tell these apart by itself (a rebuilt
+         * WebView remembers nothing of its session), so it is told, in the address. */
+        web.loadUrl(state != null ? APP_URL + "?resume=1" : APP_URL);
     }
 
     /** The gallery, plus the camera alongside it. A shop registering a product has the thing in
@@ -257,6 +273,25 @@ public class MainActivity extends AppCompatActivity {
     public class Bridge {
         @JavascriptInterface public int getVersionCode() { return BuildConfig.VERSION_CODE; }
         @JavascriptInterface public String getVersionName() { return BuildConfig.VERSION_NAME; }
+
+        /** "Open in the phone's browser" -- the one thing the page cannot do for itself, because
+         *  this system's own address is exactly what shouldOverrideUrlLoading keeps inside the
+         *  app. A web address only: this is a door to a browser, not to any app on the phone. */
+        @JavascriptInterface public void openExternal(final String url) {
+            runOnUiThread(() -> {
+                try {
+                    Uri u = Uri.parse(url == null ? "" : url);
+                    String scheme = u.getScheme() == null ? "" : u.getScheme().toLowerCase(Locale.US);
+                    if (!scheme.equals("https") && !scheme.equals("http")) return;
+                    Intent i = new Intent(Intent.ACTION_VIEW, u);
+                    i.addCategory(Intent.CATEGORY_BROWSABLE);
+                    i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(i);
+                } catch (Exception e) {
+                    Toast.makeText(MainActivity.this, "No browser on this phone could open that.", Toast.LENGTH_SHORT).show();
+                }
+            });
+        }
         /* The site reads window.SamaritanApp.versionCode, so expose it as a property too --
          * addJavascriptInterface only exposes methods, hence the tiny shim injected below. */
     }
