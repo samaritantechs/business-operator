@@ -363,7 +363,7 @@ test('somebody signed in is never offered Log in on the marketplace', () => {
   assert.match(html, /<div class="mk-acct" id="mkAuthOut">[\s\S]*?showLogin\(false\)[\s\S]*?showLogin\(true\)[\s\S]*?<\/div>/, 'the signed-out doors are gone');
   assert.match(html, /<div class="mk-acct hidden" id="mkAuthIn">[\s\S]*?id="mkLogoutBtn"[^>]*onclick="logout\(\)"/, 'the signed-in slot has no Log out');
   assert.match(shell, /function paintMkAccount_\(\) \{[\s\S]*?out\.classList\.toggle\('hidden', !!u\);[\s\S]*?inn\.classList\.toggle\('hidden', !u\);/, 'the slot is no longer decided by who is signed in');
-  assert.match(shell, /function showLanding\(\) \{[\s\S]*?paintMkAccount_\(\);/, 'showLanding must repaint who is looking, every time');
+  assert.match(shell, /function showLanding\(unrecorded\) \{[\s\S]*?paintMkAccount_\(\);/, 'showLanding must repaint who is looking, every time');
   // logout() ends on showLanding(), so signing out from the shopfront flips the slot with no extra call.
   assert.match(shell, /function logout\(silent\) \{[\s\S]*?showLanding\(\);/, 'logout no longer lands on the marketplace');
 });

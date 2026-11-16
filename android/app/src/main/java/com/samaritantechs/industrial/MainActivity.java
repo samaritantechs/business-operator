@@ -287,10 +287,15 @@ public class MainActivity extends AppCompatActivity {
         try { return URLUtil.guessFileName(url, disposition, mime); } catch (Exception e) { return ""; }
     }
 
-    /** A file name and nothing else: no folders, nothing a file system chokes on. */
+    /** A file name and nothing else: no folders, nothing a file system chokes on.
+     *
+     *  '%' and '#' go too, and not for tidiness. The download manager reads the destination
+     *  back as an ADDRESS, so "%2F" in a name is a slash again by the time it is used -- a file
+     *  named "..%2FPictures%2Fx.png" by any server the app shows would land outside Downloads
+     *  -- and everything after a '#' is dropped, extension included. */
     private static String cleanName(String name) {
         if (name == null) return "";
-        String n = name.replaceAll("[\\\\/:*?\"<>|\\p{Cntrl}]", "_").trim();
+        String n = name.replaceAll("[\\\\/:*?\"<>|%#\\p{Cntrl}]", "_").trim();
         while (n.startsWith(".")) n = n.substring(1);
         return n.length() > 120 ? n.substring(n.length() - 120) : n;
     }

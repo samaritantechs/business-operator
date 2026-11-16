@@ -416,12 +416,19 @@ function toggleView() { applyView(S.view === 'desktop' ? 'mobile' : 'desktop'); 
 
 /* ------------------------------------------------------------------ screens */
 function show_(id, on) { var el = document.getElementById(id); if (!el) return; el.classList.toggle('hidden', !on); if (id === 'mainApp') el.style.display = on ? 'flex' : 'none'; }
-function showLanding() {
+function showLanding(unrecorded) {
   S.screen = 'landing'; show_('loginPage', false); show_('mainApp', false); show_('landingPage', true); window.scrollTo(0, 0);
   /* The same screen serves somebody signed in and somebody who is not, so who it greets is
      decided here, every time it is shown, rather than in whichever function happened to open it. */
   paintMkAccount_();
-  rememberWhere_();
+  /* `unrecorded` is for the one arrival that is not a choice: the page could not reach the
+     server, so it shows the shopfront for want of anything else. Writing that down as "where
+     they were" would make the NEXT reload forget the tab they were actually working on. */
+  if (!unrecorded) rememberWhere_();
+  /* The workspace's tips stop at the door. They used to keep running here -- the shopfront's
+     own would not start while another list was going -- so a seller's tip about the till
+     popped up over the marketplace, and the marketplace's tips never came back. */
+  stopHints();
   if (!_market.products.length) loadMarketplace(); else startMarketplaceHints();
 }
 /* WHO IS LOOKING AT THE SHOPFRONT. Signed in: the name, and the way out. Signed out: the two
@@ -1017,7 +1024,7 @@ function loadMarketplace() {
     renderMarket();
     showAppSection(_market.release);          // the download button and the two printable codes
     checkAppUpdate(_market.release);          // and a nag, only for a phone running an older APK
-    if (S.screen === 'landing') startHintTimer(d.hints || [], d.timings);
+    if (S.screen === 'landing') { startHintTimer(d.hints || [], d.timings); _mkTipped = true; }
   })
     .catch(function () { var g = document.getElementById('mkProductGrid'); if (g) g.innerHTML = '<div class="mk-empty">Could not load marketplace. Tap ↻ to retry.</div>'; });
 }
@@ -1276,7 +1283,10 @@ function startHintTimer(hints, timings, quiet) {
   if (!quiet) hintFirst = setTimeout(function () { hintFirst = null; show(); }, 2500);
 }
 function stopHints() { if (hintTimer) { clearInterval(hintTimer); hintTimer = null; } if (hintFirst) { clearTimeout(hintFirst); hintFirst = null; } }
-function startMarketplaceHints() { if (!hintTimer && _market.hints) startHintTimer(_market.hints, _market.timings); }
+/* The shopfront's tips, on coming back to it. Like the workspace's, they return on their ordinary
+   interval: only the first arrival is given one straight away. */
+var _mkTipped = false;
+function startMarketplaceHints() { if (!hintTimer && _market.hints) { startHintTimer(_market.hints, _market.timings, _mkTipped); _mkTipped = true; } }
 
 /* ------------------------------------------------------------------ auto-sync, idle, restriction */
 var _autoSyncTimer = null, _idleTimer = null, _idleMs = 0;
@@ -1416,7 +1426,14 @@ BO.boot = function () {
       if (was.app) enterApp_(was.tab); else showLanding();
       done();
     })
-      .catch(function (e) { if (/sign in|expired|session|account|Please/i.test(e.message) || e.status === 401) { S.token = ''; store('boToken', null); } showLanding(); done(); });
+      .catch(function (e) {
+        /* A session the server no longer knows is over, and the shopfront is where that leaves
+           them. A server that could not be REACHED is different: the session is kept, and so
+           is the note of where they were, so the next reload still goes back to their tab. */
+        var dead = /sign in|expired|session|account|Please/i.test(e.message) || e.status === 401;
+        if (dead) { S.token = ''; store('boToken', null); }
+        showLanding(!dead); done();
+      });
   } else {
     /* No session. Before showing anything, ask whether this system has a manager at all -- a
        brand-new deployment goes straight to the setup screen. One cheap read, signed-out only.

@@ -89,7 +89,7 @@ test('where a person is, is written down as they move -- and the phone forgets i
   d.rememberWhere_();
   assert.equal(d.local.boWhereLast, 'market');
   // Every way of moving writes it down.
-  assert.match(fnSource('showLanding'), /rememberWhere_\(\);/, 'opening the shopfront');
+  assert.match(fnSource('showLanding'), /if \(!unrecorded\) rememberWhere_\(\);/, 'opening the shopfront');
   assert.match(fnSource('switchTab'), /if \(S\.screen === 'app'\) rememberWhere_\(\);/, 'changing tab');
   assert.match(fnSource('enterApp_'), /rememberWhere_\(\);/, 'walking into the workspace');
   assert.match(fnSource('logout'), /store\('boWhereLast', null\)/, 'and signing out forgets it');
@@ -109,6 +109,26 @@ test('being signed in and standing in the workspace are two steps, and only a si
   assert.match(shell, /\nfunction backToApp\(\) \{ enterApp_\(\); \}/, 'Business Manager is the same door');
   // The boot: decided once, before the session is checked, and the shopfront unless told otherwise.
   assert.match(shell, /var was = whereAtBoot_\(\);\s*auth\('me', \{ token: S\.token \}\)\.then\(function \(b\) \{\s*adoptSession_\(b\);\s*if \(was\.app\) enterApp_\(was\.tab\); else showLanding\(\);/);
+});
+
+test('a reload that cannot reach the server does not forget the tab; a dead session does end at the shopfront', () => {
+  /* Found in review: the page fell back to the shopfront when the server could not be reached,
+     wrote "marketplace" down as where the person was, and the next reload -- with the line
+     back -- no longer returned them to the tab they had been working on. */
+  assert.match(shell, /var dead = \/sign in\|expired\|session\|account\|Please\/i\.test\(e\.message\) \|\| e\.status === 401;\s*if \(dead\) \{ S\.token = ''; store\('boToken', null\); \}\s*showLanding\(!dead\); done\(\);/);
+  const d = door({ session: { boWhere: 'app:stock' } });
+  // What showLanding(true) leaves alone, a later reload still reads.
+  assert.deepEqual(d.whereAtBoot_(), { app: true, tab: 'stock' });
+});
+
+test('the workspace\'s tips stop at the door of the shopfront, and the shopfront\'s own come back', () => {
+  /* Found in review: entering the workspace now always starts its tips, and nothing stopped
+     them on the way out -- so a tip about the till popped up over the marketplace, whose own
+     tips could not start while another list was running. */
+  const land = fnSource('showLanding');
+  assert.match(land, /stopHints\(\);\s*if \(!_market\.products\.length\) loadMarketplace\(\); else startMarketplaceHints\(\);/);
+  assert.match(shell, /function startMarketplaceHints\(\) \{ if \(!hintTimer && _market\.hints\) \{ startHintTimer\(_market\.hints, _market\.timings, _mkTipped\); _mkTipped = true; \} \}/,
+    'and coming back to it does not fire a tip straight away every time');
 });
 
 test('idle sign-out follows the person, not the screen: signed in on the shopfront is still signed in', () => {
@@ -307,6 +327,9 @@ test('the app saves a file where the phone shows it, fetches it once -- and leav
   assert.ok(door, 'the app lost its download door');
   assert.match(door[0], /if \(!isOurOrigin\(url\)\) \{/);
   assert.match(door[0], /saveFile\(url, name\);/);
+  /* Found in review: the download manager reads the destination back as an address, so "%2F"
+     in a name is a slash again and "#" cuts the name short. Neither survives. */
+  assert.match(/private static String cleanName\(String name\) \{[\s\S]*?\n    \}/.exec(java)[0], /<>\|%#/, 'cleanName must strip % and # as well as the path characters');
   // A PDF is served "inline; filename=...", which Android's own helper does not read.
   assert.match(java, /Pattern\.compile\("\(\?i\)filename\\\\s\*=\\\\s\*\\"\?\(\[\^\\";\]\+\)\\"\?"\)/);
   for (const imp of ['android.os.Environment', 'android.print.PrintAttributes', 'android.print.PrintManager', 'android.webkit.URLUtil', 'android.content.Context', 'java.util.regex.Matcher', 'java.util.regex.Pattern'])

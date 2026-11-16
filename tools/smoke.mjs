@@ -702,6 +702,9 @@ await step('a fresh open lands on the marketplace signed in; a reload goes back 
   if (st.tab !== 'stock' || st.active !== 'nav-stock') throw new Error('a reload at work did not come back to the tab: ' + JSON.stringify(st));
   // ...and reloading while on the shopfront comes back to the shopfront, still signed in.
   await fresh.evaluate(() => openMarketplace());
+  // Back on the shopfront the tips are the shopfront's again -- the workspace's stopped at the door.
+  const tips = await fresh.evaluate(() => ({ shopfront: _hintList === _market.hints, running: !!hintTimer, hadAny: (_market.hints || []).length > 0 }));
+  if (tips.hadAny && (!tips.shopfront || !tips.running)) throw new Error('back on the shopfront the tips are: ' + JSON.stringify(tips));
   await fresh.reload({ waitUntil: 'domcontentloaded' });
   await fresh.waitForSelector('#landingPage:not(.hidden) #mkProductGrid .mk-card', { timeout: 10000 });
   st = await state(fresh);
