@@ -289,6 +289,21 @@ BO.notify = function (msg) { askOverlay({ message: msg, noCancel: true, okText: 
 window.alert = function (msg) { BO.notify(msg); };
 /** An <input type=file> -> a data: URL, downscaled so a 12-megapixel phone photo does not become a
     9 MB upload. Callback gets (dataUrl|null, error). */
+/** The same picture, small -- what a card on the marketplace shows (uploadProductImage keeps it
+    beside the photograph). White behind it, because a JPEG has no see-through and a cut-out
+    PNG would otherwise come out on black. Answers '' when the picture cannot be drawn: the
+    upload then simply goes without one. */
+BO.smallPicture = function (dataUrl, maxPx, cb) {
+  var img = new Image();
+  img.onload = function () {
+    var s = Math.min(1, maxPx / Math.max(img.width, img.height, 1));
+    var c = document.createElement('canvas'); c.width = Math.max(1, Math.round(img.width * s)); c.height = Math.max(1, Math.round(img.height * s));
+    try { var x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.drawImage(img, 0, 0, c.width, c.height); cb(c.toDataURL('image/jpeg', 0.8)); }
+    catch (e) { cb(''); }
+  };
+  img.onerror = function () { cb(''); };
+  img.src = dataUrl;
+};
 BO.fileToDataUrl = function (input, cb, maxPx) {
   if (!input || !input.files || !input.files[0]) { cb(null, 'No file chosen.'); return; }
   var f = input.files[0];
@@ -369,8 +384,12 @@ BO.fail = function (e) { showToast(String((e && e.message) || e), '⚠️'); };
 /* ------------------------------------------------------------------ language, theme, view */
 var T = { en: { signin: 'Sign in to your account', signin_sub: 'Enter your User ID or Email to access the system', userid: 'User ID or Email', password: 'Password', login_btn: 'Sign In' },
   sw: { signin: 'Ingia kwenye akaunti yako', signin_sub: 'Weka kitambulisho au barua pepe kufikia mfumo', userid: 'Kitambulisho au Barua Pepe', password: 'Nywila', login_btn: 'Ingia' } };
-function setLang(l) {
+/* `picked` is true only when a person pressed a language button. The page also calls this on
+   every open, to paint the buttons -- and that must not count as a choice, or "nobody has
+   chosen" could never be told from "somebody chose English" (mkSpeaksSwahili_ needs to know). */
+function setLang(l, picked) {
   S.lang = l; store('boLang', l);
+  if (picked) store('boLangPick', l);
   var en = document.getElementById('langEn'), sw = document.getElementById('langSw');
   if (en) en.classList.toggle('active', l === 'en'); if (sw) sw.classList.toggle('active', l === 'sw');
   var t = T[l] || T.en;
@@ -379,7 +398,7 @@ function setLang(l) {
 }
 function updateLangUI() { var lbl = (S.lang === 'sw') ? 'SW' : 'EN'; var b1 = document.getElementById('langToggleBtn'), b2 = document.getElementById('mkLangBtn'); if (b1) b1.textContent = lbl; if (b2) b2.textContent = lbl; }
 function toggleLang() {
-  setLang(S.lang === 'sw' ? 'en' : 'sw');
+  setLang(S.lang === 'sw' ? 'en' : 'sw', true);
   // One tip straight away in the new language: instant proof the toggle worked.
   var arr = _hintList || [];
   if (arr.length) { var h = arr[Math.floor(Math.random() * arr.length)]; var msg = (S.lang === 'sw' && h.sw) ? h.sw : h.en; toastShow_(msg, S.lang === 'sw' ? '🇹🇿' : '🇬🇧', (hintLifetime || 3) * 1000); }
@@ -510,7 +529,7 @@ function adoptSession_(boot) {
   S.branches = boot.branches || []; S.partners = boot.partners || []; S.features = boot.features || {}; S.announcement = boot.announcement || null;
   S.hints = boot.hints || [];
   if (boot.whatsapp) WA_NUMBER = boot.whatsapp;
-  S.loaded = {}; S.entered = false;
+  S.loaded = {}; S.entered = false; S.payNums = null;
   store('boBoot', JSON.stringify({ user: boot.user, vendor: boot.vendor, perms: boot.perms }));
   document.getElementById('displayVendor').textContent = S.vendor ? S.vendor.name : 'System Manager';
   document.getElementById('displayName').textContent = S.user.name; document.getElementById('displayRole').textContent = S.user.role;
@@ -632,7 +651,7 @@ function logout(silent) {
   stopHints(); if (_autoSyncTimer) { clearInterval(_autoSyncTimer); _autoSyncTimer = null; } stopIdleTimer();
   try { document.querySelectorAll('.modal.show').forEach(function (m) { var inst = bootstrap.Modal.getInstance(m); if (inst) inst.hide(); }); } catch (e) {}
   try { document.querySelectorAll('.modal-backdrop').forEach(function (b) { b.remove(); }); document.body.classList.remove('modal-open'); document.body.style.removeProperty('overflow'); document.body.style.removeProperty('padding-right'); } catch (e) {}
-  S.token = ''; S.user = null; S.vendor = null; S.perms = {}; S.loaded = {}; S.entered = false; S.hints = []; store('boToken', null); store('boBoot', null); store('boWhereLast', null);
+  S.token = ''; S.user = null; S.vendor = null; S.perms = {}; S.loaded = {}; S.entered = false; S.hints = []; S.payNums = null; store('boToken', null); store('boBoot', null); store('boWhereLast', null);
   document.body.classList.remove('bo-restricted');
   ['dashboardContent', 'saleContent', 'lendingsContent', 'productsContent', 'stockContent', 'usersContent', 'cashContent', 'reportsContent', 'managerContent', 'mgrReportsContent', 'settingsContent', 'accountContent'].forEach(function (id) { var el = document.getElementById(id); if (el) el.innerHTML = ''; });
   var li = document.getElementById('loginId'); if (li) li.value = ''; var lp = document.getElementById('loginPwd'); if (lp) lp.value = ''; var lm = document.getElementById('loginMsg'); if (lm) lm.innerHTML = '';
@@ -770,6 +789,45 @@ function openInBrowser(ev) {
    BO.fileDoor(inTab)        a file that is asked for now and ready in a moment. Call it AT THE
                              TAP, before the request; call .go(address, fileName) when the
                              address arrives, or .close() if it never does. */
+/* THE SHOP'S PAY NUMBERS (Lipa Namba), for the till and the receipt. Money sent to a wrong
+   number does not come back, so what this hands out is held to three rules:
+
+   FRESH.   The answer is kept for a minute and no longer. A till stays open all day, and a
+            number an admin has just corrected must reach it. At most one small read a minute,
+            and only while somebody is choosing Lipa Number. `fresh` asks now whatever is held
+            (the profile screen, where the list is edited).
+   YOURS.   An answer belongs to the person who asked. If somebody else has signed in on this
+            phone since (a shared shop phone), the answer is dropped, not stored: the next
+            till must never read the last business's number. And an answer to a question asked
+            BEFORE a save finished is older than the save: the question is asked again.
+   HONEST.  When the line drops, what was held is given again only if it is a few minutes old;
+            older than that, or nothing held, the answer is { failed: true } and the screen says
+            it could not load -- never "none is saved" to a shop that has one, and never an
+            all-day-old number as if it were current.
+
+   The answer is { rows: [{ network, number, name }], ready } (never an error), given to `cb`
+   once. If `cb` itself fails it is not called a second time. */
+var PAY_FRESH_MS = 60000, PAY_GRACE_MS = 300000;
+BO.payNumbers = function (cb, fresh) {
+  var held = S.payNums, gen = S.payGen || 0, tok = S.token;
+  if (held && !fresh && Date.now() - held.at < PAY_FRESH_MS) { cb(held); return; }
+  srv('payNumbers', {}).then(function (r) {
+    if (S.token !== tok) return null;                                  // another person is signed in now
+    if ((S.payGen || 0) !== gen) return false;                         // a save finished meanwhile: ask again
+    S.payNums = { rows: r.rows || [], ready: r.ready !== false, at: Date.now() };
+    return S.payNums;
+  }, function () {
+    if (S.token !== tok) return null;
+    var now = S.payNums;
+    return (now && !fresh && Date.now() - now.at < PAY_GRACE_MS) ? now : { rows: [], ready: true, failed: true };
+  }).then(function (got) {
+    if (got === null) return;                                          // the screen that asked is gone
+    if (got === false) { BO.payNumbers(cb, true); return; }
+    cb(got);
+  });
+};
+/** One pay number as a line of words: "M-Pesa 123456 – FROMVILLE PHONES". */
+BO.payLine = function (n) { return n.network + ' ' + n.number + ' – ' + n.name; };
 BO.openOutside = function (url) {
   /* In the app the address is simply gone to: the app hands every address that is not this
      system's to the phone (WhatsApp, Maps, the dialler) and this page stays where it is. No
@@ -1031,7 +1089,10 @@ function loadMarketplace() {
     checkAppUpdate(_market.release);          // and a nag, only for a phone running an older APK
     if (S.screen === 'landing') { startHintTimer(d.hints || [], d.timings); _mkTipped = true; }
   })
-    .catch(function () { var g = document.getElementById('mkProductGrid'); if (g) g.innerHTML = '<div class="mk-empty">Could not load marketplace. Tap ↻ to retry.</div>'; });
+    .catch(function () {
+      var g = document.getElementById('mkProductGrid'); if (g) g.innerHTML = '<div class="mk-empty">Could not load marketplace. Tap ↻ to retry.</div>';
+      _mkNear = ''; paintMkNear_();                    // "these are the closest" must not stay over an error box
+    });
 }
 function renderMarket() {
   var prods = _market.products || [], vends = _market.vendors || [], cats = {};
@@ -1156,14 +1217,21 @@ function mkGo(where) {
 }
 
 function filterMarket(keepShown) {
-  var q = (document.getElementById('mkSearch').value || '').trim().toLowerCase(), favs = _mkView === 'favs' ? favMap_() : null, like = _mkSimilar;
+  var typed = (document.getElementById('mkSearch').value || '').trim(), q = typed.toLowerCase(), favs = _mkView === 'favs' ? favMap_() : null, like = _mkSimilar;
   var list = (_market.products || []).filter(function (p) {
     if (favs && !favs[String(p.id)]) return false;
     if (_mkFilterType !== 'ALL' && (p.listingType || 'Sale') !== _mkFilterType) return false;
     if (_mkFilterCat !== 'ALL' && p.cat !== _mkFilterCat) return false;
-    if (!q) return true;
-    return [p.name, p.cat, p.vendor, p.location, p.brand, p.model].some(function (v) { return String(v || '').toLowerCase().indexOf(q) !== -1; });
+    return true;
   });
+  /* WHAT WAS TYPED, UNDERSTOOD (public/bo/find.js): every word, in either language, and -- only
+     when nothing matches exactly -- the closest spelling, which the note above the grid owns up
+     to. If that script did not load, the box still works the plain way it always did. */
+  _mkNear = '';
+  if (q) {
+    if (window.BOFind) { var found = BOFind.search(list, typed); list = found.list; if (found.near) _mkNear = typed; }
+    else list = list.filter(function (p) { return [p.name, p.cat, p.vendor, p.location, p.brand, p.model].some(function (v) { return String(v || '').toLowerCase().indexOf(q) !== -1; }); });
+  }
   if (like) {
     // Best match first; the market's own order (what is in stock and looked at) settles a tie.
     var scored = [];
@@ -1173,7 +1241,19 @@ function filterMarket(keepShown) {
   }
   _mkFiltered = list;
   if (!keepShown) _mkShown = _mkPageSize;
+  paintMkNear_();
   renderMarketPage();
+}
+/* "No exact match -- these are the closest." Said whenever the grid is showing near misses, so a
+   customer who typed "samsng" knows the shop did not misfile its phones and that nothing here
+   is claimed to be exactly what they asked for. */
+var _mkNear = '';
+function paintMkNear_() {
+  var bar = document.getElementById('mkNearBar'), txt = document.getElementById('mkNearText');
+  if (!bar) return;
+  var on = !!_mkNear && (_mkFiltered || []).length > 0;
+  bar.classList.toggle('hidden', !on);
+  if (on && txt) txt.textContent = 'Hakuna kinacholingana kabisa na "' + _mkNear + '" – hivi ndivyo vilivyo karibu. / Nothing matches "' + _mkNear + '" exactly – these are the closest.';
 }
 function findVendor(name) { return _mkVendorByName[name] || null; }
 
@@ -1198,6 +1278,18 @@ function mkSales_(n) {
 }
 function mkTrust_(v) { return v ? [mkAge_(v.ageDays), v.sales == null ? '' : mkSales_(v.sales)].filter(Boolean).join(' · ') : ''; }
 
+/* ".../V1/P3-1.jpg?v=123&t=1" -> ".../V1/P3-1_t.jpg?v=123". The "&t=1" is the server's word that a
+   small copy was saved beside the photograph (uploadProductImage); without it the address is
+   returned as it is, which is every photo saved before small copies existed. */
+function mkThumb_(url) {
+  var m = /^(.*)\.(?:png|jpe?g|webp|gif)(\?v=\d+)&t=1$/i.exec(String(url || ''));
+  return m ? m[1] + '_t.jpg' + m[2] : url;
+}
+function mkPicFailed_(img) {
+  var full = img.getAttribute('data-full');
+  if (full && !img.getAttribute('data-tried') && img.getAttribute('src') !== full) { img.setAttribute('data-tried', '1'); img.src = full; return; }
+  if (img.parentNode) img.parentNode.removeChild(img);
+}
 function renderMarketPage() {
   var grid = document.getElementById('mkProductGrid'), wrap = document.getElementById('mkLoadMoreWrap'), list = _mkFiltered || [];
   if (!_mkLoaded) return;                       // still "Loading products…": nothing to say about it yet
@@ -1213,7 +1305,14 @@ function renderMarketPage() {
   var shown = Math.min(_mkShown, list.length), all = _market.products, html = '';
   for (var i = 0; i < shown; i++) {
     var p = list[i], gi = all.indexOf(p), img = p.image1 || p.image2 || p.image3, isRent = (p.listingType || 'Sale') === 'Rent', fav = isFav_(p.id);
-    var imgHtml = img ? '<div class="mk-img" style="background-image:url(\'' + BO.jsq(img) + '\');">' : '<div class="mk-img">🛍️';
+    /* A PICTURE THAT IS FETCHED WHEN IT IS LOOKED AT, AND SMALL. It was a background on the card,
+       which a browser fetches for every card the moment the list is drawn, at the full size of
+       the photograph. It is an <img> now: loading="lazy" leaves the ones further down the page
+       until they are scrolled to, and mkThumb_ asks for the 400px copy where the shop's photo
+       has one. If the small one will not load the photograph is tried; if that will not either,
+       the picture is taken away and the bag underneath shows -- never a broken-image icon. */
+    var imgHtml = '<div class="mk-img"><span class="mk-ph">🛍️</span>'
+      + (img ? '<img class="mk-pic" loading="lazy" decoding="async" alt="" src="' + esc(mkThumb_(img)) + '" data-full="' + esc(img) + '" onload="this.className+=\' ok\'" onerror="mkPicFailed_(this)">' : '');
     imgHtml += (p.stock > 0 ? '<span class="mk-stock">' + (isRent ? 'Available' : 'In stock') + '</span>' : '<span class="mk-stock out">' + (isRent ? 'Booked' : 'Out') + '</span>') + (p.hot ? '<span class="mk-fire">🔥 Hot</span>' : '')
       + '<button type="button" class="mk-ibtn mk-save' + (fav ? ' on' : '') + '" data-fav="' + esc(p.id) + '" aria-pressed="' + (fav ? 'true' : 'false') + '" aria-label="Save to Favorites" title="' + (fav ? 'Saved — tap to remove' : 'Save to Favorites') + '" onclick="toggleFav(event,' + gi + ')">' + MK_SAVE_SVG + '</button>'
       + '<button type="button" class="mk-ibtn mk-lens" aria-label="Find similar products" title="Find similar products" onclick="findSimilar(event,' + gi + ')">' + MK_LENS_SVG + '</button>'
@@ -1226,6 +1325,27 @@ function renderMarketPage() {
   if (wrap) wrap.innerHTML = remaining > 0 ? '<button class="btn-secondary" onclick="loadMoreMarket()" style="margin-top:14px;">Load more (' + remaining + ' more)</button>' : '';
 }
 function loadMoreMarket() { _mkShown += _mkPageSize; renderMarketPage(); }
+/* WHAT THE CUSTOMER SAYS FIRST. The message used to name the product and nothing else, in
+   English -- so every conversation began with the shop asking "which one, and did you see the
+   price?". It now carries the price the customer saw, and it is in Kiswahili unless they have
+   chosen English: the language of the EN/SW button when it has been pressed, otherwise
+   Kiswahili for a shop that prices in shillings and English for any other. One sentence, used
+   by the WhatsApp button and the SMS button alike. */
+function mkSpeaksSwahili_(p) {
+  /* A language button that was PRESSED is boLangPick. Before that was recorded, a press was kept
+     only as the page's language (boLang) -- and the page starts in English, so a stored "sw" can
+     only have come from a press and counts; a stored "en" may be the default and does not. */
+  var chosen = load('boLangPick') || (load('boLang') === 'sw' ? 'sw' : '');
+  return chosen ? chosen === 'sw' : (p.currency || 'TZS') === 'TZS';
+}
+function mkAskText_(p) {
+  /* A product with no price (0, or none given: a shop may list "ask me") does not say "at 0 TZS":
+     that tells the shop the customer expects it for nothing. The sentence simply leaves the price out. */
+  var price = Number(p.price) > 0 ? fmtFull(p.price) + ' ' + (p.currency || 'TZS') + (((p.listingType || 'Sale') === 'Rent' && p.priceUnit) ? ' ' + p.priceUnit : '') : '';
+  return mkSpeaksSwahili_(p)
+    ? 'Habari ' + p.vendor + ', nimeona "' + p.name + '"' + (price ? ' kwa ' + price : '') + ' kwenye soko la Samaritan Industrial. Je, bado ipo?'
+    : 'Hello ' + p.vendor + ', I saw "' + p.name + '"' + (price ? ' at ' + price : '') + ' on the Samaritan Industrial marketplace. Is it still available?';
+}
 function openProductDetail(idx) {
   var p = _market.products[idx]; if (!p) return;
   try { mk('click', { product_id: p.id }).catch(function () {}); } catch (e) {}
@@ -1239,26 +1359,33 @@ function openProductDetail(idx) {
   var acts = '<div class="pd-acts">'
     + '<button type="button" class="pd-act' + (fav ? ' on' : '') + '" data-fav="' + esc(p.id) + '" aria-pressed="' + (fav ? 'true' : 'false') + '" title="' + (fav ? 'Saved — tap to remove' : 'Save to Favorites') + '" onclick="toggleFav(event,' + idx + ')">' + MK_SAVE_SVG + '<span class="pd-act-lbl">' + (fav ? 'Saved' : 'Save') + '</span></button>'
     + '<button type="button" class="pd-act" title="Find similar products" onclick="findSimilar(event,' + idx + ')">' + MK_LENS_SVG + '<span>Similar products</span></button></div>';
-  var phone = digitsOnly(p.vendorPhone || v.phone || '');
-  var wa = phone ? '<a class="btn-primary" href="https://wa.me/' + phone + '?text=' + encodeURIComponent('Hello ' + p.vendor + ', I am interested in "' + p.name + '" I saw on the Samaritan Industrial marketplace.') + '" target="_blank" rel="noopener">📲 __WA__</a>' : '';
+  var phone = digitsOnly(p.vendorPhone || v.phone || ''), ask = mkAskText_(p);
+  // One contact button: its picture above its word (.pd-go), so four of them fit one line of a phone.
+  var reach = function (cls, id, href, title, ico, word, outside) {
+    return '<a class="' + cls + '" id="' + id + '" href="' + href + '"' + (outside ? ' target="_blank" rel="noopener"' : '') + ' title="' + title + '"><span class="pd-ico">' + ico + '</span><span class="pd-lbl">' + word + '</span></a>';
+  };
+  var wa = phone ? reach('btn-primary', 'pdWhatsApp', 'https://wa.me/' + phone + '?text=' + encodeURIComponent(ask), 'Andika kwa WhatsApp / Message the shop on WhatsApp', '📲', 'WhatsApp', true) : '';
+  /* NOT EVERYBODY HAS DATA. A customer with airtime and no bundle cannot open WhatsApp at all,
+     so the same number is offered as a call and as an SMS that already says what they want.
+     "sms:...?&body=" is the one spelling both Android and iPhone read. */
+  var ring = phone ? reach('btn-secondary', 'pdCall', 'tel:+' + phone, 'Piga simu / Call the shop', '📞', 'Call')
+    + reach('btn-secondary', 'pdSms', 'sms:+' + phone + '?&body=' + encodeURIComponent(ask), 'Tuma SMS / Send an SMS', '✉️', 'SMS') : '';
   /* WHERE THE SHOP IS. v.map is the pin the business gave (api/_lib/bo/place.js -- it can only be
      a Google Maps address, the server refuses anything else). A business that gave an address
      but no pin still gets a button, and it is honest about what it does: it searches the map
      for those words, which finds the area and not necessarily the door. */
   var pin = v.map || '', area = (!pin && v.address) ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(p.vendor + ', ' + v.address) : '';
-  var go = pin ? '<a class="btn-secondary" id="pdLocation" href="' + esc(pin) + '" target="_blank" rel="noopener" title="Open the shop in Google Maps">📍 Location</a>'
-    : area ? '<a class="btn-secondary" id="pdLocation" href="' + esc(area) + '" target="_blank" rel="noopener" title="Search the shop\'s address in Google Maps">📍 Location</a>' : '';
-  // Alone, the WhatsApp button says the whole thing. Beside Location, on one line of a phone, the short word.
-  wa = wa.replace('__WA__', go ? 'WhatsApp' : 'Contact seller on WhatsApp');
+  var go = pin ? reach('btn-secondary', 'pdLocation', esc(pin), 'Open the shop in Google Maps', '📍', 'Location', true)
+    : area ? reach('btn-secondary', 'pdLocation', esc(area), 'Search the shop\'s address in Google Maps', '📍', 'Location', true) : '';
   // The notes come first and the buttons last, because the buttons stay in view (.pd-go).
   var contact = '';
   if (!wa) contact += '<div class="alert-info" style="margin-top:6px;">This seller has not listed a contact number.</div>';
   if (area) contact += '<div class="small muted" style="margin-top:6px;">📍 Location searches the map for the shop\'s address — ask the seller to confirm the exact place.</div>';
-  if (wa || go) contact += '<div class="pd-go">' + wa + go + '</div>';
+  if (wa || go) contact += '<div class="pd-go' + (wa ? '' : ' pd-go-solo') + '">' + wa + go + ring + '</div>';
   document.getElementById('pdBody').innerHTML = imgs + acts
     + '<div style="font-size:.7rem;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.05em;">' + (isRent ? 'FOR RENT · ' : '') + esc(p.cat || 'General') + ((p.brand || p.model) ? ' · ' + esc([p.brand, p.model].filter(Boolean).join(' ')) : '') + '</div>'
     + '<div style="font-size:1.3rem;font-weight:800;color:var(--text);margin:2px 0 4px;">' + esc(p.name) + (p.hot ? ' <span style="font-size:.8rem;color:#EF4444;">🔥 Hot</span>' : '') + '</div>'
-    + '<div style="font-size:1.4rem;font-weight:800;font-family:var(--mono);color:var(--accent2);margin-bottom:6px;">' + fmtFull(p.price) + ' ' + esc(p.currency || 'TZS') + (isRent && p.priceUnit ? ' <span style="font-size:.85rem;color:var(--muted);">' + esc(p.priceUnit) + '</span>' : '') + '</div>'
+    + '<div id="pdPrice" style="font-size:1.4rem;font-weight:800;font-family:var(--mono);color:var(--accent2);margin-bottom:6px;">' + fmtFull(p.price) + ' ' + esc(p.currency || 'TZS') + (isRent && p.priceUnit ? ' <span style="font-size:.85rem;color:var(--muted);">' + esc(p.priceUnit) + '</span>' : '') + '</div>'
     + '<div style="font-size:.84rem;color:var(--text2);margin-bottom:12px;">' + (isRent ? (p.stock > 0 ? '✅ Available now' : '🔴 Currently booked out') : (p.stock > 0 ? ('✅ ' + p.stock + ' in stock') : '🔴 Currently out of stock')) + '</div>'
     + (p.location ? '<div style="font-size:.82rem;color:var(--text2);margin-bottom:12px;">📍 ' + esc(p.location) + '</div>' : '')
     + '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:6px;"><div style="font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Sold by</div><div style="font-weight:700;color:var(--text);">' + esc(p.vendor) + (v.businessType ? ' <span style="font-weight:500;color:var(--accent);font-size:.8rem;">· ' + esc(v.businessType) + '</span>' : '') + '</div>'

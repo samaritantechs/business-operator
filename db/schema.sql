@@ -600,6 +600,28 @@ create unique index if not exists app_releases_version_code_idx on app_releases 
 -- rather than trusting every future code path to remember.
 create unique index if not exists app_releases_one_current_idx on app_releases (is_current) where is_current;
 
+-- ------------------------------------------------------------------ pay numbers (Lipa Namba)
+-- The numbers a shop is paid on: shown to its sellers at the till when "Lipa Number" is chosen,
+-- and on the receipt of a sale paid that way. Never read by the public marketplace. `name` is
+-- the name the CUSTOMER'S phone shows before they enter their PIN -- the one thing that stops a
+-- payment going to a stranger. At most three per business (enforced in api/_lib/bo/paynumbers.js).
+create table if not exists pay_numbers (
+  id uuid primary key default gen_random_uuid(),
+  vendor_id uuid not null references vendors(id) on delete cascade,
+  network text not null,                        -- 'M-Pesa', 'Airtel Money', 'Mixx by Yas', a bank...
+  number text not null,                         -- digits only
+  name text not null,                           -- what the customer's phone shows
+  sort integer not null default 0,
+  created_at timestamptz not null default now()
+);
+-- UNIQUE, on purpose: a save is "delete the old list, insert the new one", and two of them at
+-- the same moment (an admin who taps Save twice on a slow line, two admins, or the database
+-- being asked to repeat an insert whose answer was lost) used to leave BOTH lists in the table,
+-- the retired number beside the real one under the same name. With one line allowed per place
+-- in the list, the second insert is refused whole and the till can only ever show one list.
+-- It also serves the till's read: this business's lines, in order.
+create unique index if not exists pay_numbers_vendor_sort_uq on pay_numbers (vendor_id, sort);
+
 -- =====================================================================================
 -- DATABASE-SIDE AGGREGATES -- "ask the database, don't drag rows" (the Postgres budget).
 -- Each has a JavaScript fallback in the code for a deployment that has not run this file yet.

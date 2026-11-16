@@ -228,7 +228,13 @@ window.BOProd = (function () {
       if (i >= slots.length) return null;
       var n = slots[i++];
       say('Uploading photo ' + i + ' of ' + slots.length + '…');
-      return srv('uploadProductImage', { product_id: productId, slot: Number(n), data_url: bag[n] }).then(next);
+      /* The small copy for the marketplace's cards is made here too, from the picture already
+         shrunk for upload. If the phone cannot draw it, the photo goes up without one. */
+      return new Promise(function (resolve) { BO.smallPicture(bag[n], 400, resolve); }).then(function (small) {
+        var a = { product_id: productId, slot: Number(n), data_url: bag[n] };
+        if (small) a.thumb_url = small;
+        return srv('uploadProductImage', a);
+      }).then(next);
     };
     return Promise.resolve(next());
   }

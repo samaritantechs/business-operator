@@ -229,7 +229,8 @@ test('hints: the marketplace tips with numeric timings; the built-in list when t
   // shopfront learnt next: saving, the lens, the Location button, age-and-sales, swiping a tip away
   // -- then two more: the way into the workspace for somebody who has a shop here, and that a
   // code saved as a picture lands in Downloads
-  assert.equal(dflt.hints.length, 13);
+  // -- and two for what came after: a search that understands both languages, and Call / SMS
+  assert.equal(dflt.hints.length, 15);
   for (const word of ['bookmark', 'lens', 'Location', 'how many sales', 'Swipe']) assert.ok(dflt.hints.some(h => h.en.includes(word)), 'no built-in marketplace tip mentions "' + word + '"');
   // The built-in marketplace tips are bilingual now: a visitor who reads Kiswahili gets Kiswahili.
   assert.ok(dflt.hints.every(h => typeof h.en === 'string' && h.en && typeof h.sw === 'string' && h.sw));

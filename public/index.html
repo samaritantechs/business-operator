@@ -82,6 +82,9 @@
 #mkMarketSection{scroll-margin-top:118px;}
 .mk-simbar{display:flex;align-items:center;gap:8px;background:var(--accent-lt);border:1px solid var(--border);color:var(--text);border-radius:12px;padding:8px 8px 8px 12px;margin-bottom:12px;font-size:.84rem;}
 .mk-simbar .mk-simtxt{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+/* The line that owns up to showing only the CLOSEST is a whole sentence in two languages, and the
+   words that matter ("the closest") are at its end: it wraps, at any width, instead of being cut. */
+.mk-simbar .mk-simtxt.mk-wrap{overflow:visible;text-overflow:clip;white-space:normal;overflow-wrap:anywhere;line-height:1.35;}
 .mk-simbar .mk-simx{margin-left:auto;flex-shrink:0;border:1px solid var(--border);background:var(--surface);color:var(--text2);border-radius:99px;padding:4px 11px;font-size:.76rem;font-weight:700;cursor:pointer;font-family:var(--font);}
 @media(max-width:768px){
   .mk-top{display:contents;}
@@ -131,6 +134,12 @@
 .mk-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;cursor:pointer;transition:transform .2s,box-shadow .2s,border-color .2s;display:flex;flex-direction:column;}
 .mk-card:hover{transform:translateY(-4px);box-shadow:var(--shadow-md);border-color:rgba(11,42,107,.28);}
 .mk-img{width:100%;aspect-ratio:1/1;background:var(--surface2);background-size:cover;background-position:center;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:2.4rem;position:relative;}
+/* The photo lies over the bag: until it has loaded, and if it never does, the bag is what shows.
+   The badges and the two buttons come after it in the card, so they stay on top of it. */
+.mk-pic{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;display:block;}
+/* Once the photograph is there the bag underneath has done its job: a cut-out with transparent
+   edges must show the card's own colour through it, not a shopping bag. */
+.mk-pic.ok{background:var(--surface2);}
 .mk-img .mk-stock{position:absolute;bottom:10px;right:8px;background:rgba(15,23,42,.78);color:#fff;font-size:.66rem;font-weight:600;padding:2px 8px;border-radius:99px;}
 .mk-img .mk-stock.out{background:rgba(180,35,24,.9);}
 .mk-fire{position:absolute;top:8px;left:8px;background:linear-gradient(135deg,#F97316,#EF4444);color:#fff;font-size:.66rem;font-weight:700;padding:2px 8px;border-radius:99px;box-shadow:0 2px 8px rgba(239,68,68,.4);}
@@ -157,10 +166,21 @@
 .pd-act{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text2);font-size:.8rem;font-weight:700;cursor:pointer;font-family:var(--font);}
 .pd-act svg{width:16px;height:16px;display:block;}
 .pd-act.on{color:#C2610C;border-color:#C2610C;}.pd-act.on svg{fill:currentColor;}
-.pd-go > a{flex:1 1 0;min-width:0;justify-content:center;text-align:center;white-space:nowrap;padding-left:8px;padding-right:8px;}
+.pd-go > a{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:6px 3px;line-height:1.15;text-align:center;text-decoration:none;}
+/* Four ways to reach the shop on ONE line of a phone, and every one says what it is: the picture
+   sits above its word. Four words side by side do not fit 360px (they squeezed each other out),
+   a button that is only a picture leaves the customer guessing which one costs airtime, and two
+   lines of buttons covered the price. The word shrinks a little on the narrowest phones rather
+   than be cut; the first size is for a browser too old to read the second. */
+.pd-go .pd-ico{font-size:1.05rem;line-height:1.2;}
+.pd-go .pd-lbl{font-size:.68rem;font-size:clamp(.62rem,3.1vw,.74rem);font-weight:700;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis;}
+.pd-go > a#pdWhatsApp{flex:1.3 1 0;}
+/* A shop with no number has one button, Location: on its own it reads as a line, like any button. */
+.pd-go.pd-go-solo > a{flex-direction:row;gap:6px;padding:10px 12px;}
+.pd-go.pd-go-solo .pd-lbl{font-size:.88rem;}
 /* How to reach the shop stays in view however long the product's page is: it is the one thing
    the customer came for, and on a phone it used to be a scroll away below the photo. */
-.pd-go{display:flex;gap:8px;margin-top:8px;position:sticky;bottom:-17px;z-index:2;background:var(--surface);padding:10px 0 12px;border-top:1px solid var(--border);}
+.pd-go{display:flex;gap:6px;margin-top:8px;position:sticky;bottom:-17px;z-index:2;background:var(--surface);padding:10px 0 12px;border-top:1px solid var(--border);}
 .mk-vgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;}
 .mk-vcard{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:18px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;transition:transform .2s,box-shadow .2s;}
 .mk-vcard:hover{transform:translateY(-3px);box-shadow:var(--shadow-md);}
@@ -295,6 +315,7 @@ html.bo-desktop .tb-vendor-badge{display:inline-block;}
     </div>
     <div class="mk-cats" id="mkCats"></div>
     <div id="mkSimBar" class="mk-simbar hidden"><span>🔎</span><span class="mk-simtxt" id="mkSimText"></span><button type="button" class="mk-simx" onclick="clearSimilar()">✕ Show all</button></div>
+    <div id="mkNearBar" class="mk-simbar hidden"><span>✍️</span><span class="mk-simtxt mk-wrap" id="mkNearText"></span></div>
     <div id="mkProductGrid" class="mk-grid"><div class="mk-empty">Loading products…</div></div>
     <div id="mkLoadMoreWrap" style="text-align:center;margin-top:6px;"></div>
   </section>
@@ -363,7 +384,7 @@ html.bo-desktop .tb-vendor-badge{display:inline-block;}
       <button class="back-mk" onclick="showLanding()">← Back to Marketplace</button>
       <div class="brand-row"><div class="brand-icon"><svg viewBox="0 0 100 100" fill="none"><path d="M63 22.1 A17 17 0 1 0 50 50" stroke="#FFFFFF" stroke-width="15" stroke-linecap="round" fill="none"/><path d="M50 50 A17 17 0 1 1 33.3 70" stroke="var(--brand-amber,#F0A020)" stroke-width="15" stroke-linecap="round" fill="none"/></svg></div><div><div class="brand-name">Samaritan Industrial</div><div class="brand-sub">Powered by <span class="st-wm">Samaritan<span>Techs</span></span></div></div></div>
       <div id="customLogoRow" class="custom-logo-row hidden"><img id="customLogoImg" src="" class="custom-logo-img" alt="Business Logo"></div>
-      <div class="translate-bar"><button class="lang-btn active" id="langEn" onclick="setLang('en')">🇬🇧 English</button><button class="lang-btn" id="langSw" onclick="setLang('sw')">🇹🇿 Kiswahili</button></div>
+      <div class="translate-bar"><button class="lang-btn active" id="langEn" onclick="setLang('en',true)">🇬🇧 English</button><button class="lang-btn" id="langSw" onclick="setLang('sw',true)">🇹🇿 Kiswahili</button></div>
       <div class="login-title" id="lbl_signin">Sign in to your account</div>
       <div class="login-sub" id="lbl_signin_sub">Enter your User ID or Email to access the system</div>
       <div id="loginFieldsWrap">
@@ -438,6 +459,20 @@ html.bo-desktop .tb-vendor-badge{display:inline-block;}
 .badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:.72rem;font-weight:600;white-space:nowrap;}.badge-ok,.badge-status.badge-ok{background:var(--accent2-lt);color:var(--accent2);border:1px solid rgba(6,118,71,.2);}.badge-low,.badge-status.badge-low{background:var(--amber-lt);color:var(--amber);border:1px solid rgba(146,64,14,.2);}.badge-out,.badge-status.badge-out{background:var(--rose-lt);color:var(--rose);border:1px solid rgba(180,35,24,.2);}.badge-status{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:.72rem;font-weight:600;white-space:nowrap;}.badge-active{background:var(--accent2-lt);color:var(--accent2);border:1px solid rgba(6,118,71,.2);}.badge-inactive{background:var(--rose-lt);color:var(--rose);border:1px solid rgba(180,35,24,.2);}.badge-admin,.badge-assistant-admin{background:var(--purple-lt);color:var(--purple);border:1px solid rgba(109,40,217,.2);}.badge-seller{background:var(--accent-lt);color:var(--accent);border:1px solid rgba(11,42,107,.18);}.badge-manager{background:var(--amber-lt);color:var(--amber);border:1px solid rgba(146,64,14,.2);}
 .section-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:20px;box-shadow:var(--shadow);overflow:hidden;}.section-hdr{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;}.section-hdr-title{font-size:.85rem;font-weight:700;color:var(--text);}.section-body{padding:20px;}
 .sale-tbl{width:100%;border-collapse:collapse;}.sale-tbl th{color:var(--muted);font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;padding:8px 10px;border-bottom:1px solid var(--border);font-weight:700;}.sale-tbl td{padding:6px 8px;}
+/* LIPA NAMBA: at the till (.pay-num), on the receipt (.rcpt-pay), and where the admin types them
+   (.pay-edit). The number is big and plain because it is read aloud across a counter. */
+.pay-num{background:var(--accent-lt);border:1px solid rgba(11,42,107,.18);border-radius:12px;padding:12px 14px;}
+.pay-num.pay-none{background:var(--surface2);border-color:var(--border);color:var(--text2);font-size:.82rem;}
+.pay-hd{font-size:.72rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--accent);margin-bottom:6px;}
+.pay-row{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;padding:4px 0;}
+/* Two or three numbers: a line between them, so the eye cannot give one number the next one's name. */
+.pay-row + .pay-row{border-top:1px dashed var(--border);margin-top:4px;padding-top:8px;}
+.pay-net{font-size:.8rem;font-weight:600;color:var(--text2);}.pay-row .pay-no{font-size:1.25rem;font-weight:700;color:var(--text);letter-spacing:.04em;}.pay-row .pay-name{font-size:.9rem;font-weight:700;color:var(--accent);}
+.pay-warn{margin-top:6px;font-size:.76rem;color:#92400E;}
+html[data-theme="dark"] .pay-warn{color:#FCD34D;}
+.pay-edit{display:grid;grid-template-columns:1.1fr 1fr 1.6fr;gap:8px;margin-bottom:8px;}
+@media(max-width:640px){.pay-edit{grid-template-columns:1fr 1fr;margin-bottom:12px;padding-bottom:12px;border-bottom:1px dashed var(--border);}.pay-edit .pay-name{grid-column:1/-1;}.pay-edit:last-child{border-bottom:none;padding-bottom:0;}}
+.rcpt-pay{margin-top:10px;padding-top:8px;border-top:1px dashed var(--border);font-size:.84rem;}
 /* THE TILL'S OWN ROW. Widths are here and not on the cells so a phone can take them back. */
 .sale-tbl .prodSelect{min-width:170px;}.sale-tbl td.sr-qty{width:80px;}.sale-tbl td.sr-price{width:130px;}.sale-tbl td.sr-disc,.sale-tbl td.sr-total{width:110px;}.sale-tbl .sr-off{display:none !important;}
 /* ON A PHONE A SALE LINE IS A CARD, NOT A ROW. Six columns do not fit in 300px: the quantity
@@ -642,6 +677,7 @@ body.bo-restricted .topbar{position:relative;z-index:260;}
      web address as text, which is still scannable by a human typing it. -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
 <script src="/bo/shell.js"></script>
+<script src="/bo/find.js"></script>
 <script src="/bo/dashboard.js"></script>
 <script src="/bo/sell.js"></script>
 <script src="/bo/lendings.js"></script>

@@ -193,6 +193,10 @@ const BUDGETS = [
   ['Boot (seller)',                   'bo', 'boot',             {},                                   SELLER,   7,     60,   7,    60],
   ['Boot (manager)',                  'bo', 'boot',             {},                                   MANAGER,  5,     40,   5,    40],
   ['Restriction poll (unrestricted)', 'bo', 'restrictionInfo',  {},                                   ADMIN,    0,      0,   0,     0],
+  /* Lipa Namba: asked for when a seller first chooses "Lipa Number" in a session, never on the
+     Sell screen's own load -- so the till opens exactly as fast as it did. One read, three rows
+     at the very most. */
+  ['Lipa Namba at the till',          'bo', 'payNumbers',       {},                                   SELLER,   1,      3,   1,     3],
   ['Dashboard (admin)',               'bo', 'dashboard',        {},                                   ADMIN,   10,   2000,   8,   600],
   ['Dashboard (seller)',              'bo', 'dashboard',        {},                                   SELLER,   4,    700,   4,   700],
   /* THE THREE THE GUARD CAUGHT. Every one of these read the whole of something to show a

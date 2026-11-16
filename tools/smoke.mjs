@@ -1029,6 +1029,216 @@ await step('a shop number typed as 07… comes back whole, and something that is
   console.log('       0712 345 678 -> ' + kept);
 });
 
+/* THE SHOPFRONT, AS A CUSTOMER MEETS IT: a search that understands either language and forgives
+   a slip, a first message that already says the price, a way to reach the shop without a data
+   bundle, and pictures that are fetched small and only when looked at. A fresh tab stands in
+   for the customer; the photographs (blocked in this sandbox) are answered with a tiny picture
+   so that what is ASKED FOR can be seen. */
+await step('the search understands both languages and a slip; the first message says the price; a card asks for the small photo', async () => {
+  await signIn('frank');
+  // A product photo with its small copy, saved the way the product form saves one.
+  const PNG1 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+  const saved = await page.evaluate(async png => {
+    const small = await new Promise(resolve => BO.smallPicture(png, 400, resolve));
+    const r = await BO.srv('uploadProductImage', { product_id: 'P1', slot: 1, data_url: png, thumb_url: small });
+    return { url: r.url, small: small.slice(0, 23) };
+  }, PNG1);
+  if (!/&t=1$/.test(saved.url) || saved.small !== 'data:image/jpeg;base64,') throw new Error('the photo was saved without its small copy: ' + JSON.stringify(saved));
+  await fetch(BASE + '/api/dev/forget-market', { method: 'POST' });
+
+  const shop = watch(await context.newPage());
+  const asked = [];
+  await shop.route(/^https?:\/\/(local\.invalid|drive\.google\.com)\//, r => { asked.push(r.request().url()); return r.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from(PNG1.split(',')[1], 'base64') }); });
+  await shop.setViewportSize({ width: 360, height: 760 });
+  await shop.goto(BASE + '/', { waitUntil: 'domcontentloaded' });
+  await shop.waitForSelector('#landingPage:not(.hidden) #mkProductGrid .mk-card', { timeout: 15000 });
+  await shop.evaluate(() => { stopHints(); toastHide_(); });
+  const cards = () => shop.evaluate(() => Array.from(document.querySelectorAll('#mkProductGrid .mk-card .mk-name')).map(e => e.textContent));
+  const type = async q => { await shop.fill('#mkSearch', q); await shop.evaluate(() => mkSearchInput()); await shop.waitForTimeout(60); return { names: await cards(), near: await shop.evaluate(() => !document.getElementById('mkNearBar').classList.contains('hidden')), note: await shop.evaluate(() => document.getElementById('mkNearText').textContent) }; };
+  const all = (await cards()).length;
+
+  const simu = await type('simu');                       // Kiswahili finds what the shop filed in English
+  if (!simu.names.length || simu.near || !simu.names.some(n => /Samsung|Phone|Galaxy/i.test(n))) throw new Error('"simu": ' + JSON.stringify(simu));
+  const two = await type('galaxy samsung');              // every word, any order
+  if (!two.names.length || !two.names.every(n => /Samsung/i.test(n) && /Galaxy/i.test(n))) throw new Error('"galaxy samsung": ' + JSON.stringify(two));
+  const slip = await type('samsng');                     // a slip of the thumb, and it says so
+  if (!slip.names.length || !slip.near || !/samsng/.test(slip.note) || !slip.names.every(n => /Samsung/i.test(n))) throw new Error('"samsng": ' + JSON.stringify(slip));
+  // The sentence that owns up to "only the closest" is read in full on a phone: it wraps, it is not cut off.
+  const nearLine = await shop.evaluate(() => { const t = document.getElementById('mkNearText'), cs = getComputedStyle(t); return { ws: cs.whiteSpace, cut: t.scrollWidth > t.clientWidth + 1 || t.scrollHeight > t.clientHeight + 1, h: Math.round(t.getBoundingClientRect().height), page: document.documentElement.scrollWidth, text: t.textContent }; });
+  if (nearLine.ws !== 'normal' || nearLine.cut || nearLine.h < 30 || nearLine.page > 360 || !/the closest\.$/.test(nearLine.text)) throw new Error('the closest line on a phone: ' + JSON.stringify(nearLine));
+  await shop.evaluate(() => document.getElementById('mkNearBar').scrollIntoView({ block: 'center' }));
+  await shop.waitForTimeout(500);                  // the page scrolls smoothly
+  await shop.screenshot({ path: OUT + '10d-closest-line.png' });
+  const none = await type('zzzqqq');
+  if (none.names.length || none.near) throw new Error('"zzzqqq" found: ' + JSON.stringify(none));
+  const back = await type('');
+  if (back.names.length !== all || back.near) throw new Error('clearing the box did not bring the shelf back: ' + back.names.length + ' of ' + all);
+
+  // The card of the product whose photo has a small copy asks for the SMALL one, lazily.
+  const pic = await shop.evaluate(() => { const i = Array.from(document.querySelectorAll('#mkProductGrid img.mk-pic')).find(x => /_t\.jpg/.test(x.getAttribute('src'))); return i ? { src: i.getAttribute('src'), lazy: i.getAttribute('loading'), full: i.getAttribute('data-full') } : null; });
+  if (!pic || pic.lazy !== 'lazy' || !/\/V1\/P1-1_t\.jpg\?v=\d+$/.test(pic.src) || !/\/V1\/P1-1\.png\?v=\d+&t=1$/.test(pic.full)) throw new Error('the card photo: ' + JSON.stringify(pic));
+  await shop.waitForFunction(() => { const i = document.querySelector('#mkProductGrid img.mk-pic'); return i && i.complete && i.naturalWidth > 0; }, null, { timeout: 8000 });
+  if (!(await shop.evaluate(() => /(^| )ok( |$)/.test(document.querySelector('#mkProductGrid img.mk-pic').className)))) throw new Error('a loaded photo did not take the card colour behind it (a transparent cut-out would show the bag)');
+  if (!asked.some(u => /P1-1_t\.jpg/.test(u)) || asked.some(u => /P1-1\.png/.test(u))) throw new Error('the grid fetched the photograph instead of the small copy: ' + JSON.stringify(asked.filter(u => /P1-1/.test(u))));
+
+  // Open that product: the first message is in Kiswahili and carries the price; Call and SMS are there.
+  await shop.evaluate(() => { const i = _market.products.findIndex(p => p.id === 'P1'); openProductDetail(i); });
+  await shop.waitForSelector(PD_OPEN + ' #pdWhatsApp', { timeout: 8000 });
+  const reach = () => shop.evaluate(() => { const g = id => (document.getElementById(id) || {}).getAttribute ? document.getElementById(id).getAttribute('href') : ''; const bar = document.querySelector('.pd-go'); const btns = Array.from(bar.children).map(a => { const b = a.getBoundingClientRect(), w = a.querySelector('.pd-lbl'); return { id: a.id, says: w ? w.textContent : '', cut: a.scrollWidth > a.clientWidth + 1 || !w || w.scrollWidth > w.clientWidth, top: Math.round(b.top), w: Math.round(b.width), h: Math.round(b.height) }; }); const cost = document.getElementById('pdPrice').getBoundingClientRect(), barBox = bar.getBoundingClientRect(); return { wa: g('pdWhatsApp'), call: g('pdCall'), sms: g('pdSms'), btns, fits: bar.scrollWidth <= bar.clientWidth + 1 && !btns.some(b => b.cut), priceInView: cost.bottom <= barBox.top + 1 && cost.top >= 0, page: document.documentElement.scrollWidth, price: _market.products.find(p => p.id === 'P1').price }; });
+  let r = await reach();
+  const said = decodeURIComponent(r.wa.split('?text=')[1] || '');
+  if (!/^https:\/\/wa\.me\/255\d{9}\?text=/.test(r.wa) || !/^Habari Fromville Phones, nimeona "/.test(said) || said.indexOf(Number(r.price).toLocaleString('en-US') + ' TZS') === -1) throw new Error('the WhatsApp message: ' + r.wa + ' => ' + said);
+  if (!/^tel:\+255\d{9}$/.test(r.call) || !/^sms:\+255\d{9}\?&body=Habari/.test(r.sms)) throw new Error('Call / SMS: ' + JSON.stringify([r.call, r.sms]));
+  // Four buttons on ONE line of a 360px phone, a word on each, none of them cut -- and the price still in view above them.
+  if (!r.fits || r.page > 360) throw new Error('the contact bar does not fit a 360px phone: ' + JSON.stringify(r.btns));
+  if (r.btns.map(b => b.says).join('|') !== 'WhatsApp|Location|Call|SMS') throw new Error('the contact buttons say: ' + r.btns.map(b => b.says).join('|'));
+  if (new Set(r.btns.map(b => b.top)).size !== 1 || r.btns.some(b => b.w < 48 || b.h < 40)) throw new Error('the contact buttons are not one line of thumb-sized buttons: ' + JSON.stringify(r.btns));
+  if (!r.priceInView) throw new Error('the contact buttons cover the price on a 360x760 phone');
+  if (!asked.some(u => /P1-1\.png/.test(u))) throw new Error('the detail view did not show the full photograph');
+  await shop.screenshot({ path: OUT + '10c-product-contact.png' });
+  // The customer presses the language button: from then on it is English.
+  await shop.evaluate(() => { closeModal('productDetailModal'); toggleLang(); toggleLang(); toastHide_(); const i = _market.products.findIndex(p => p.id === 'P1'); openProductDetail(i); });
+  await shop.waitForSelector(PD_OPEN + ' #pdWhatsApp', { timeout: 8000 });
+  r = await reach();
+  if (!/^Hello Fromville Phones, I saw "/.test(decodeURIComponent(r.wa.split('?text=')[1] || ''))) throw new Error('after choosing English the message is still: ' + decodeURIComponent(r.wa.split('?text=')[1] || ''));
+  await shop.evaluate(() => { localStorage.removeItem('boLangPick'); });
+  await shop.close();
+  console.log('       simu -> ' + simu.names.length + ' · samsng -> ' + slip.names.length + ' (closest) · "' + said.slice(0, 58) + '…"');
+});
+
+/* LIPA NAMBA, the whole way round: the admin writes the number down once, the seller's till says
+   it with the name the customer must see, and the receipt of a sale paid that way carries it. */
+await step('the shop\'s Lipa Namba is said at the till with the name to check, and printed on the receipt', async () => {
+  await signIn('mama');
+  await page.evaluate(() => { stopHints(); toastHide_(); switchTab('users'); });
+  await page.waitForSelector('#payNumRows .pay-edit', { timeout: 10000 });
+  // A number with no name is refused, in words.
+  await page.fill('#payNumRows .pay-edit:nth-child(1) .pay-net', 'M-Pesa');
+  await page.fill('#payNumRows .pay-edit:nth-child(1) .pay-no', '555 123');
+  await page.click('#payNumSave');
+  await page.waitForFunction(() => /name the customer/.test(document.getElementById('hintText').textContent), null, { timeout: 8000 });
+  await page.fill('#payNumRows .pay-edit:nth-child(1) .pay-name', 'MAMA NTILIE GROCERY');
+  await page.evaluate(() => toastHide_());
+  // A thumb on a slow line taps Save three times. One save goes out, and the button comes back when it is done.
+  let saves = 0; const countSaves = q => { if (/\/api\/bo/.test(q.url()) && /"setPayNumbers"/.test(q.postData() || '')) saves++; };
+  page.on('request', countSaves);
+  await page.evaluate(() => { const b = document.getElementById('payNumSave'); b.click(); b.click(); b.click(); });
+  await page.waitForFunction(() => /Saved/.test(document.getElementById('payNumMsg').textContent), null, { timeout: 8000 });
+  page.off('request', countSaves);
+  if (saves !== 1) throw new Error('three taps on Save sent ' + saves + ' saves');
+  if (await page.evaluate(() => document.getElementById('payNumSave').disabled)) throw new Error('the Save button did not come back after the save');
+  /* WHEN THE SAVE DOES NOT GO THROUGH. (The dev database has no unique index, so the answers are played.)
+     Somebody else's list won (409): the message says so and the editor is brought to what is saved.
+     Anything else: what was typed stays, and Save comes back to send it again. */
+  const editorNumbers = () => page.evaluate(() => Array.from(document.querySelectorAll('#payNumRows .pay-edit .pay-no')).map(i => i.value).join(','));
+  const toastText = () => page.evaluate(() => document.getElementById('hintText').textContent);
+  await page.fill('#payNumRows .pay-edit:nth-child(1) .pay-no', '999888');
+  let mode = '409';
+  await page.route('**/api/bo', r => {
+    const body = r.request().postData() || '';
+    if (/"setPayNumbers"/.test(body)) return mode === '409'
+      ? r.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'Somebody else saved the pay numbers at the same moment. The list on your screen has been refreshed.' }) })
+      : r.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'The database is briefly unreachable.' }) });
+    return r.continue();
+  });
+  await page.evaluate(() => toastHide_());
+  await page.click('#payNumSave');
+  await page.waitForFunction(() => /Somebody else saved/.test(document.getElementById('hintText').textContent), null, { timeout: 8000 });
+  await page.waitForFunction(() => { const b = document.getElementById('payNumSave'); return b && !b.disabled && document.querySelector('#payNumRows .pay-edit .pay-no').value === '555123'; }, null, { timeout: 8000 });
+  mode = '500';
+  await page.fill('#payNumRows .pay-edit:nth-child(1) .pay-no', '999888');
+  await page.evaluate(() => toastHide_());
+  await page.click('#payNumSave');
+  await page.waitForFunction(() => /briefly unreachable/.test(document.getElementById('hintText').textContent), null, { timeout: 8000 });
+  await page.waitForFunction(() => { const b = document.getElementById('payNumSave'); return b && !b.disabled; }, null, { timeout: 8000 });
+  if ((await editorNumbers()).split(',')[0] !== '999888') throw new Error('a failed save threw away what was typed: ' + await editorNumbers());
+  await page.unroute('**/api/bo');
+  await page.fill('#payNumRows .pay-edit:nth-child(1) .pay-no', '555123');          // back to the real number for the steps below
+  /* A SAVE STILL ON ITS WAY WHEN SOMEBODY ELSE SIGNS IN (a shared shop phone, a slow line). Its answer
+     must not become the next person's till, nor fill their editor. The sign-out and the next sign-in
+     are played by changing the session the page holds while the answer is held back. */
+  let release; const heldBack = new Promise(res => { release = res; });
+  await page.route('**/api/bo', async r => { if (/"setPayNumbers"/.test(r.request().postData() || '')) await heldBack; return r.continue(); });
+  const myToken = await page.evaluate(() => S.token);
+  await page.evaluate(() => { document.getElementById('payNumSave').click(); });
+  await page.evaluate(() => { S.token = 'another-business'; S.payNums = null; });
+  release();
+  await page.waitForTimeout(900);
+  const leaked = await page.evaluate(() => ({ held: S.payNums, msg: document.getElementById('payNumMsg').textContent }));
+  await page.evaluate(t => { S.token = t; }, myToken);                               // back to the real session
+  await page.unroute('**/api/bo');
+  if (leaked.held !== null || /Saved/.test(leaked.msg)) throw new Error('a save that finished after somebody else signed in reached them: ' + JSON.stringify(leaked));
+  if ((await page.inputValue('#payNumRows .pay-edit:nth-child(1) .pay-no')) !== '555123') throw new Error('the saved number was not shown back as stored');
+
+  const till = async shot => {
+    await page.evaluate(() => { toastHide_(); BO.reload('sale'); switchTab('sale'); });
+    await page.waitForSelector('#payMethod', { timeout: 10000 });
+    await page.selectOption('#payMethod', 'Lipa Number');
+    await page.waitForSelector('#payNumWrap .pay-no', { timeout: 8000 });
+    const shown = await page.evaluate(() => ({ text: document.getElementById('payNumWrap').innerText.replace(/\s+/g, ' '), wide: document.documentElement.scrollWidth > window.innerWidth }));
+    if (shot) { await page.locator('#payNumWrap').scrollIntoViewIfNeeded(); await page.screenshot({ path: OUT + shot }); }
+    await page.selectOption('#payMethod', 'Cash');
+    const hidden = await page.evaluate(() => document.getElementById('payNumWrap').style.display === 'none');
+    return { shown, hidden };
+  };
+  let t = await till('10-lipa-namba-till.png');
+  if (!/M-Pesa/.test(t.shown.text) || !/555123/.test(t.shown.text) || !/MAMA NTILIE GROCERY/.test(t.shown.text) || !/before entering the PIN/.test(t.shown.text) || !t.hidden || t.shown.wide) throw new Error('the admin\'s till: ' + JSON.stringify(t));
+
+  // A sale paid that way, and its receipt.
+  await page.evaluate(async () => { const o = await BO.srv('productOptions', {}); const p = o.products.find(x => !x.is_serialized && x.stock > 0); await BO.srv('recordSale', { items: [{ product_id: p.id, qty: 1, price: p.price }], payment_method: 'Lipa Number' }); });
+  await newestReceipt(page);
+  await page.waitForSelector('#rcptSheet .rcpt-pay', { timeout: 8000 });
+  const rc = await page.evaluate(() => ({ sheet: document.querySelector('#rcptSheet .rcpt-pay').innerText, text: BORcpt.asText() }));
+  if (!/M-Pesa 555123 – MAMA NTILIE GROCERY/.test(rc.sheet) || !/Lipa Namba: M-Pesa 555123 – MAMA NTILIE GROCERY/.test(rc.text)) throw new Error('the receipt of a Lipa sale: ' + JSON.stringify(rc));
+  await page.screenshot({ path: OUT + '10b-lipa-namba-receipt.png' });
+  await page.evaluate(() => BO.closeDialog());
+
+  // The seller of that shop sees the same number -- and has no box to change it in.
+  await signIn('pili');
+  t = await till();
+  if (!/555123/.test(t.shown.text) || !/MAMA NTILIE GROCERY/.test(t.shown.text)) throw new Error('the seller\'s till: ' + JSON.stringify(t));
+  if (await page.evaluate(() => !!document.getElementById('payNumSave'))) throw new Error('a seller was offered the pay-number editor');
+  /* THE TILL HAS BEEN OPEN ALL DAY, AND THE ADMIN CORRECTS THE NUMBER FROM THE OFFICE. Within the
+     minute the till shows what it holds (it does not ask the database on every sale); once the
+     minute has passed it asks again and shows the corrected number. A wrong number that went on
+     showing until somebody signed out is the one thing this must never do. */
+  const office = await browser.newContext({ viewport: { width: 420, height: 900 } });
+  const desk = watch(await office.newPage());
+  await signInOn(desk, 'mama');
+  await desk.evaluate(() => BO.srv('setPayNumbers', { numbers: [{ network: 'M-Pesa', number: '777999', name: 'MAMA NTILIE GROCERY' }] }));
+  await office.close();
+  const choose = async () => {
+    await page.selectOption('#payMethod', 'Cash');
+    await page.selectOption('#payMethod', 'Lipa Number');
+    await page.waitForSelector('#payNumWrap .pay-no, #payNumWrap .pay-none', { timeout: 8000 });
+    return page.evaluate(() => document.getElementById('payNumWrap').innerText.replace(/\s+/g, ' '));
+  };
+  const asks = [];
+  page.on('request', q => { if (/\/api\/bo/.test(q.url()) && /"payNumbers"/.test(q.postData() || '')) asks.push(1); });
+  const within = await choose();
+  if (!/555123/.test(within) || asks.length) throw new Error('within the minute the till asked again (' + asks.length + ') or lost its number: ' + within);
+  await page.evaluate(() => { S.payNums.at -= 61000; });           // ...a minute later
+  const after = await choose();
+  if (!/777999/.test(after) || /555123/.test(after) || asks.length !== 1) throw new Error('a minute later the till still says: ' + after + ' (asked ' + asks.length + ')');
+  // The line drops: the till shows what it knew, and does not say the shop has no number.
+  await page.route('**/api/bo', r => (/"payNumbers"/.test(r.request().postData() || '') ? r.abort() : r.continue()));
+  await page.evaluate(() => { S.payNums.at -= 61000; });
+  const offline = await choose();
+  if (!/777999/.test(offline)) throw new Error('with the line down the till lost the number it knew: ' + offline);
+  // ...and a till that never had it says it could not load it -- not that none is saved.
+  await page.evaluate(() => { S.payNums = null; });
+  const never = await choose();
+  if (!/Could not load the Lipa Namba/.test(never) || /No Lipa Namba is saved/.test(never)) throw new Error('a till that could not ask says: ' + never);
+  await page.unroute('**/api/bo');
+  // Another business sees none of it.
+  await signIn('frank');
+  await page.evaluate(() => { BO.reload('sale'); switchTab('sale'); });
+  await page.waitForSelector('#payMethod', { timeout: 10000 });
+  await page.selectOption('#payMethod', 'Lipa Number');
+  await page.waitForFunction(() => /No Lipa Namba is saved yet/.test(document.getElementById('payNumWrap').textContent), null, { timeout: 8000 });
+  console.log('       saved once by the admin · at the till: "' + t.shown.text.slice(0, 70) + '…" · on the receipt and in Copy/Share');
+});
+
 /* THE UPDATE NOTICE, driven the way a phone drives it. There is no APK in this browser, so
    window.SamaritanApp is faked -- everything after that is the real code: the real dialog, the
    real bar, the real localStorage. What is being proved is the part that was wrong before:
